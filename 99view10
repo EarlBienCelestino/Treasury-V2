@@ -1,0 +1,172 @@
+
+<script src="<?=base_url()?>new/jquery.dataTables.min.js"></script>
+<link rel="stylesheet" href="<?=base_url()?>new/jquery.dataTables.min.css">
+
+<?php 
+
+
+echo '
+<link href="'.base_url().'new/select2.min.css" rel="stylesheet">
+<script src="'.base_url().'new/select2.min.js"></script>';
+
+$rs=$this->db->where('id',99)->get('scm_settings')->result();
+foreach($rs as $row) { $title=$row->caption;} 
+//$title='setup';
+$var='var '.$fld[0].'=$("#'.$fld[0].'").val();';
+$post=$fld[0].':'.$fld[0];
+for($a=1;$a<count($fld);$a++) {
+    $var.='var '.$fld[$a].'=$("#'.$fld[$a].'").val();';
+    $post.=','.$fld[$a].':'.$fld[$a];
+}
+
+?>
+
+<title><?=$title?></title>
+<br />
+<div class="container-fluid">
+
+<div id="xsearch" class="row"  >
+    
+<div class="input-group mb-1 input-group-sm col-sm-3"> 
+<div class="input-group-prepend"> <span class="input-group-text"><?=$title?></span></div> 
+<input type="text" class="form-control " id="qs" onchange="list2()" >
+    </div>
+
+<div class="input-group mb-1 input-group-sm col-sm-3"> 
+<div class="input-group-prepend"> <span class="input-group-text">Date Start</span></div>
+<input type="date" class="form-control " id="ds" value="<?=date('Y-m-d')?>"> </div>
+
+<div class="input-group mb-1 input-group-sm col-sm-3"> 
+<div class="input-group-prepend"> <span class="input-group-text">Date End</span></div>
+<input type="date" class="form-control " id="de" value="<?=date('Y-m-d')?>"> </div> 
+
+<div class="input-group mb-1 input-group-sm col-sm-3"> 
+<input type="button" class="form-control " value="View" onclick="filters()"> 
+<input type="button" class="form-control " value="Add" onclick="addrec()"> </div>   
+
+<input type="hidden" id="seq" value="0">   
+
+            </div>   
+<div id="forms"></div>
+</div>
+
+<script>
+
+
+
+function  exits(){var datas=[$("#ds").val(),$("#de").val()];
+$.ajax({url:"<?=base_url('99/dashboard/list')?>",
+        method:"POST",
+        data:{datas:datas},
+success:function(data){  
+$("#forms").empty(); $("#forms").html(data);    
+} 
+}); 
+} 
+    
+function exitsx(){
+    $.ajax({url:"<?=base_url('99/dashboard/list')?>",
+            method:"POST",data:{search:$("#search").val()},
+    success:function(data) {  
+    //$("#forms").empty();
+        $("#forms").html(data);    
+    } 
+ }); 
+} 
+    
+$(document).ready(function(){ 
+
+$('#trn_list').DataTable();
+$('#xsearch').show();
+
+function  list(){var datas=[$("#ds").val(),$("#de").val()];
+$.ajax({url:"<?=base_url('99/dashboard/list')?>",
+        method:"POST",
+        data:{datas:datas},
+success:function(data){  
+$("#forms").empty(); $("#forms").html(data);    
+} 
+}); 
+} 
+
+list();    
+
+$("#search").on("keyup", function() { list(); });
+
+}); 
+
+function  edit_recs(id) {
+    
+
+    $.ajax({url:"<?=base_url("99/dashboard/edit_rec")?>",
+    method:"POST", 
+    data:{id:id},
+        success:function(data) { 
+            $("#xsearch").hide();  
+            $("#forms").html(data); 
+        } 
+    });  
+} 
+    
+function addrec() { 
+$.ajax({url:"<?=base_url('99/dashboard/addrec')?>",
+method:"POST",
+dataType:"json",
+data:{},
+success:function(data) { edit_recs(data.id); } });  
+
+}
+    
+//function  exits() {list(); }  
+//    
+//function  exitsz() {list(); }  
+
+function filters() {
+    list();
+}
+    
+    function list() {var datas=[$("#ds").val(),$("#de").val()];
+$.ajax({url:"<?=base_url('99/dashboard/list')?>",
+        method:"POST",
+        data:{datas:datas},
+success:function(data) { 
+    $("#forms").empty(); 
+    $("#forms").html(data);
+    $("#xsearch").show();
+} }); 
+    
+} 
+    
+
+function  list2() {var qs=$("#qs").val();
+    
+$.ajax({url:"<?=base_url('99/dashboard/list2')?>",method:"POST",data:{qs:qs},
+success:function(data) 
+{  
+$("#forms").empty(); $("#forms").html(data);    
+} 
+}); 
+} 
+
+function xsave_rec() {
+<?=$var?>
+    
+$.ajax({url:"<?=base_url('99/dashboard/save_rec')?>",
+dataType:"json",
+method:"POST",
+data:{<?=$post?>},
+success:function(data) 
+ {
+     if(data.sw==0) {
+         alert(data.msg); 
+         exits();$("#xsearch").show(); 
+     }
+     else {
+         alert(data.msg);$("#name").focus(); 
+     }
+ }
+}); 
+
+}     
+
+</script>         

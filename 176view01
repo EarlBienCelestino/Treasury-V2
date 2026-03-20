@@ -1,0 +1,293 @@
+
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css">
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
+
+<?php  
+$title=$this->db->where('id',176)->get('scm_settings')->row('caption');    
+
+?>
+
+<title><?=$title?></title>
+<br />
+<input type="hidden"   id="id" value=0 />
+<div class="container-fluid">
+    
+    <div id="xsearch" class="row"  >
+        <div  class="col-sm-4"  >
+            <?php
+    
+                    echo '                    
+                    <div class="input-group mb-1 input-group-sm ">
+                    <div class="input-group-prepend"> <span class="input-group-text">'.$title.'</span></div> 
+                    </div>                    
+                                       
+                    <div class="input-group mb-1 input-group-sm ">
+                    
+                    <input type="text" class="form-control " id="qs" placeholder="Quick Search" oninput="qsDebounced()" autocomplete="off" />
+                    </div>                   
+                                       
+                    <div class="input-group mb-1 input-group-sm ">
+                    <div class="input-group-prepend"> <span class="input-group-text">Start</span></div>
+                    <input type="text" class="form-control " id="ds" value="select date" autocomplete="off" /></div>                   
+                                       
+                    <div class="input-group mb-1 input-group-sm ">
+                    <div class="input-group-prepend"> <span class="input-group-text">End</span></div>
+                    <input type="date" class="form-control " id="de" value="'.date('Y-m-d').'" /></div>    
+                    
+                    '; 
+            ?>                     
+                    <div class="input-group mb-1 input-group-sm ">
+                        <input type="button" class="form-control " value ="View" onclick="View()"  />
+                        <input type="button" class="form-control " value ="Add" onclick="add()"  />
+                        <input type="button" class="form-control " value ="Clear" onclick="exits()"  />
+                    </div>
+
+                    <div id="forms" style="display:none;">
+                        <div id="add_form" class="card-body p-0 mt-2" style="display:none;">
+                            <div class="input-group mb-1 input-group-sm">
+                                <div class="input-group-prepend"><span class="input-group-text">Particulars</span></div>
+                                <textarea class="form-control" id="add_particulars" rows="4" required></textarea>
+                            </div>
+                            <div class="input-group mb-1 input-group-sm">
+                                <div class="input-group-prepend"><span class="input-group-text">DR Amount</span></div>
+                                <input type="number" class="form-control" id="add_am_dr" step="0.01" required>
+                            </div>
+                            <div class="input-group mb-1 input-group-sm">
+                                <div class="input-group-prepend"><span class="input-group-text">CR Amount</span></div>
+                                <input type="number" class="form-control" id="add_am_cr" step="0.01" required>
+                            </div>
+                            <div class="input-group mb-1 input-group-sm">
+                                <div class="input-group-prepend"><span class="input-group-text">Voucher No</span></div>
+                                <input type="text" class="form-control" id="add_no_ref" required>
+                            </div>
+                            <div class="input-group mb-1 input-group-sm">
+                                <div class="input-group-prepend"><span class="input-group-text">Ref Date</span></div>
+                                <input type="date" class="form-control" id="add_dt_refdoc" required>
+                            </div>
+                            <div class="input-group mb-1 input-group-sm">
+                                <div class="input-group-prepend"><span class="input-group-text">Ref No</span></div>
+                                <input type="text" class="form-control" id="add_no_refdoc" required>
+                            </div>
+                            <div class="input-group mb-1 input-group-sm">
+                                <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Finalize" onclick="finalizeAdd()">
+                                <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Close" onclick="closeAddForm()">
+                            </div>
+                        </div>
+                    </div>
+        
+    </div>
+    
+    <div id="list" class="col-sm-8" ></div>
+    </div> 
+
+    <div id="form_entry" ></div>
+</div>
+
+<script> 
+    
+    
+function add() { 
+    showAddForm();
+}  
+
+var qsTimer = null;
+
+function qsDebounced() {
+    clearTimeout(qsTimer);
+    qsTimer = setTimeout(function() {
+        var val = $("#qs").val().trim();
+        if(val === "") { 
+            list(); 
+        } else { 
+            qs(); 
+        }
+    }, 300);
+}
+
+function setupStartDateInput() {
+    var $ds = $("#ds");
+    if($ds.val() === "") { $ds.val("select date"); }
+    if($ds.val() === "select date") { $ds.attr("type","text"); }
+
+    $ds.on("focus", function() {
+        if(this.value === "select date") { this.value = ""; }
+        this.type = "date";
+    });
+
+    $ds.on("blur", function() {
+        if(!this.value) {
+            this.type = "text";
+            this.value = "select date";
+        }
+    });
+}
+
+function getStartDateValue() {
+    var dsVal = $("#ds").val();
+    if(dsVal === "select date") { return ""; }
+    return dsVal;
+}
+
+function showAddForm() {
+    $("#form_entry").empty();
+    $("#forms").show();
+    $("#add_form").show();
+    resetAddForm();
+}
+
+function resetAddForm() {
+    $("#add_particulars").val("");
+    $("#add_am_dr").val("");
+    $("#add_am_cr").val("");
+    $("#add_no_ref").val("");
+    $("#add_dt_refdoc").val("");
+    $("#add_no_refdoc").val("");
+}
+
+function closeAddForm() {
+    $("#add_form").hide();
+    $("#forms").hide();
+    resetAddForm();
+}
+
+function finalizeAdd() {
+    var particulars = $("#add_particulars").val().trim();
+    var amDr = $("#add_am_dr").val().trim();
+    var amCr = $("#add_am_cr").val().trim();
+    var noRef = $("#add_no_ref").val().trim();
+    var dtRef = $("#add_dt_refdoc").val().trim();
+    var noRefDoc = $("#add_no_refdoc").val().trim();
+
+    if(particulars === "" || amDr === "" || amCr === "" || noRef === "" || dtRef === "" || noRefDoc === "" 
+        || isNaN(parseFloat(amDr)) || isNaN(parseFloat(amCr))){
+        alert("complete all the fields first");
+        return;
+    }
+    $.ajax({
+        url:"<?=base_url('176/dashboard/add_save')?>",
+        dataType:"json",
+        method:"POST",
+        data:{
+            particulars: particulars,
+            am_dr: amDr,
+            am_cr: amCr,
+            no_ref: noRef,
+            dt_refdoc: dtRef,
+            no_refdoc: noRefDoc
+        },
+        success:function(data){
+            if(!data || data.ok === 0){
+                alert((data && data.msg) ? data.msg : "complete all the fields first");
+                return;
+            }
+            alert("record saved...");
+            closeAddForm();
+            list();
+        }
+    });
+}
+
+function  View() {
+    list() ;
+}
+    
+function  qs() {
+    $.ajax({url:"<?=base_url('176/dashboard/list2')?>",method:"POST",data:{
+        qs:$("#qs").val()  
+        
+    },success:function(data) {  
+         $("#form_entry").empty(); 
+        $("#list").html(data); 
+        $("#xsearch").show();   
+         } 
+        }); 
+} 
+    
+function  list() {
+    $.ajax({url:"<?=base_url('176/dashboard/list')?>",method:"POST",data:{
+        qs:$("#qs").val() 
+        ,ds:getStartDateValue() 
+        ,de:$("#de").val() 
+        
+    },success:function(data) {  
+         $("#form_entry").empty(); 
+        $("#list").html(data); 
+        $("#xsearch").show();   
+         } 
+        }); 
+} 
+
+$(document).ready(function(){
+setupStartDateInput();
+list();
+
+
+$("#User_rights").select2({ajax: {   
+url: "<?=base_url('176/dashboard/User_rights')?>",
+type: "post", dataType: "json",  delay: 250,  data: function (params) { return { searchTerm: params.term  };  },processResults: function (response) {  return { results: response  };  },  cache: true   }}); 
+
+
+$("#dept").select2({ajax: {   
+url: "<?=base_url('176/dashboard/dept')?>",
+type: "post", dataType: "json",  delay: 250,  data: function (params) { return { searchTerm: params.term  };  },processResults: function (response) {  return { results: response  };  },  cache: true   }}); 
+
+$("#Branch").select2({ajax: {   
+url: "<?=base_url('176/dashboard/Branch')?>",
+type: "post", dataType: "json",  delay: 250,  data: function (params) { return { searchTerm: params.term  };  },processResults: function (response) {  return { results: response  };  },  cache: true   }}); 
+
+var userid=$("#userid").val();
+    
+$("#userid").select2({ajax: {   
+url: "<?=base_url('176/dashboard/userid')?>",
+type: "post", dataType: "json",  delay: 250,  data: function (params) { return { searchTerm: params.term,userid:userid  };  },processResults: function (response) {  return { results: response  };  },  cache: true   }}); 
+    
+    
+$("#upload_form").on("submit", function(e){
+e.preventDefault();
+if($("#image_file").val() == "") { alert("Please Select the File"); }
+else
+{ $.ajax({
+url:"<?=base_url('176/dashboard/ajax_upload')?>", 
+method:"POST",
+dataType:"json",
+data:new FormData(this),
+contentType: false,
+cache: false,
+processData:false,
+success:function(data)
+{ $("#uploaded_image").html(data.img); $("#DSR_Photo").val(data.fnm); }
+});
+}
+});
+    
+$('#trn_list').DataTable();
+$("#entry").hide();  
+    
+$("#search").on("keyup", function() { list(); });
+
+});
+    
+function  exits() { closeAddForm(); list(); }  
+    
+function save() {
+    var datas=[ $("#id").val(),$("#code").val(),$("#name").val()];
+    var name=$("#name").val(); 
+        
+    if(confirm("save record now?")==true) { 
+        $.ajax({url:"<?=base_url('176/dashboard/save')?>",
+        dataType:"json",
+        method:"POST",
+        data:{datas:datas},
+        success:function(data){
+                    alert("record saved..."); 
+                    exits(); 
+                }
+        });             
+    } 
+}  
+
+</script>         

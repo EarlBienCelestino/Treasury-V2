@@ -1,0 +1,2043 @@
+<?php
+defined('BASEPATH') OR exit('No direct script access allowed');
+
+class Dashboard extends CI_Controller {
+
+public function __construct() {
+    
+    parent::__construct();	
+    $this->load->helper('form'); 
+    $this->load->model('user_model');
+    $this->load->model( 'Recordset' );
+    $this->load->helper('url', 'form'); 
+    
+    if(!$this->session->userdata('user_id'))  { redirect('user/login');  }      
+}
+
+function index() { 
+    
+    $uid=$_SESSION['user_id'];
+    
+    $this->load->view("header");
+    
+    $ur = 
+    
+    $data['title']=$this->db->where( 'id', 423 )->get( 'scm_settings' )->row( 'caption');
+    $data['ur']=$this->db->where( 'userid', $uid )->get( 'scm_user' )->row( 'User_rights');
+    $data['fld']=$this->db->list_fields('collh');
+    $data['xurl']=base_url('423/dashboard');
+    
+    $this->load->view("423/view",$data);    
+        
+    if($this->Recordset->ac_chk(423)==0){ redirect('dashboard/index'); } 
+    
+    
+}    
+
+function list() { 
+    
+$fld2=$this->db->list_fields('collh');    
+$sw=$_POST['qs']; 
+    
+$mod=explode(',','
+,Deposit
+,Out-checks
+,Bounced
+,Nullified
+,Pull-outs
+,Cleared
+,Check Register
+');
+    
+echo '
+<input type="hidden" id="title" value="'.$mod[$sw].'" />
+<script>
+
+info_list('.$sw.');
+
+function info_list(sw){ 
+var datas=[sw,$("#qsd").val(),$("#ds").val(),$("#de").val() ,$("#title").val() ];
+$.ajax({url:"'.base_url("423/dashboard/info_list").'" , 
+method:"POST", data:{datas:datas},success:function(data) { 
+    $("#listing").html(data);
+} });  
+
+}
+
+</script>
+';  
+
+if($sw==7) { 
+    
+echo ' 
+<br>
+<div   id="xsearch"  >    
+<div class="row"  >    
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="text" class="form-control " id="qsd" placeholder="Quick Search" onchange="qsd()"> </div>                   
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">Start</span></div>
+                <input type="date" class="form-control " id="ds" value="'.date('Y-m-d').'"></div> 
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">End</span></div>
+                <input type="date" class="form-control " id="de" value="'.date('Y-m-d').'"></div> 
+
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="button" class="form-control " value="View" onclick="View()">
+            <input type="button" class="form-control " value="Add" onclick="add()">
+            <input type="button" class="form-control " value="Clear" onclick="qs()">
+        </div>
+        
+        
+    <div class="col-sm-12" id="listing" >  </div>      
+    
+</div>
+';
+}  
+
+if($sw==6) { 
+    
+echo ' 
+<br>
+<div   id="xsearch"  >    
+<div class="row"  >    
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="text" class="form-control " id="qsd" placeholder="Quick Search" onchange="qsd()"> </div>                   
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">Start</span></div>
+                <input type="date" class="form-control " id="ds" value="'.date('Y-m-d').'"></div> 
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">End</span></div>
+                <input type="date" class="form-control " id="de" value="'.date('Y-m-d').'"></div> 
+
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="button" class="form-control " value="View" onclick="View()">
+            <input type="button" class="form-control " value="Add" onclick="add()">
+            <input type="button" class="form-control " value="Clear" onclick="qs()">
+        </div>
+        
+        
+    <div class="col-sm-12" id="listing" >  </div>      
+    
+</div>
+';
+}  
+
+if($sw==5) { 
+    
+echo ' 
+<br>
+<div   id="xsearch"  >    
+<div class="row"  >    
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="text" class="form-control " id="qsd" placeholder="Quick Search" onchange="qsd()"> </div>                   
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">Start</span></div>
+                <input type="date" class="form-control " id="ds" value="'.date('Y-m-d').'"></div> 
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">End</span></div>
+                <input type="date" class="form-control " id="de" value="'.date('Y-m-d').'"></div> 
+
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="button" class="form-control " value="View" onclick="View()">
+            <input type="button" class="form-control " value="Add" onclick="add()">
+            <input type="button" class="form-control " value="Clear" onclick="qs()">
+        </div>
+        
+        
+    <div class="col-sm-12" id="listing" >  </div>      
+    
+</div>
+';
+}   
+
+if($sw==4) { 
+    
+echo ' 
+<br>
+<div   id="xsearch"  >    
+<div class="row"  >    
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="text" class="form-control " id="qsd" placeholder="Quick Search" onchange="qsd()"> </div>                   
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">Start</span></div>
+                <input type="date" class="form-control " id="ds" value="'.date('Y-m-d').'"></div> 
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">End</span></div>
+                <input type="date" class="form-control " id="de" value="'.date('Y-m-d').'"></div> 
+
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="button" class="form-control " value="View" onclick="View()">
+            <input type="button" class="form-control " value="Add" onclick="add()">
+            <input type="button" class="form-control " value="Clear" onclick="qs()">
+        </div>
+        
+        
+    <div class="col-sm-12" id="listing" >  </div>      
+    
+</div>
+';
+}   
+
+if($sw==3) { 
+    
+echo ' 
+<br>
+<div   id="xsearch"  >    
+<div class="row"  >    
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="text" class="form-control " id="qsd" placeholder="Quick Search" onchange="qsd()"> </div>                   
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">Start</span></div>
+                <input type="date" class="form-control " id="ds" value="'.date('Y-m-d').'"></div> 
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">End</span></div>
+                <input type="date" class="form-control " id="de" value="'.date('Y-m-d').'"></div> 
+
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="button" class="form-control " value="View" onclick="View()">
+            <input type="button" class="form-control " value="Add" onclick="add()">
+            <input type="button" class="form-control " value="Clear" onclick="qs()">
+        </div>
+        
+        
+    <div class="col-sm-12" id="listing" >  </div>      
+    
+</div>
+';
+}    
+
+if($sw==2) { 
+    
+echo ' 
+<br>
+<div   id="xsearch"  >    
+<div class="row"  >    
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="text" class="form-control " id="qsd" placeholder="Quick Search" onchange="qsd()"> </div>                   
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">Start</span></div>
+                <input type="date" class="form-control " id="ds" value="'.date('Y-m-d').'"></div> 
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">End</span></div>
+                <input type="date" class="form-control " id="de" value="'.date('Y-m-d').'"></div> 
+
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="button" class="form-control " value="View" onclick="View()">
+            <input type="button" class="form-control " value="Add" onclick="add()">
+            <input type="button" class="form-control " value="Clear" onclick="qs()">
+        </div>
+        
+        
+    <div class="col-sm-12" id="listing" >  </div>      
+    
+</div>
+';
+}     
+
+if($sw==1) { 
+    
+echo ' 
+<br>
+<div   id="xsearch"  >    
+<div class="row"  >    
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="text" class="form-control " id="qsd" placeholder="Quick Search" onchange="qsd()"> </div>                   
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">Start</span></div>
+                <input type="date" class="form-control " id="ds" value="'.date('Y-m-d').'"></div> 
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">End</span></div>
+                <input type="date" class="form-control " id="de" value="'.date('Y-m-d').'"></div> 
+
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="button" class="form-control " value="View" onclick="View()">
+            <input type="button" class="form-control " value="Add" onclick="add()">
+            <input type="button" class="form-control " value="Clear" onclick="qs()">
+        </div>
+        
+        
+    <div class="col-sm-12" id="listing" >  </div>      
+    
+</div>
+';
+}   
+
+if($sw==0) { 
+    
+echo ' 
+<br>
+<div   id="xsearch"  >    
+<div class="row"  >    
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="text" class="form-control " id="qsd" placeholder="Quick Search" onchange="info_list('.$sw.')"> </div>                   
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">Start</span></div>
+                <input type="date" class="form-control " id="ds" value="'.date('Y-m-d').'"></div> 
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <div class="input-group-prepend"> <span class="input-group-text">End</span></div>
+                <input type="date" class="form-control " id="de" value="'.date('Y-m-d').'"></div> 
+
+
+        <div class="input-group mb-1 input-group-sm col-sm-3">
+            <input type="button" class="form-control " value="View" onclick="info_list('.$sw.')">
+            <input type="button" class="form-control " value="Add" onclick="add()">
+            <input type="button" class="form-control " value="Clear" onclick="info_list('.$sw.')">
+        </div>        
+        
+    <div class="col-sm-12" id="listing" >  </div>      
+    
+</div>';
+    
+} 
+    
+}
+    
+function info_list() {
+    
+    $tmp=$_POST['datas'];
+    echo '<br>';
+    print_r($tmp);
+    $sw=$tmp[0];
+    $qs=$tmp[1];
+    $title=$tmp[4];
+        
+        $ds=$tmp[2];
+        $de=$tmp[3];
+    
+    $th2=$td2=$th=$td='';
+    
+    if($sw==7){
+    $thl=explode(',','
+    #
+    ,Bank Account
+    ,Check#
+    ,Check Date
+    ,Payee
+    ,Amount
+    ');
+    for($a=0;$a<count($thl);$a++){ $th.='<th>'.$thl[$a].'</th>'; } 
+echo '
+<script>
+
+$(document).ready(function() {  
+
+var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]}); 
+$("#tbl_list tbody").on("click", "tr", function () { 
+    var data = table.row( this ).data();  dep_edit(data); 
+});
+
+
+
+function dep_edit(dat){   
+    $.ajax({url:"'.base_url('423/dashboard/edit/').'" + dat[0],method:"POST",data:{
+        id:dat[0]
+        
+    },success:function(data) {  
+             $("#xsearch").hide(); 
+             $("#form_entry").empty();  
+             $("#form_entry").html(data);   
+         } 
+        });        
+        
+}   
+
+}); 
+ 
+
+</script>
+
+
+
+<div class="container-fluid"> 
+  <br>  
+  <ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#home">'.$title.' List</a></li> 
+  </ul>
+
+    <!-- Tab panes -->
+    <div class="tab-content">
+        <div id="home" class="container-fluid tab-pane active"><br> 
+            <table id="tbl_list" class="display nowrap" style="width:100%" >
+            <thead> <tr>'.$th.'</tr> </thead> 
+            <tbody>'.$td.'</tbody>
+            </table>
+        </div>  
+    </div>  
+</div> 
+
+';
+    
+}
+    
+    if($sw==6){
+    $thl=explode(',','
+    #
+    ,Date
+    ,CC#
+    
+    ,Ref# 
+    ,Cutoff
+    ,Total
+    ');
+    for($a=0;$a<count($thl);$a++){ $th.='<th>'.$thl[$a].'</th>'; }
+    
+    $thl2=explode(',','
+    #
+    ,Bank
+    ,Check#
+    ,Check Date
+    ,Account#
+    ,Branch
+    ,Type
+    ,Customer
+    ,Amount
+    ');
+    
+    for($a=0;$a<count($thl2);$a++){ $th2.='<th>'.$thl2[$a].'</th>'; }
+echo '
+<script>
+
+$(document).ready(function() {  
+
+var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]});
+var table2 = $("#tbl_list2").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]});
+
+$("#tbl_list tbody").on("click", "tr", function () { 
+    var data = table.row( this ).data();  dep_edit(data); 
+});
+
+
+
+function dep_edit(dat){   
+    $.ajax({url:"'.base_url('423/dashboard/edit/').'" + dat[0],method:"POST",data:{
+        id:dat[0]
+        
+    },success:function(data) {  
+             $("#xsearch").hide(); 
+             $("#form_entry").empty();  
+             $("#form_entry").html(data);   
+         } 
+        });        
+        
+}   
+
+}); 
+ 
+
+</script>
+
+
+
+<div class="container-fluid"> 
+  <br>  
+  <ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#home">'.$title.' List</a></li> 
+  </ul>
+
+    <!-- Tab panes -->
+    <div class="tab-content">
+        <div id="home" class="container-fluid tab-pane active"><br> 
+            <table id="tbl_list" class="display nowrap" style="width:100%" >
+            <thead> <tr>'.$th.'</tr> </thead> 
+            <tbody>'.$td.'</tbody>
+            </table>
+        </div>  
+    </div> 
+      <br>  
+      <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#home2">Check List</a></li> 
+      </ul>
+
+      <!-- Tab panes -->
+    <div class="tab-content">
+        <div id="home2" class="container-fluid tab-pane active"><br> 
+            <table id="tbl_list2" class="display nowrap" style="width:100%" >
+            <thead> <tr>'.$th2.'</tr> </thead> 
+            <tbody>'.$td2.'</tbody>
+            </table>
+        </div>  
+    </div> 
+</div> 
+
+';
+    
+} 
+    
+    if($sw==5){
+    $thl=explode(',','
+    #
+    ,Date
+    ,PC#
+    ,Ref# 
+    ,Customer
+    ,Salesman
+    ,Total
+    ');
+    for($a=0;$a<count($thl);$a++){ $th.='<th>'.$thl[$a].'</th>'; }
+    
+    $thl2=explode(',','
+    #
+    ,Bank
+    ,Check#
+    ,Check Date
+    ,Account#
+    ,Branch
+    ,Type
+    ,Customer
+    ,Amount
+    ');
+    
+    for($a=0;$a<count($thl2);$a++){ $th2.='<th>'.$thl2[$a].'</th>'; }
+echo '
+<script>
+
+$(document).ready(function() {  
+
+var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]});
+var table2 = $("#tbl_list2").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]});
+
+$("#tbl_list tbody").on("click", "tr", function () { 
+    var data = table.row( this ).data();  dep_edit(data); 
+});
+
+
+
+function dep_edit(dat){   
+    $.ajax({url:"'.base_url('423/dashboard/edit/').'" + dat[0],method:"POST",data:{
+        id:dat[0]
+        
+    },success:function(data) {  
+             $("#xsearch").hide(); 
+             $("#form_entry").empty();  
+             $("#form_entry").html(data);   
+         } 
+        });        
+        
+}   
+
+}); 
+ 
+
+</script>
+
+
+
+<div class="container-fluid"> 
+  <br>  
+  <ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#home">'.$title.' List</a></li> 
+  </ul>
+
+    <!-- Tab panes -->
+    <div class="tab-content">
+        <div id="home" class="container-fluid tab-pane active"><br> 
+            <table id="tbl_list" class="display nowrap" style="width:100%" >
+            <thead> <tr>'.$th.'</tr> </thead> 
+            <tbody>'.$td.'</tbody>
+            </table>
+        </div>  
+    </div> 
+      <br>  
+      <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#home2">Check List</a></li> 
+      </ul>
+
+      <!-- Tab panes -->
+    <div class="tab-content">
+        <div id="home2" class="container-fluid tab-pane active"><br> 
+            <table id="tbl_list2" class="display nowrap" style="width:100%" >
+            <thead> <tr>'.$th2.'</tr> </thead> 
+            <tbody>'.$td2.'</tbody>
+            </table>
+        </div>  
+    </div> 
+</div> 
+
+';
+    
+}
+    
+    if($sw==4){
+    $thl=explode(',','
+    #
+    ,Date
+    ,NC#
+    ,Ref# 
+    ,Customer
+    ,Salesman
+    ,Total
+    ');
+    for($a=0;$a<count($thl);$a++){ $th.='<th>'.$thl[$a].'</th>'; }
+    
+    $thl2=explode(',','
+    #
+    ,Bank
+    ,Check#
+    ,Check Date
+    ,Account#
+    ,Branch
+    ,Type
+    ,Customer
+    ,Amount
+    ');
+    
+    for($a=0;$a<count($thl2);$a++){ $th2.='<th>'.$thl2[$a].'</th>'; }
+echo '
+<script>
+
+$(document).ready(function() {  
+
+var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]});
+var table2 = $("#tbl_list2").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]});
+
+$("#tbl_list tbody").on("click", "tr", function () { 
+    var data = table.row( this ).data();  dep_edit(data); 
+});
+
+
+
+function dep_edit(dat){   
+    $.ajax({url:"'.base_url('423/dashboard/edit/').'" + dat[0],method:"POST",data:{
+        id:dat[0]
+        
+    },success:function(data) {  
+             $("#xsearch").hide(); 
+             $("#form_entry").empty();  
+             $("#form_entry").html(data);   
+         } 
+        });        
+        
+}   
+
+}); 
+ 
+
+</script>
+
+
+
+<div class="container-fluid"> 
+  <br>  
+  <ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#home">'.$title.' List</a></li> 
+  </ul>
+
+    <!-- Tab panes -->
+    <div class="tab-content">
+        <div id="home" class="container-fluid tab-pane active"><br> 
+            <table id="tbl_list" class="display nowrap" style="width:100%" >
+            <thead> <tr>'.$th.'</tr> </thead> 
+            <tbody>'.$td.'</tbody>
+            </table>
+        </div>  
+    </div> 
+      <br>  
+      <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#home2">Check List</a></li> 
+      </ul>
+
+      <!-- Tab panes -->
+    <div class="tab-content">
+        <div id="home2" class="container-fluid tab-pane active"><br> 
+            <table id="tbl_list2" class="display nowrap" style="width:100%" >
+            <thead> <tr>'.$th2.'</tr> </thead> 
+            <tbody>'.$td2.'</tbody>
+            </table>
+        </div>  
+    </div> 
+</div> 
+
+';
+    
+}
+    
+    if($sw==3){
+    $thl=explode(',','
+    #
+    ,Date
+    ,BC#
+    ,Party
+    ,Ref# 
+    ,Total
+    ');
+    for($a=0;$a<count($thl);$a++){ $th.='<th>'.$thl[$a].'</th>'; }
+    
+    $thl2=explode(',','
+    #
+    ,Bank
+    ,Check#
+    ,Check Date
+    ,Account#
+    ,Branch
+    ,Type
+    ,Customer
+    ,Amount
+    ');
+    
+    for($a=0;$a<count($thl2);$a++){ $th2.='<th>'.$thl2[$a].'</th>'; }
+echo '
+<script>
+
+$(document).ready(function() {  
+
+var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]});
+var table2 = $("#tbl_list2").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]});
+
+$("#tbl_list tbody").on("click", "tr", function () { 
+    var data = table.row( this ).data();  dep_edit(data); 
+});
+
+
+
+function dep_edit(dat){   
+    $.ajax({url:"'.base_url('423/dashboard/edit/').'" + dat[0],method:"POST",data:{
+        id:dat[0]
+        
+    },success:function(data) {  
+             $("#xsearch").hide(); 
+             $("#form_entry").empty();  
+             $("#form_entry").html(data);   
+         } 
+        });        
+        
+}   
+
+}); 
+ 
+
+</script>
+
+
+
+<div class="container-fluid"> 
+  <br>  
+  <ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#home">'.$title.' List</a></li> 
+  </ul>
+
+    <!-- Tab panes -->
+    <div class="tab-content">
+        <div id="home" class="container-fluid tab-pane active"><br> 
+            <table id="tbl_list" class="display nowrap" style="width:100%" >
+            <thead> <tr>'.$th.'</tr> </thead> 
+            <tbody>'.$td.'</tbody>
+            </table>
+        </div>  
+    </div> 
+      <br>  
+      <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#home2">Check List</a></li> 
+      </ul>
+
+      <!-- Tab panes -->
+    <div class="tab-content">
+        <div id="home2" class="container-fluid tab-pane active"><br> 
+            <table id="tbl_list2" class="display nowrap" style="width:100%" >
+            <thead> <tr>'.$th2.'</tr> </thead> 
+            <tbody>'.$td2.'</tbody>
+            </table>
+        </div>  
+    </div> 
+</div> 
+
+';
+    
+}
+    
+    if($sw==2){
+    $thl=explode(',','
+    #
+    ,Date
+    ,OC#
+    ,Party
+    ,Ref# 
+    ,Total
+    ');
+    for($a=0;$a<count($thl);$a++){ $th.='<th>'.$thl[$a].'</th>'; }
+    
+    $thl2=explode(',','
+    #
+    ,Bank
+    ,Check#
+    ,Check Date
+    ,Account#
+    ,Branch
+    ,Type
+    ,Customer
+    ,Amount
+    ');
+    
+    for($a=0;$a<count($thl2);$a++){ $th2.='<th>'.$thl2[$a].'</th>'; }
+echo '
+<script>
+
+$(document).ready(function() {  
+
+var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]});
+var table2 = $("#tbl_list2").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]});
+
+$("#tbl_list tbody").on("click", "tr", function () { 
+    var data = table.row( this ).data();  dep_edit(data); 
+});
+
+
+
+function dep_edit(dat){   
+    $.ajax({url:"'.base_url('423/dashboard/edit/').'" + dat[0],method:"POST",data:{
+        id:dat[0]
+        
+    },success:function(data) {  
+             $("#xsearch").hide(); 
+             $("#form_entry").empty();  
+             $("#form_entry").html(data);   
+         } 
+        });        
+        
+}   
+
+}); 
+ 
+
+</script>
+
+
+
+<div class="container-fluid"> 
+  <br>  
+  <ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#home">'.$title.' List</a></li> 
+  </ul>
+
+    <!-- Tab panes -->
+    <div class="tab-content">
+        <div id="home" class="container-fluid tab-pane active"><br> 
+            <table id="tbl_list" class="display nowrap" style="width:100%" >
+            <thead> <tr>'.$th.'</tr> </thead> 
+            <tbody>'.$td.'</tbody>
+            </table>
+        </div>  
+    </div> 
+      <br>  
+      <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#home2">Check List</a></li> 
+      </ul>
+
+      <!-- Tab panes -->
+    <div class="tab-content">
+        <div id="home2" class="container-fluid tab-pane active"><br> 
+            <table id="tbl_list2" class="display nowrap" style="width:100%" >
+            <thead> <tr>'.$th2.'</tr> </thead> 
+            <tbody>'.$td2.'</tbody>
+            </table>
+        </div>  
+    </div> 
+</div> 
+
+';
+    
+}
+    
+    if($sw==11){
+    $thl=explode(',','
+    #
+    ,Date
+    ,DS#
+    ,Bank
+    ,Ref#
+    ,Cash
+    ,Checks
+    ,Total
+    ');
+    for($a=0;$a<count($thl);$a++){ $th.='<th>'.$thl[$a].'</th>'; }
+    
+    $thl2=explode(',','
+    #
+    ,Bank
+    ,Check#
+    ,Check Date
+    ,Account#
+    ,Branch
+    ,Type
+    ,Customer
+    ,Amount
+    ');
+    
+    for($a=0;$a<count($thl2);$a++){ $th2.='<th>'.$thl2[$a].'</th>'; }
+echo '
+<script>
+
+$(document).ready(function() {  
+
+var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]});
+var table2 = $("#tbl_list2").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]});
+
+$("#tbl_list tbody").on("click", "tr", function () { 
+    var data = table.row( this ).data();  dep_edit(data); 
+});
+
+
+
+function dep_edit(dat){   
+    $.ajax({url:"'.base_url('423/dashboard/edit/').'" + dat[0],method:"POST",data:{
+        id:dat[0]
+        
+    },success:function(data) {  
+             $("#xsearch").hide(); 
+             $("#form_entry").empty();  
+             $("#form_entry").html(data);   
+         } 
+        });        
+        
+}   
+
+}); 
+ 
+
+</script>
+
+
+
+<div class="container-fluid"> 
+  <br>  
+  <ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#home">'.$title.' List</a></li> 
+  </ul>
+
+    <!-- Tab panes -->
+    <div class="tab-content">
+        <div id="home" class="container-fluid tab-pane active"><br> 
+            <table id="tbl_list" class="display nowrap" style="width:100%" >
+            <thead> <tr>'.$th.'</tr> </thead> 
+            <tbody>'.$td.'</tbody>
+            </table>
+        </div>  
+    </div>  
+</div> 
+
+';
+    
+}
+    
+    if($sw==1){
+        
+    $thl=explode(',','
+    #
+    ,Date
+    ,P.R.# 
+    ,Ref#
+    ,Customer
+    ,Salesman    
+    ,Cash
+    ,Checks
+    ,Total
+    ,Type
+    ,Date Settle
+    ,Settle #
+    ');
+        
+    for($a=0;$a<count($thl);$a++){ $th.='<th>'.$thl[$a].'</th>'; } 
+        if(strlen($qs)>0){ $this->db->like('concat(code,date_,ref_no)',$qs);}
+        else { $this->db ->where('date_>=',$ds); $this->db ->where('date_<=',$de);}
+        $rs=$this->db 
+            ->limit(50)
+            ->get('collh')
+            ->result();
+        
+       $td='';
+        foreach($rs as $row){
+            $td.='
+            <tr>
+            <td>'.$row->id.'</td>
+            <td>'.$row->date_.'</td>
+            <td>'.$row->code.'</td>
+            <td>'.$row->ref_no.'</td>
+            <td>'.$row->customer.'</td>
+            <td>'.$row->salesman.'</td>
+            <td>'.$row->cash.'</td>
+            <td>'.$row->check.'</td>
+            <td>'.$row->total.'</td>
+            <td>'.$row->type_.'</td>
+            <td>'.$row->dt_settle.'</td>
+            <td>'.$row->no_settle.'</td>
+            </tr>
+            ';
+        }
+        
+echo '
+<script>
+
+$(document).ready(function() {  
+
+var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]}); 
+
+$("#tbl_list tbody").on("click", "tr", function () { 
+    var data = table.row( this ).data();  dep_edit(data); 
+});
+
+function dep_edit(dat){   
+    $.ajax({url:"'.base_url('423/dashboard/edit/').'" + dat[0],method:"POST",data:{
+        id:dat[0],sw:'.$sw.'
+        
+    },success:function(data) {  
+             $("#xsearch").hide(); 
+             $("#form_entry").empty();  
+             $("#form_entry").html(data);   
+         } 
+        }); 
+}   
+
+}); 
+ 
+
+</script>
+
+
+
+<div class="container-fluid"> 
+  <br>  
+  <ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#home">'.$title.' List</a></li> 
+  </ul>
+
+    <!-- Tab panes -->
+    <div class="tab-content">
+        <div id="home" class="container-fluid tab-pane active"><br> 
+            <table id="tbl_list" class="display nowrap" style="width:100%" >
+            <thead> <tr>'.$th.'</tr> </thead> 
+            <tbody>'.$td.'</tbody>
+            </table>
+        </div>  
+    </div>  
+</div> 
+
+';
+    
+}
+    
+    if($sw==0){
+        
+    $thl=explode(',','
+    #
+    ,Date
+    ,P.R.# 
+    ,Ref#
+    ,Customer
+    ,Salesman    
+    ,Cash
+    ,Checks
+    ,Total
+    ,Type
+    ,Date Settle
+    ,Settle #
+    ');
+        
+    for($a=0;$a<count($thl);$a++){ $th.='<th>'.$thl[$a].'</th>'; } 
+        if(strlen($qs)>0){ $this->db->like('concat(code,date_,ref_no)',$qs);}
+        else { $this->db ->where('date_>=',$ds); $this->db ->where('date_<=',$de);}
+        $rs=$this->db 
+            ->limit(50)
+            ->get('collh')
+            ->result();
+        
+       $td='';
+        foreach($rs as $row){
+            $td.='
+            <tr>
+            <td>'.$row->id.'</td>
+            <td>'.$row->date_.'</td>
+            <td>'.$row->code.'</td>
+            <td>'.$row->ref_no.'</td>
+            <td>'.$row->customer.'</td>
+            <td>'.$row->salesman.'</td>
+            <td>'.$row->cash.'</td>
+            <td>'.$row->check.'</td>
+            <td>'.$row->total.'</td>
+            <td>'.$row->type_.'</td>
+            <td>'.$row->dt_settle.'</td>
+            <td>'.$row->no_settle.'</td>
+            </tr>
+            ';
+        }
+        
+echo '
+<script>
+
+$(document).ready(function() {  
+
+var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]}); 
+
+$("#tbl_list tbody").on("click", "tr", function () { 
+    var data = table.row( this ).data();  dep_edit(data); 
+});
+
+function dep_edit(dat){   
+
+var datas=[dat[0],'.$sw.'];
+    $.ajax({url:"'.base_url('423/dashboard/edit/').'" + dat[0],method:"POST",data:{
+        datas:datas
+        
+    },success:function(data) {  
+             $("#xsearch").hide(); 
+             $("#form_entry").empty();  
+             $("#form_entry").html(data);   
+         } 
+        }); 
+}   
+
+}); 
+ 
+
+</script>
+
+
+
+<div class="container-fluid"> 
+  <br>  
+  <ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#home">'.$title.' List</a></li> 
+  </ul>
+
+    <!-- Tab panes -->
+    <div class="tab-content">
+        <div id="home" class="container-fluid tab-pane active"><br> 
+            <table id="tbl_list" class="display nowrap" style="width:100%" >
+            <thead> <tr>'.$th.'</tr> </thead> 
+            <tbody>'.$td.'</tbody>
+            </table>
+        </div>  
+    </div>  
+</div> 
+
+';
+    
+}
+    
+}
+    
+function list2() { 
+$fld2=$this->db->list_fields('collh');    
+    $qs=$_POST['qs'];
+    
+$rs=$this->db 
+    //->where('active',$yn)
+    //->like('name',$str) 
+    ->like('concat(code,date_)',$qs)
+    ->where('ty_tran','02')
+    
+    //->where('month(date_)>',11)
+    ->limit(10)
+    ->get('collh') 
+    ->result_array();
+    
+$fld=$this->db->list_fields('collh'); 
+
+    //print_r($fld);
+    $th=''; 
+    for($a=0;$a < count($fld) ;$a++) {
+        $xfld=explode('_',$fld[$a]);
+        $fldx=$fld[$a];
+        if($a!=2){
+            if(count($xfld)==2){ $fldx=$xfld[1]; }
+        }
+        $th.='<th>'.strtoupper($fldx).'</th>'; 
+    }
+    
+    
+$td=''; 
+$fld=$this->db->list_fields('collh'); 
+foreach($rs as $row) {  
+    {
+        
+    
+
+    $td.='<tr>' ; 
+        
+    for($a=0;count($fld)> $a;$a++)     {
+         $datafld=$row[$fld[$a]];
+        
+        
+        $td.='<td>'.$row[$fld[$a]].'</td>'; 
+             
+    }
+        
+    $td.='</tr>' ;
+    }
+   
+}
+     $datafld='';  for($a=0;$a<count($fld);$a++) { $datafld.='$("#'.$fld[$a].'").val(data.'.$fld[$a].'); '; }
+echo '
+<script>
+
+$(document).ready(function() 
+{ 
+var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]});
+
+$("#tbl_list tbody").on("click", "tr", function () 
+{ var data = table.row( this ).data();  dep_edit(data); });
+
+
+
+function dep_edit(dat){   
+    $.ajax({url:"'.base_url('423/dashboard/edit/').'" + dat[0],method:"POST",data:{
+        id:dat[0]
+        
+    },success:function(data) {  
+             $("#xsearch").hide(); 
+             $("#form_entry").empty();  
+             $("#form_entry").html(data);   
+         } 
+        });        
+        
+}   
+
+});
+
+</script>
+
+<table id="tbl_list" class="display nowrap" style="width:100%" > <thead> <tr>'.$th.'</tr> </thead> <tbody>'.$td.'</tbody></table>';
+    
+} 
+    
+function del_rec() {
+    $id=$_POST['id'];
+    $this->db->where('id',$id)->delete('collh');
+}
+    
+function ddelrec() {
+    $id=$_POST['seq'];
+    $this->db->where('seq',$id)->delete('colld');
+} 
+
+function save() {
+    $tmp=$_POST['datas'];
+    
+    
+    $fld=$this->db->list_fields('collh');
+    
+    $data=array();
+    $id=$tmp[0];
+     $data['code']=$tmp[1];
+     $data['name']=$tmp[2];
+    
+    
+    if($id==0) {
+        $this->db->insert('collh', $data);
+        } 
+        else { 
+            $this->db->where('id', $id)->update('collh',$data); 
+            
+        } 
+    
+    echo json_encode($data); 
+    
+} 
+
+function add() {
+    
+    $rs=$this->db
+        ->order_by('code','desc')
+        ->limit(1)
+        ->get('collh')->result_array();
+    $seq=2600;
+    if(count($rs)>0){
+        $code=explode('-',$rs[0]['code']);
+        $seq+=intval($code[1]) + 1;
+    }
+    
+    $code=$data['code']='JOS-'.$seq; 
+    $data['date_']=date('Y-m-d');
+    $this->db->insert('collh',$data);
+    
+    
+    $data['id']=$this->db
+        ->where('code',$code)        
+        ->get('collh')->row('id');
+    
+    echo json_encode($data);
+} 
+
+function ajax_upload(){
+if(isset($_FILES["image_file"]["name"]))
+{
+$config['upload_path'] = './uploads/';
+$config['allowed_types'] = 'jpg|jpeg|png|gif';
+$this->upload->initialize($config); $this->load->library('upload', $config);     
+
+$tmp_name = $_FILES["image_file"]["tmp_name"];  $new_file_name = basename($_FILES["image_file"]["name"]); 
+
+if(!$this->upload->do_upload('image_file'))
+{
+echo $this->upload->display_errors();
+}
+else
+{
+$data = $this->upload->data();
+$xdata['img']=  '<img src="'.base_url().'uploads/'.$data["file_name"].'" width="300" height="225" class="img-thumbnail" />';
+$xdata['fnm']=$data["file_name"];    
+echo json_encode($xdata);
+}
+}
+}     
+
+function mf($sw) {
+    
+$data=[];
+    
+if($sw=='yn') { 
+    
+    $data[]=array("id"=>0, "text"=>'No');
+    $data[]=array("id"=>1, "text"=>'Yes');  
+    
+}
+    
+else if($sw=='tchk') { 
+    
+    $data[]=array("id"=>0, "text"=>'select Type of Check');
+    $data[]=array("id"=>1, "text"=>'Local');
+    $data[]=array("id"=>2, "text"=>'On us');  
+    $data[]=array("id"=>3, "text"=>'Regional');  
+    $data[]=array("id"=>4, "text"=>'Out of Town');  
+    
+}
+    
+else if($sw=='po_status') { 
+    
+    $data[]=array("id"=>0, "text"=>'New');
+    $data[]=array("id"=>1, "text"=>'WIP'); 
+    $data[]=array("id"=>2, "text"=>'Barcode Printing'); 
+    $data[]=array("id"=>3, "text"=>'Completed'); 
+    
+}
+    
+else if($sw=='bank')    {
+    $xs=$this->input->post('searchTerm');  
+    $xt='bank'; 
+    $rs = $this->db
+        -> like('concat(code,name)',$xs)
+        
+        ->order_by('name') 
+        ->limit(10) 
+        ->get($xt)->result_array(); 
+    $data[]=array("id"=>0, "text"=>'select size');
+
+    foreach($rs as $row)  {$data[]=array("id"=>$row['id'], "text"=> $row['name']);}
+    
+}
+    
+else if($sw=='color')    {
+    $xs=$this->input->post('searchTerm');  
+    $xt='color'; 
+    $rs = $this->db
+        -> like('concat(code,name)',$xs)
+        
+        ->order_by('name') 
+        ->limit(10) 
+        ->get($xt)->result_array(); 
+    $data[]=array("id"=>0, "text"=>'select color');
+
+    foreach($rs as $row)  {$data[]=array("id"=>$row['id'], "text"=>$row['code'].' - '.$row['name']);}
+    
+}
+    
+else if($sw=='item')    {
+    $xs=$this->input->post('searchTerm');  
+    $xt='item'; 
+    $rs = $this->db
+        -> like('concat(code,name)',$xs)
+        
+        ->order_by('name') 
+        ->limit(10) 
+        ->get($xt)->result_array(); 
+    $data[]=array("id"=>0, "text"=>'select item');
+
+    foreach($rs as $row)  {$data[]=array("id"=>$row['id'], "text"=>$row['code'].' - '.$row['name']);}
+    
+}
+    
+else if($sw=='cd_comp')    {
+    $xs=$this->input->post('searchTerm');  
+    $xt='company'; 
+    $rs = $this->db
+        -> like('concat(code,name)',$xs)
+        
+        ->order_by('name') 
+        ->limit(10) 
+        ->get($xt)->result_array(); 
+    $data[]=array("id"=>0, "text"=>'select company');
+
+foreach($rs as $row)  {$data[]=array("id"=>$row['id'], "text"=>$row['code'].' - '.$row['name']);}
+    
+}
+    
+else if($sw=='store') {
+    
+    $xs=$this->input->post('searchTerm');  
+    
+    $ssw=$this->input->post('sw');  
+    
+    $xt='subsi'; 
+    if($ssw==1){ $this->db->where('cd_scats',10); }
+    if($ssw==2){ $this->db->where('cd_scats',29); }
+    
+    $rs = $this->db
+        -> like('concat(code,name)',$xs)        
+        ->where('parent>',0) 
+        ->order_by('name') 
+        ->limit(10) 
+        ->get($xt)->result_array(); 
+    $data[]=array("id"=>0, "text"=>'select store');
+
+foreach($rs as $row)  {$data[]=array("id"=>$row['id'], "text"=>$row['name']);}
+    
+}
+    
+else if($sw=='customer')    {
+    $xs=$this->input->post('searchTerm');  
+    $xt='customer'; 
+    $rs = $this->db
+        -> like('concat(code,name)',$xs)
+        
+        ->order_by('name') 
+        ->limit(10) 
+        ->get($xt)->result_array(); 
+    $data[]=array("id"=>0, "text"=>'select customer');
+
+foreach($rs as $row)  {$data[]=array("id"=>$row['id'], "text"=>$row['name']);}
+    
+}
+    
+else if($sw=='supplier')    {
+    $xs=$this->input->post('searchTerm');  
+    $xt='supplier'; 
+    $rs = $this->db
+        -> like('concat(code,name)',$xs)
+        
+        ->order_by('name') 
+        ->limit(10) 
+        ->get($xt)->result_array(); 
+    $data[]=array("id"=>0, "text"=>'select Supplier');
+
+foreach($rs as $row)  {$data[]=array("id"=>$row['id'], "text"=>$row['name']);}
+    
+}
+    
+else if($sw=='terms')    {
+    $xs=$this->input->post('searchTerm');  
+    $xt='terms'; 
+    $rs = $this->db
+        -> like('concat(code,name)',$xs)
+       // ->where('cd_scat','SUPP') 
+        ->order_by('name') 
+        ->limit(10) 
+        ->get($xt)->result_array(); 
+    $data[]=array("id"=>0, "text"=>'select terms');
+
+foreach($rs as $row)  {$data[]=array("id"=>$row['id'], "text"=>$row['name']);}
+    
+}
+    
+echo json_encode($data); 
+}   
+
+function dsavex() {
+    
+    $dat['id']=10;
+    $dat['sw']=1;
+    $dat['store_']=2463;
+    $dat['qty_order']=100;
+    
+    $this->db->insert('colld',$dat);
+    print_r($dat);
+    
+}
+    
+function dsave() {
+    
+    $tmp=$_POST['datas'];
+    
+
+//var datas=[
+//seq
+//,$("#df-1").val()
+//,$("#df-2").val()
+//,$("#df-3").val()
+//,$("#df-4").val()
+//,$("#df-5").val()
+//,$("#df-6").val()
+//,$("#df-7").val()
+//,'.$id.'
+//];
+    
+//    $fldd=explode(',','seq,chk_bank,branch,type_,acct_no,chk_no,chk_dt,amount');    
+    
+$seq=$tmp[0];
+//    $id=$tmp[1];
+//    
+
+    $dat['chk_bank']=$tmp[1];
+    $dat['branch']=$tmp[2];
+    $dat['type_']=$tmp[3];
+    $dat['acct_no']=$tmp[4];
+    $dat['chk_no']=$tmp[5];
+    $dat['chk_dt']=$tmp[6];
+    $dat['amount']=$tmp[7];
+    
+        $dat['id']=$tmp[8];
+//    $item=$tmp[5]; 
+    if($seq>0){
+        $this->db
+            ->where('seq',$seq)
+        ->update('colld',$dat);
+    }
+    else {
+        $this->db->insert('colld',$dat);
+    }
+    
+    print_r($tmp);
+    
+}
+
+function fsave() {
+    $tmp=$_POST['datas'];
+    $id=$tmp[0];
+    $dat[$tmp[1]]=$tmp[2];
+    $this->db->where('id',$id)->update('collh',$dat);
+    print_r($dat);
+    
+}
+    
+function info() {
+    
+    //var datas=['.$id.',sw];
+    
+    
+    $tmp=$_POST['datas'];
+   // print_r($tmp);
+    $id=$tmp[0];
+    $sw=$tmp[1];
+    $td=$th='';
+if($sw==1){
+    $thl=explode(',','seq,bank,branch,type_,acct_no,chk_no,chk_dt,amount');
+    $fldd=explode(',','seq,chk_bank,branch,type_,acct_no,chk_no,chk_dt,amount');
+echo '<br> <style> div.dt-container { width: 800px; margin: 0 auto; } </style>
+    
+<script src="https://office.transferit.store/new/jquery.dataTables.min.js"></script>
+<link rel="stylesheet" href="https://office.transferit.store/new/jquery.dataTables.min.css">
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script> 
+ 
+<script> 
+    
+$(document).ready(function(){
+
+var sw = '.$sw.';
+
+var table = $("#tbl_listd'.$sw.'").DataTable({"scrollX": true, "order": [[ 0, "desc" ]] });
+$("#tbl_listd'.$sw.' tbody").on("click", "tr", function () { var data = table.row( this ).data();  edit_rec(data); });
+
+function edit_rec(dat) {
+var sw = '.$sw.'; ';
+    for($x=0;$x<count($fldd);$x++){
+    echo '
+    $("#'.$fldd[$x].'-'.$sw.'").val(dat['.$x.']); 
+    ';
+    }
+    echo ' 
+}  
+
+}); 
+
+
+function del_rec'.$sw.'() {
+
+var seq = $("#seq-'.$sw.'").val(); 
+
+if(confirm("delete this record?")==true){
+$.ajax({url:"'.base_url("423/dashboard/ddelrec").'", method:"POST", 
+data:{seq:seq},success:function(data) {
+    info('.$sw.');
+}  });  
+
+}
+
+
+}
+
+function dsave() {
+
+var seq = $("#seq").val(); 
+
+var datas=[
+seq
+,$("#df-1").val()
+,$("#df-2").val()
+,$("#df-3").val()
+,$("#df-4").val()
+,$("#df-5").val()
+,$("#df-6").val()
+,$("#df-7").val()
+,'.$id.'
+];
+$.ajax({url:"'.base_url("423/dashboard/dsave").'", method:"POST", 
+data:{datas:datas},success:function(data) {
+    info('.$sw.');
+}  });  
+
+
+
+
+} 
+
+$("#df-1").select2({ajax: { url: "'.base_url("423/dashboard/mf/bank").'" ,
+type: "post", dataType: "json",  delay: 250,  data: function (params) 
+{ return { searchTerm: params.term,source:$("#source").val()};  },
+processResults: function (response) {  return { results: response  };  },  cache: true   }});  
+
+$("#df-3").select2({ajax: { url: "'.base_url("423/dashboard/mf/tchk").'" ,
+type: "post", dataType: "json",  delay: 250,  data: function (params) 
+{ return { searchTerm: params.term,source:$("#source").val()};  },
+processResults: function (response) {  return { results: response  };  },  cache: true   }});  
+
+</script>
+
+';    
+    echo '
+    <br>
+    <div class="row"> 
+    <div class="col-sm-3"> 
+
+        <div class="input-group mb-1 input-group-sm ">   
+                <select  class="form-control" 
+                id="df-1">
+                <option value=0>select Bank</option>
+                </select>
+                </div>  
+
+        <div class="input-group mb-1 input-group-sm "> 
+            <div class="input-group-prepend"><span class="input-group-text">Branch</span></div>    
+                <input type="text" class="form-control" 
+                id="df-2" value="" ></div>   
+
+        <div class="input-group mb-1 input-group-sm ">   
+                <select  class="form-control" 
+                id="df-3">
+                <option value=0>Type of Check</option>
+                </select>
+                </div>  
+
+        <div class="input-group mb-1 input-group-sm "> 
+            <div class="input-group-prepend"><span class="input-group-text">Accnt No</span></div>    
+                <input type="text" class="form-control" 
+                id="df-4" value="" ></div> 
+
+        <div class="input-group mb-1 input-group-sm "> 
+            <div class="input-group-prepend"><span class="input-group-text">Check #</span></div>    
+                <input type="text" class="form-control" 
+                id="df-5" value="" ></div>   
+
+        <div class="input-group mb-1 input-group-sm "> 
+            <div class="input-group-prepend"><span class="input-group-text">Check Date</span></div>    
+                <input type="date" class="form-control" 
+                id="df-6" value="" ></div>    
+
+        <div class="input-group mb-1 input-group-sm "> 
+            <div class="input-group-prepend"><span class="input-group-text">Amount</span></div>    
+                <input type="number" class="form-control" 
+                id="df-7" value=0 ></div>   
+
+        <div class="input-group mb-1 input-group-sm  " id="btnx">  
+        
+            <input type="hidden" id="seq" value=0>
+            <input type="hidden" id="dfin" value="0">
+
+            <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Save" onclick="dsave()" id="dsave">
+            <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Delete" onclick="ddel()"> 
+            <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Clear" onclick="info(1)">  </div> 
+    </div>
+    
+    <div class="col-sm-9">   
+    ';
+    
+//script
+{
+    $tbl='colld'; 
+    $fldd=$this->db->list_fields($tbl);
+$td='';   
+//$sw=1;
+}
+    
+    $fin=$this->db
+        ->where('id',$id) 
+        ->get('collh')->row('fin');   
+
+   // $this->db  ->where('id',$id) ->delete('colld');
+    $tbl='colld'; 
+    $rs=$this->db
+        ->where('id',$id)
+        //->where('sw',$sw)
+        ->get($tbl)->result_array();    
+    $thl=explode(',','seq,bank,branch,type_,acct_no,chk_no,chk_dt,amount');
+    $fldd=explode(',','seq,chk_bank,branch,type_,acct_no,chk_no,chk_dt,amount');
+    for($a=0;$a<count($thl);$a++){   $th.=' <th>'.$thl[$a].'</th>';   }
+    
+    echo '    <script>    $("#dbtnx").show();    </script>    ';
+    
+    if($fin>0){ echo ' <script> $("#dbtnx").hide(); </script> ';  } 
+    
+echo ' 
+    
+    
+
+        <table id="tbl_listd'.$sw.'" class="display nowrap" style="width:100%">
+        <thead>
+        <tr>'; 
+        //$fldd=$this->db->list_fields('colld');
+        //$fldd=explode(',','seq,item,barcode,cd_color,cd_size,qty_po,qty_del,cd_unit,srp,pcost,cost_amount');
+            for($a=0;$a<count($fldd);$a++){  echo '<th>'.$fldd[$a].'</th>';  }
+            echo '</tr> 
+        </thead>
+        <tbody>';     
+        
+        foreach($rs as $row){
+            
+            echo ' <tr>'; 
+            echo '<td>'.$row['seq'].'</td>'; 
+            echo '<td><option value='.$row['chk_bank'].'> 
+            '.$this->db->where('id',$row['chk_bank'])->get('bank')->row('name').'</option></td>';  
+            echo '<td>'.$row['branch'].'</td>'; 
+            echo '<td>'.$row['type_'].'</td>'; 
+            echo '<td>'.$row['acct_no'].'</td>'; 
+            echo '<td>'.$row['chk_no'].'</td>'; 
+            echo '<td>'.$row['chk_dt'].'</td>'; 
+            echo '<td>'.$row['amount'].'</td>'; 
+            
+            echo '</tr>';
+        } 
+    
+        echo '</tbody>
+        </table> 
+        ';
+}
+    
+}     
+
+function edit($id) {
+    
+$fld=$this->db->list_fields('collh');  
+
+$rs=$this->db->where('id',423)->get('scm_settings')->result(); foreach($rs as $row) { $title=$row->caption;} 
+
+$rs=$this->db->where('id',$id)->get('collh')->result_array();  
+
+{
+    
+$info='';
+$cap= $this->db->list_fields('collh');
+$fin = $this->db->where('id', $id)->get('collh')->row('fin');
+echo ' 
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css">
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
+
+<style>
+div.small { font-size: 9px; }
+input.small { font-size: 9px; }
+span.small { font-size: 9px; }
+select.small { font-size: 9px; }
+option.small { font-size: 9px; } 
+</style>
+
+<script>   
+
+function fsave(fld){
+var datas=['.$id.',fld,$("#" + fld).val()];
+$.ajax({url:"'.base_url("423/dashboard/fsave").'", 
+method:"POST", data:{datas:datas},success:function(data) { } }); 
+}
+
+function toggle(){ 
+  var x = document.getElementById("topx");
+  if (x.style.display === "none") {
+    x.style.display = "block";
+  } else {
+    x.style.display = "none";
+  }
+}
+
+
+function Approve() {
+
+$.ajax({url:"'.base_url("423/dashboard/Approve").'", 
+method:"POST", data:{id:'.$id.'},success:function(data) { 
+    location.reload();
+} }); 
+
+}
+
+function get_tbl() {
+
+$.ajax({url:"'.base_url("423/dashboard/tbl").'", 
+method:"POST", data:{id:'.$id.'},success:function(data) { 
+    $("#tbl").html(data)
+} }); 
+
+}
+
+function Fin(sw) {
+var xsw=1;
+var msg="Unfinalized"; 
+
+if(xsw==1){
+var msg="Finalized";
+}
+
+if(confirm(msg + " this transaction ?")==true){
+$.ajax({url:"'.base_url("423/dashboard/Fin").'", 
+method:"POST", data:{id:'.$id.',sw:sw},success:function(data) { 
+    location.reload();
+} }); 
+
+} 
+
+}
+
+function prints(id) {
+var fnm="'.base_url('423/dashboard/prints/').'" + id;
+window.open(fnm);
+}
+
+function totals(){ 
+
+let w=($("#tamt").val());
+let x=($("#sfee").val());
+let y=($("#tdamt").val());
+let z=w - x - y;
+
+$("#ttamt").html(w);
+$("#vttdamt").html(y);
+$("#vttsf").html(x);
+$("#gtamt").html(z);
+}
+
+</script> 
+
+';
+
+}
+
+$cap=$fld=$this->db->list_fields('collh');   
+
+$left=$mid=$right=''; 
+
+foreach($rs as $row) {    
+     for($a=0;$a<count($fld);$a++) { $datafld[$fld[$a]]=$row[$fld[$a]]; } 
+   // $datafld['fin']=$row['fin'];      
+} 
+
+$fin=$datafld['fin']=0;
+$pt=0; 
+
+$fin=$datafld['fin']; 
+$dtl=$top2=$top3=$top4=$top=$left=$right=$btn='
+        <div class="col-sm-4">'; 
+$top=' ';
+$legt=' ';
+    $div1=$div2='';
+$cap=explode(',','
+id
+,code
+,Date
+,PR Type
+,Customer
+,Salesman
+,Remarks
+,Ref#
+,Cash
+,Checks
+,Total
+');    
+$fld=explode(',','id,code,date_,pr_type,customer,salesman,remarks,ref_no,cash,check,total');    
+    
+for($a=1;$a<count($cap);$a++) { 
+    
+$xcap=$a.' '.ucwords(str_replace('_',' ',$cap[$a]));
+//$xcap=$a.' '.$cap[$a];
+
+$fldnm=$fld[$a]; 
+    
+$dataf=$datafld[$fldnm]; 
+    
+    if($a==1){
+        $left.='
+        <div class="input-group mb-1 input-group-sm "> 
+        <div class="input-group-prepend"><span class="input-group-text">'.$dataf.'</span></div>     ';  
+    
+    }
+    
+    else if($a==2){
+        $left.='   
+        <input type="date" class="form-control" id="'.$fldnm.'" 
+        value="'.$dataf.'" onchange="fsave(this.id);"   ></div>  ';  
+    
+    }  
+
+    elseif($a==3) {
+        $optl=explode(',','Collection,Replacement,Others');
+        $opt='<option value='.$dataf.'  >'.$optl[$dataf].'</option>';   
+        $left.='
+        <div class="input-group mb-1 input-group-sm "> 
+        <div class="input-group-prepend"><span class="input-group-text">'.$xcap.'</span></div>    
+        <select class="form-control" id="'.$fldnm.'"  onchange="fsave(this.id);"   >'.$opt.' </select></div>  ';   
+    }
+    
+    elseif($a==6) {
+        $left.='
+        <div class="input-group mb-1 input-group-sm "> 
+        <div class="input-group-prepend"><span class="input-group-text">'.$xcap.'</span></div>    
+        <textarea id="'.$fldnm.'" rows="4" cols="60"> '.$dataf.'</textarea> </div>  ';  
+    
+    } 
+    
+    elseif($a==8 or $a==9 or $a==10) {
+        $left.='
+        <div class="input-group mb-1 input-group-sm "> 
+        <div class="input-group-prepend"><span class="input-group-text">'.$xcap.'</span></div>    
+        <input type="number" class="form-control" id="'.$fldnm.'" 
+        value="'.$dataf.'" disabled   ></div>  ';  
+    
+    } 
+    
+    else {
+        $left.='
+        <div class="input-group mb-1 input-group-sm "> 
+        <div class="input-group-prepend"><span class="input-group-text">'.$xcap.'</span></div>    
+        <input type="text" class="form-control" id="'.$fldnm.'" 
+        value="'.$dataf.'" onchange="fsave(this.id);"   ></div>  ';  
+    
+    } 
+    
+    if($a==5 or $a==6) { 
+        $left.='</div>
+        <div class="col-sm-4">';
+    } 
+    
+    }  
+    
+    $left.='       
+
+    <div class="input-group mb-1 input-group-sm  " id="btnx">  
+        <input type="hidden" id="id" value="'.$id.'">
+        <input type="hidden" id="dfin" value="'.$datafld['fin'].'">';
+
+    if($datafld['fin']==0){
+        $left.='<input type="button" class="form-control btn btn-outline-dark btn-sm" value="Fin" onclick="Fin(1)" id="Finx">';
+
+    }
+
+    else {
+
+    {
+
+    $left.='<input type="button" class="form-control btn btn-outline-dark btn-sm" value="Unfin" onclick="Fin(0)" id="Unfinx">';
+    $left.='<input type="button" class="form-control btn btn-outline-dark btn-sm" value="Approve" onclick="app()" id="app">';
+
+    }
+
+    }
+
+    $left.='
+    <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Close" onclick="location.reload()"> 
+    </div> ';
+
+{
+echo '  
+
+<div class="container-fluid">   
+
+        <div class="card-body" id="topx" >
+            <div class="container-fluid"> 
+                <div class="row"> '.$left.' </div>  
+            </div>
+        </div> 
+
+    <div class="col-sm-12"> 
+
+        <!-- Nav tabs -->
+        <ul class="nav nav-tabs">
+
+        <li class="nav-item">                    
+        <a class="nav-link active" data-toggle="tab"  onclick="info(1)" style="color:red"><b>PR Detail</b></a></li>
+        </ul>
+
+        <!-- Tab panes -->
+        <div class="tab-content">
+            <div class="tab-pane container-fluid active" id="d_list"></div> 
+        </div>
+    </div>   
+</div>   
+
+<script>
+ 
+info(1);
+
+function info(sw){
+var datas=['.$id.',sw];
+
+    $.ajax({url:"'.base_url("423/dashboard/info").'"
+    , method:"POST"
+    , data:{datas:datas},success:function(data) {  
+    
+        $("#d_list").html(data);
+
+    } });  
+
+} 
+
+</script>
+                
+    
+'; 
+
+}  
+
+}  
+    
+}
+
+?>

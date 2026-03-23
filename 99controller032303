@@ -904,6 +904,7 @@ $dat['trn_type']=$sw;
 $dat['sw']=$sw;
 $dat['trn_id']=$tmp[3];
 $dat['amount']=$tmp[4];  
+$dat['balance']=$tmp[5];  
     
 if($fin==0){
     if($seq==0) { $this->db->insert('ac_rfpd',$dat); }   
@@ -4023,7 +4024,7 @@ $rs=$this->db
 $fld=$this->db->list_fields($tbl);
 $fld=explode(',','id,code,payee,amount,payment_type,remarks')    ;
 
-$fld=explode(',','seq,trn_id,date_,amount')    ;
+$fld=explode(',','seq,trn_id,date_,balance,amount') ;
     
 $td=''; $th=''; 
 for($a=0;$a<count($fld);$a++)  { 
@@ -4035,10 +4036,10 @@ foreach($rs as $row) {
         $datafld=$row[$fld[$a]];
             if($a==1){
                 $datafld='<option value='.$datafld.'>
-                '.$this->db->where('id',$datafld)->get('rrh')->row('code').'</option>';
+                '.$this->db->where('id',$datafld)->get('poh')->row('code').'</option>';
             }
             if($a==2){
-                $datafld=$this->db->where('id',$row['trn_id'])->get('rrh')->row('date_');
+                $datafld=$this->db->where('id',$row['trn_id'])->get('poh')->row('date_');
             }
             
         $td.='<td>'.$datafld.'</td>';
@@ -4060,9 +4061,7 @@ $(document).ready(function(){
     ,processResults: function (response) {  return { results: response  };  }
     ,  cache: true   }});  
 
-});
-
-$("#xsearch").hide()
+}); 
 
 function refresh_page(){ $("#rrno").val() }
 
@@ -4079,11 +4078,13 @@ saveh();
 
 $(document).ready(function() {  
 
-var table = $("#tbl_list'.$sw.'").DataTable({"scrollX": true, "order": [[ 0, "desc" ]]});
-$("#tbl_list'.$sw.' tbody").on("click", "tr", function () { var data = table.row( this ).data();  edit_rec(data); });
+var table = $("#tbl_list'.$tmp[0].'").DataTable({"scrollX": true, "order": [[ 0, "desc" ]]});
+$("#tbl_list'.$tmp[0].' tbody").on("click", "tr", function () { var data = table.row( this ).data();  edit_rec(data); });
 
-function edit_rec(dat) {    
+function edit_rec(dat) {   
+ 
 
+    $("#brramt").val(dat[4]);
     $("#damt").val(dat[3]);
     $("#seq").val(dat[0]);
     $("#rr").html(dat[1]);
@@ -4129,7 +4130,7 @@ function edit_rec(dat) {
             <input type="hidden" id="seq" value=0 /> 
             
             <input type="button" class="form-control btn btn-outline-dark btn-sm"
-                value="Clear" onclick="info(1)"> 
+                value="Clear" onclick="info(2)"> 
         </div>
     
     </div>
@@ -4164,7 +4165,7 @@ function edit_rec(dat) {
     function dsave(){
     
         
-        var datas=['.$id.',$("#seq").val(),1,$("#rr").val(),$("#damt").val()];        
+        var datas=['.$id.',$("#seq").val(),2,$("#rr").val(),$("#damt").val(),$("#brramt").val()];        
         if(datas[3]>0){
             if(datas[4]>0){
 
@@ -4172,18 +4173,18 @@ function edit_rec(dat) {
                 , method:"POST"        
                 , data:{datas:datas}
                 ,success:function(data) {  
-                    info(1);
+                    info(2);
                 } }); 
         
             
             } else {alert("please enter amount");}
-        } else {alert("please select RR#");} 
+        } else {alert("please select PO#");} 
 
     }
 </script>
 
 <div class="col-sm-9"> 
-    <table id="tbl_list'.$sw.'" class="display nowrap" style="width:100%" >
+    <table id="tbl_list'.$tmp[0].'" class="display nowrap" style="width:100%" >
     <thead> <tr>'.$th.'</tr> </thead>
     <tbody>'.$td.'</tbody>
     </table>
@@ -4216,14 +4217,14 @@ if($sw==0){ $this->db->where('created_by',$uid);    }
 $rs=$this->db
 //->where('date_',$_SESSION['datex']) //->where('date_<=',$de)
  ->where('id',$id) 
- ->where('sw',$sw) 
+ ->where('sw',$tmp[0]) 
 //->where('date_>=',$tmp[0]) ->where('date_<=',$tmp[1])
 ->order_by('id','desc')
 ->get($tbl)->result_array();
 $fld=$this->db->list_fields($tbl);
 $fld=explode(',','id,code,payee,amount,payment_type,remarks')    ;
 
-$fld=explode(',','seq,trn_id,date_,amount')    ;
+$fld=explode(',','seq,trn_id,date_,balance,amount') ;
     
 $td=''; $th=''; 
 for($a=0;$a<count($fld);$a++)  { 
@@ -4279,11 +4280,12 @@ saveh();
 
 $(document).ready(function() {  
 
-var table = $("#tbl_list'.$sw.'").DataTable({"scrollX": true, "order": [[ 0, "desc" ]]});
-$("#tbl_list'.$sw.' tbody").on("click", "tr", function () { var data = table.row( this ).data();  edit_rec(data); });
+var table = $("#tbl_list'.$tmp[0].'").DataTable({"scrollX": true, "order": [[ 0, "desc" ]]});
+$("#tbl_list'.$tmp[0].' tbody").on("click", "tr", function () { var data = table.row( this ).data();  edit_rec(data); });
 
 function edit_rec(dat) {    
 
+    $("#brramt").val(dat[4]);
     $("#damt").val(dat[3]);
     $("#seq").val(dat[0]);
     $("#rr").html(dat[1]);
@@ -4364,7 +4366,7 @@ function edit_rec(dat) {
     function dsave(){
     
         
-        var datas=['.$id.',$("#seq").val(),1,$("#rr").val(),$("#damt").val()];        
+        var datas=['.$id.',$("#seq").val(),'.$tmp[0].',$("#rr").val(),$("#damt").val(),$("#brramt").val()]; 
         if(datas[3]>0){
             if(datas[4]>0){
 
@@ -4383,7 +4385,7 @@ function edit_rec(dat) {
 </script>
 
 <div class="col-sm-9"> 
-    <table id="tbl_list'.$sw.'" class="display nowrap" style="width:100%" >
+    <table id="tbl_list'.$tmp[0].'" class="display nowrap" style="width:100%" >
     <thead> <tr>'.$th.'</tr> </thead>
     <tbody>'.$td.'</tbody>
     </table>

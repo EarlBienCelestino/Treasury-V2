@@ -1,0 +1,1594 @@
+<?php
+defined('BASEPATH') OR exit('No direct script access allowed');
+
+class Dashboard extends CI_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        $this->load->model('Recordset');
+        $this->load->helper(['form', 'url']);
+        $this->load->model('user_model');
+
+        if (!$this->session->userdata('user_id')) {
+            redirect('user/login');
+        }
+
+        if ($this->Recordset->ac_chk(99) == 0) {
+            redirect('dashboard/index');
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    // ROUTING / VIEW
+    // ─────────────────────────────────────────────
+
+    function index() {
+        $data['tbl']   = 'ac_rfph';
+        $data['fld']   = $this->db->list_fields($data['tbl']);
+        $data['mod']   = 99;
+        $data['title'] = $this->db->where('id', 99)->get('scm_settings')->row('caption');
+
+        if ($this->user_model->chk_group($data['mod']) == true) {
+            $this->load->view('header');
+            $this->load->view('99/view', $data);
+        } else {
+            redirect(base_url());
+        }
+    }
+
+    function view($id) {
+        $data['tbl']   = 'ac_rfph';
+        $data['fld']   = $this->db->list_fields($data['tbl']);
+        $data['mod']   = 99;
+        $data['id']    = $id;
+        $data['title'] = $this->db->where('id', 99)->get('scm_settings')->row('caption');
+        $this->load->view('header');
+        $this->load->view('99/view2', $data);
+    }
+
+    function view2($id) {
+        $data['tbl']   = 'ac_rfph';
+        $data['fld']   = $this->db->list_fields($data['tbl']);
+        $data['mod']   = 99;
+        $data['id']    = $id;
+        $data['title'] = $this->db->where('id', 99)->get('scm_settings')->row('caption');
+
+        if ($this->user_model->chk_group($data['mod']) == true) {
+            $this->load->view('header');
+            $this->load->view('99/view2', $data);
+        } else {
+            redirect(base_url());
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    // LIST / SEARCH
+    // ─────────────────────────────────────────────
+
+    function list() {
+        $tmp = $this->input->post('datas');
+        $ds  = $tmp[0];
+        $de  = $tmp[1];
+
+        date_default_timezone_set('Asia/Manila');
+        $uid = $this->session->userdata('user_id');
+        $ur  = $this->db->where('userid', $uid)->get('scm_user')->row('User_rights');
+
+        if ($ur != 4 && $ur != 8) {
+            $this->db->where('created_by', $uid);
+        }
+
+        $this->db->where('DATE(date_) >=', $ds);
+        $this->db->where('DATE(date_) <=', $de);
+
+        $rs  = $this->db->order_by('id', 'desc')->get('ac_rfph')->result_array();
+        $fld = explode(',', 'id,code,payee,amount,payment_type,remarks,date_');
+
+        $th = '';
+        foreach ($fld as $f) {
+            $th .= '<th>' . ucwords(str_replace('_', ' ', $f)) . '</th>';
+        }
+
+        $pt_arr = explode(',', 'select none,Check,Cash,Telegraphic Transfer,Others');
+
+        $td = '';
+        foreach ($rs as $row) {
+            $td .= '<tr>';
+            foreach ($fld as $f) {
+                $val = $row[$f];
+                if ($f === 'payment_type') {
+                    $val = (intval($val) > 0 && isset($pt_arr[$val])) ? $pt_arr[$val] : '';
+                } elseif ($f === 'amount') {
+                    $val = number_format(floatval($val), 2);
+                } elseif ($f === 'date_') {
+                    $val = (!empty($val) && substr($val, 0, 4) > '2000')
+                        ? date('Y-m-d', strtotime($val)) : '';
+                } elseif ($f === 'remarks') {
+                    $val = '<div style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"'
+                         . ' title="' . htmlspecialchars($val, ENT_QUOTES) . '">' . $val . '</div>';
+                }
+                if ($val === '0') { $val = ''; }
+                $td .= '<td>' . $val . '</td>';
+            }
+            $td .= '</tr>';
+        }
+
+        echo '
+<script>
+$(document).ready(function() {
+    var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[0, "desc"]]});
+    $("#tbl_list tbody").on("click", "tr", function() {
+        var data = table.row(this).data();
+        edit_rec(data[0]);
+    });
+    function edit_rec(id) {
+        $.ajax({
+            url: "' . base_url('99/dashboard/edit_rec') . '",
+            method: "POST",
+            data: {id: id},
+            success: function(data) {
+                $("#xsearch").hide();
+                $("#forms").empty();
+                $("#forms").html(data);
+            }
+        });
+    }
+});
+</script>
+<div class="container-fluid">
+<table id="tbl_list" class="display nowrap" style="width:100%">
+<thead><tr>' . $th . '</tr></thead>
+<tbody>' . $td . '</tbody>
+</table>
+</div>';
+    }
+
+    function list2() {
+        $qs  = $this->input->post('qs');
+        $uid = $this->session->userdata('user_id');
+        $ur  = $this->db->where('userid', $uid)->get('scm_user')->row('User_rights');
+
+        if ($ur != 4 && $ur != 8 && $ur != 22) {
+            $this->db->where('created_by', $uid);
+        }
+
+        $this->db->where('fin >', 0);
+        $this->db->like('code', $qs);
+        $this->db->limit(10);
+
+        $rs  = $this->db->order_by('id', 'desc')->get('ac_rfph')->result_array();
+        $fld = explode(',', 'id,code,payee,amount,payment_type,remarks');
+        $pt_arr = explode(',', 'select none,Check,Cash,Telegraphic Transfer,Others');
+
+        $th = '';
+        foreach ($fld as $f) {
+            $th .= '<th>' . ucwords(str_replace('_', ' ', $f)) . '</th>';
+        }
+
+        $td = '';
+        foreach ($rs as $row) {
+            $td .= '<tr>';
+            foreach ($fld as $f) {
+                $val = $row[$f];
+                if ($f === 'payment_type') {
+                    $val = (intval($val) > 0 && isset($pt_arr[$val])) ? $pt_arr[$val] : '';
+                } elseif ($f === 'amount') {
+                    $val = number_format(floatval($val), 2);
+                } elseif ($f === 'remarks') {
+                    $val = '<div style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"'
+                         . ' title="' . htmlspecialchars($val, ENT_QUOTES) . '">' . $val . '</div>';
+                }
+                if ($val === '0') { $val = ''; }
+                $td .= '<td>' . $val . '</td>';
+            }
+            $td .= '</tr>';
+        }
+
+        echo '
+<script>
+$(document).ready(function() {
+    var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[0, "desc"]]});
+    $("#tbl_list tbody").on("click", "tr", function() {
+        var data = table.row(this).data();
+        edit_rec(data[0]);
+    });
+    function edit_rec(id) {
+        $.ajax({
+            url: "' . base_url('99/dashboard/edit_rec') . '",
+            method: "POST",
+            data: {id: id},
+            success: function(data) {
+                $("#xsearch").hide();
+                $("#forms").empty();
+                $("#forms").html(data);
+            }
+        });
+    }
+});
+</script>
+<div class="container-fluid">
+<table id="tbl_list" class="display nowrap" style="width:100%">
+<thead><tr>' . $th . '</tr></thead>
+<tbody>' . $td . '</tbody>
+</table>
+</div>';
+    }
+
+    // ─────────────────────────────────────────────
+    // AMOUNT CALCULATION
+    // Unified: reads ac_rfpd sw=1 (RR lines) + sw=2 (PO lines).
+    // Also adds any RRs linked via ac_rfph.rr comma field that are
+    // NOT already represented in ac_rfpd sw=1.
+    // This keeps both storage methods in sync.
+    // ─────────────────────────────────────────────
+
+    private function _calc_total($id) {
+        $total = 0;
+
+        // 1. RR detail lines stored in ac_rfpd (sw=1) — primary RR storage from info(1) tab
+        $rr_lines = $this->db->where('id', $id)->where('sw', 1)->get('ac_rfpd')->result_array();
+        foreach ($rr_lines as $line) {
+            $total += floatval($line['amount']);
+        }
+
+        // 2. PO detail lines stored in ac_rfpd (sw=2)
+        $po_lines = $this->db->where('id', $id)->where('sw', 2)->get('ac_rfpd')->result_array();
+        foreach ($po_lines as $line) {
+            $total += floatval($line['amount']);
+        }
+
+        // 3. RRs linked via ac_rfph.rr comma field (from rr_tab Select2) that are
+        //    NOT already in ac_rfpd sw=1 — avoids double-counting
+        $rr_saved   = $this->db->where('id', $id)->get('ac_rfph')->row('rr');
+        $saved_ids  = (!empty($rr_saved) && trim($rr_saved) !== '' && trim($rr_saved) !== '0')
+            ? array_filter(array_map('trim', explode(',', $rr_saved)))
+            : [];
+
+        // Collect trn_ids already counted via ac_rfpd sw=1
+        $counted_trn_ids = array_column($rr_lines, 'trn_id');
+
+        foreach ($saved_ids as $rr_id) {
+            if (in_array($rr_id, $counted_trn_ids)) {
+                continue; // already counted
+            }
+            $amt = $this->db->where('id', $rr_id)->get('rrh')->row('amt_rr');
+            if ($amt) {
+                $total += floatval($amt);
+            }
+        }
+
+        return $total;
+    }
+
+    function getamount($id) {
+        $total = $this->_calc_total($id);
+        $this->db->where('id', $id)->update('ac_rfph', ['amount' => $total]);
+        return ['amount' => $total];
+    }
+
+    function recalc_rr_amount() {
+        $id    = $this->input->post('id');
+        $total = $this->_calc_total($id);
+        $this->db->where('id', $id)->update('ac_rfph', ['amount' => $total]);
+        echo json_encode(['amount' => number_format($total, 2)]);
+    }
+
+    // ─────────────────────────────────────────────
+    // RECORD CRUD
+    // ─────────────────────────────────────────────
+
+    function addrec() {
+        date_default_timezone_set('Asia/Manila');
+        $uid = $this->session->userdata('user_id');
+        $loc = $this->session->userdata('location');
+
+        $mcode = $this->db
+            ->like('code', 'RFP-' . $loc . '-', 'after')
+            ->order_by('id', 'desc')
+            ->limit(1)
+            ->get('ac_rfph')
+            ->row('code');
+
+        $series = 1;
+        if (!empty($mcode)) {
+            $parts = explode('-', $mcode);
+            $series = (count($parts) >= 3 ? intval($parts[2]) : 0) + 1;
+        }
+
+        $code  = 'RFP-' . $loc . '-' . $series;
+        $xdate = date('Y-m-d H:i:s');
+
+        $dat = [
+            'created_by'   => $uid,
+            'request_by'   => $uid,
+            'date_'        => $xdate,
+            'branch'       => 0,
+            'code'         => $code,
+            'time_release' => $this->_time_release($xdate),
+        ];
+
+        $this->db->insert('ac_rfph', $dat);
+        $id = $this->db->insert_id();
+        if (empty($id)) {
+            $id = $this->db->where('code', $code)->get('ac_rfph')->row('id');
+        }
+
+        echo json_encode(['id' => $id]);
+    }
+
+    private function _time_release($datetime) {
+        $parts = explode(' ', $datetime);
+        $time  = explode(':', $parts[1]);
+        return ($time[0] <= 11 && intval($time[1]) <= 30) ? 2 : 1;
+    }
+
+    function fsave() {
+        $tmp = $this->input->post('datas');
+        $id  = $tmp[0];
+        $fld = $tmp[1];
+        $val = $this->input->post('val') !== null ? $this->input->post('val') : (isset($tmp[2]) ? $tmp[2] : '');
+
+        $uid = $this->session->userdata('user_id');
+        $ur  = $this->db->where('userid', $uid)->get('scm_user')->row('User_rights');
+        $fin = $this->db->where('id', $id)->get('ac_rfph')->row('fin');
+
+        // Allow save if not finalized, or if admin-level user
+        if ($fin == 0 || $ur == 4 || $ur == 8) {
+            $this->db->where('id', $id)->update('ac_rfph', [$fld => $val]);
+        }
+
+        echo json_encode([$fld => $val]);
+    }
+
+    function dsave() {
+        $tmp = $this->input->post('datas');
+        $id  = intval($tmp[0]);
+        $seq = intval($tmp[1]);
+        $sw  = intval($tmp[2]);
+        $fin = $this->db->where('id', $id)->get('ac_rfph')->row('fin');
+
+        if ($fin != 0) {
+            echo json_encode(['error' => 'Record is finalized']);
+            return;
+        }
+
+        $dat = [
+            'id'       => $id,
+            'sw'       => $sw,
+            'trn_type' => $sw,
+            'trn_id'   => intval($tmp[3]),
+            'amount'   => floatval($tmp[4]),
+            'balance'  => floatval($tmp[5]),
+        ];
+
+        if ($seq == 0) {
+            $this->db->insert('ac_rfpd', $dat);
+            $dat['seq'] = $this->db->insert_id();
+        } else {
+            $this->db->where('seq', $seq)->update('ac_rfpd', $dat);
+            $dat['seq'] = $seq;
+        }
+
+        echo json_encode($dat);
+    }
+
+    function ddel() {
+        $tmp = $this->input->post('datas');
+        $id  = intval($tmp[0]);
+        $seq = intval($tmp[1]);
+        $fin = $this->db->where('id', $id)->get('ac_rfph')->row('fin');
+
+        if ($fin == 0) {
+            $this->db->where('seq', $seq)->delete('ac_rfpd');
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    // WORKFLOW
+    // ─────────────────────────────────────────────
+
+    function fin() {
+        $id  = $this->input->post('id');
+        $row = $this->db->where('id', $id)->get('ac_rfph')->row();
+
+        $dat = ['sw' => 0, 'msg' => ''];
+
+        if (intval($row->purpose) > 0) {
+            if (intval($row->payment_type) > 0) {
+                $datex = explode('-', $row->date_needed);
+                if (intval($datex[0]) > 2022) {
+                    // Recalculate amount before finalizing
+                    $total = $this->_calc_total($id);
+                    $this->db->where('id', $id)->update('ac_rfph', ['amount' => $total]);
+
+                    $this->db->where('id', $id)->update('ac_rfph', [
+                        'fin' => $this->session->userdata('user_id')
+                    ]);
+                    $dat = ['sw' => 1, 'msg' => 'Record finalized'];
+                } else {
+                    $dat['msg'] = 'Please enter a valid Date Needed (future date)';
+                }
+            } else {
+                $dat['msg'] = 'Please select a payment type';
+            }
+        } else {
+            $dat['msg'] = 'Please select a purpose';
+        }
+
+        echo json_encode($dat);
+    }
+
+    function unfin() {
+        $id = $this->input->post('id');
+        $this->db->where('id', $id)->update('ac_rfph', ['fin' => 0]);
+    }
+
+    function app() {
+        $id  = $this->input->post('id');
+        $sw  = $this->input->post('sw');
+        $uid = $this->session->userdata('user_id');
+
+        $dat = ($sw == 2)
+            ? ['unapprove_by' => $uid]
+            : ['approved_by'  => $uid];
+
+        $this->db->where('id', $id)->update('ac_rfph', $dat);
+        echo json_encode($dat);
+    }
+
+    // ─────────────────────────────────────────────
+    // EDIT FORM  (single canonical version)
+    // ─────────────────────────────────────────────
+
+    function edit_rec() {
+        $id  = $this->input->post('id');
+        $uid = $this->session->userdata('user_id');
+        $ur  = $this->db->where('userid', $uid)->get('scm_user')->row('User_rights');
+
+        // Recalculate amount on open
+        $total = $this->_calc_total($id);
+        $this->db->where('id', $id)->update('ac_rfph', ['amount' => $total]);
+
+        $row = $this->db->where('id', $id)->get('ac_rfph')->row_array();
+        if (!$row) { echo 'Record not found.'; return; }
+
+        $fld     = $this->db->list_fields('ac_rfph');
+        $datafld = $row;
+        $fin     = intval($row['fin']);
+        $appby   = intval($row['approved_by']);
+        $unappby = intval($row['unapprove_by']);
+        $ca      = intval($row['ca']);
+
+        $purpose_opts = explode(',', ',Merchandise,Raw Mat,Down Payment,Mobilization,Travel,Utilities,Professional Fee,Asset,Legal Fees,Repaired Maintenance,Trucking & Delivery,Supplies,Others');
+        $pt_opts      = explode(',', 'select none,Check,Cash,Telegraphic Transfer,Others');
+
+        // ── Left panel HTML ──────────────────────────────────
+        $left  = '<input type="hidden" id="ur" value="' . htmlspecialchars($ur, ENT_QUOTES) . '" />';
+        $left .= '<input type="hidden" id="id" value="' . $id . '" />';
+        $left .= '<input type="hidden" id="dfin" value="' . $fin . '" />';
+
+        // Code / date display
+        $left .= '
+<div class="input-group mb-1 input-group-sm">
+  <p class="form-control"><b>' . htmlspecialchars($row['code'], ENT_QUOTES)
+        . ' &nbsp; [' . htmlspecialchars($row['date_'], ENT_QUOTES) . ']</b></p>
+</div>';
+
+        // Cash Advance switch
+        $chk   = ($ca == 1) ? 'checked' : '';
+        $left .= '
+<div class="custom-control custom-switch mb-1">
+  <input type="checkbox" onclick="toggleCa();" class="custom-control-input" id="ca" value="' . $ca . '" ' . $chk . ' />
+  <label class="custom-control-label" for="ca">Cash Advance</label>
+</div>
+<script>
+function toggleCa() {
+    var x = document.getElementById("ca").checked;
+    $("#ca").val(x ? 1 : 0);
+    fsave("ca");
+}
+</script>';
+
+        // Purpose dropdown (field index 6)
+        $eopt = '';
+        for ($b = 0; $b < count($purpose_opts); $b++) {
+            $sel   = ($b == intval($row['purpose'])) ? 'selected' : '';
+            $eopt .= '<option value="' . $b . '" ' . $sel . '>' . trim($purpose_opts[$b]) . '</option>';
+        }
+        $left .= '
+<div class="input-group mb-1 input-group-sm">
+  <div class="input-group-prepend"><span class="input-group-text">Purpose</span></div>
+  <select class="form-control" id="purpose" onchange="fsave(this.id)">' . $eopt . '</select>
+</div>';
+
+        // Payee — Select2 with AJAX + free-text tags
+        $payee_val  = htmlspecialchars($row['payee'], ENT_QUOTES);
+        $payee_init = !empty($row['payee'])
+            ? '<option value="' . $payee_val . '" selected>' . $payee_val . '</option>'
+            : '';
+        $left .= '
+<div class="input-group mb-1 input-group-sm">
+  <div class="input-group-prepend"><span class="input-group-text">Payee</span></div>
+  <select class="form-control" id="payee" style="width:100%;">' . $payee_init . '</select>
+</div>
+<script>
+$(document).ready(function() {
+    $("#payee").select2({
+        width: "100%", placeholder: "Type to search or enter payee...",
+        allowClear: true, tags: true, minimumInputLength: 0,
+        ajax: {
+            url: "' . base_url('99/dashboard/payee_list') . '",
+            type: "POST", dataType: "json", delay: 300,
+            data: function(p) { return { searchTerm: p.term || "" }; },
+            processResults: function(d) { return { results: d }; },
+            cache: true
+        },
+        createTag: function(p) {
+            var t = $.trim(p.term);
+            return t === "" ? null : { id: t, text: t, newTag: true };
+        }
+    }).on("select2:select select2:clear", function() {
+        var val = $(this).find("option:selected").text() || "";
+        var datas = [' . $id . ', "payee", ""];
+        $.ajax({ url: "' . base_url('99/dashboard/fsave') . '", method: "POST",
+            data: { datas: datas, val: val } });
+    });
+});
+</script>';
+
+        // Remarks
+        $left .= '
+<div class="input-group mb-1 input-group-sm">
+  <div class="input-group-prepend"><span class="input-group-text">Remarks</span></div>
+  <textarea class="form-control" id="remarks" onchange="fsave(this.id)" rows="3">'
+        . htmlspecialchars($row['remarks'], ENT_QUOTES) . '</textarea>
+</div>';
+
+        // Amount (disabled — auto-calculated)
+        $left .= '
+<div class="input-group mb-1 input-group-sm">
+  <div class="input-group-prepend"><span class="input-group-text">Amount</span></div>
+  <input type="number" class="form-control" id="amount" value="' . number_format($total, 2, '.', '') . '" disabled />
+</div>';
+
+        // Payment type
+        $eopt2 = '';
+        for ($b = 0; $b < count($pt_opts); $b++) {
+            $sel    = ($b == intval($row['payment_type'])) ? 'selected' : '';
+            $eopt2 .= '<option value="' . $b . '" ' . $sel . '>' . trim($pt_opts[$b]) . '</option>';
+        }
+        $pay_others  = isset($row['payment_others']) ? htmlspecialchars($row['payment_others'], ENT_QUOTES) : '';
+        $others_disp = (intval($row['payment_type']) == 4) ? '' : 'style="display:none;"';
+        $left .= '
+<div class="input-group mb-1 input-group-sm">
+  <div class="input-group-prepend"><span class="input-group-text">Payment Type</span></div>
+  <select class="form-control" id="payment_type" onchange="checkOthers(this.id)">' . $eopt2 . '</select>
+</div>
+<div class="input-group mb-1 input-group-sm" id="payment_others_wrapper" ' . $others_disp . '>
+  <div class="input-group-prepend"><span class="input-group-text">Others</span></div>
+  <input type="text" class="form-control" id="payment_others"
+         onchange="fsave(this.id)" value="' . $pay_others . '" placeholder="Specify others" />
+</div>
+<script>
+function checkOthers(id) {
+    fsave(id);
+    if ($("#" + id).val() == "4") {
+        $("#payment_others_wrapper").show();
+        $("#payment_others").focus();
+    } else {
+        $("#payment_others_wrapper").hide();
+        $("#payment_others").val("");
+        fsave("payment_others");
+    }
+}
+</script>';
+
+        // Date Requested
+        $left .= '
+<div class="input-group mb-1 input-group-sm">
+  <div class="input-group-prepend"><span class="input-group-text">Date Requested</span></div>
+  <input type="date" class="form-control" id="date_"
+         onchange="fsave(this.id)" value="' . substr($row['date_'], 0, 10) . '" />
+</div>';
+
+        // Date Needed
+        $left .= '
+<div class="input-group mb-1 input-group-sm">
+  <div class="input-group-prepend"><span class="input-group-text">Date Needed</span></div>
+  <input type="date" class="form-control" id="date_needed"
+         min="' . date('Y-m-d') . '"
+         onchange="fsave(this.id)" value="' . htmlspecialchars($row['date_needed'], ENT_QUOTES) . '" />
+</div>';
+
+        // Dept
+        $dept_display = '';
+        if (!empty($row['dept']) && $row['dept'] != 0) {
+            $dept_display = $this->db->where('id', $row['dept'])->get('dept')->row('name') ?: $row['dept'];
+        }
+        $left .= '
+<div class="input-group mb-1 input-group-sm">
+  <div class="input-group-prepend"><span class="input-group-text">Dept</span></div>
+  <input type="text" class="form-control" id="dept"
+         onchange="fsave(this.id)" value="' . htmlspecialchars($dept_display, ENT_QUOTES) . '" />
+</div>';
+
+        // Branch
+        $branch_rs   = $this->db->order_by('Branch_Name')->get('branch')->result_array();
+        $b_opts      = '<option value="0">Select Branch</option>';
+        $branch_val  = $row['branch'];
+        $found       = false;
+        foreach ($branch_rs as $b) {
+            $sel    = ((string)$branch_val === (string)$b['id']) ? 'selected' : '';
+            if ($sel) { $found = true; }
+            $b_opts .= '<option value="' . $b['id'] . '" ' . $sel . '>'
+                     . htmlspecialchars($b['Branch_Name'], ENT_QUOTES) . '</option>';
+        }
+        if (!$found && $branch_val && $branch_val != '0') {
+            $b_opts .= '<option value="' . $branch_val . '" selected>' . $branch_val . '</option>';
+        }
+        $left .= '
+<div class="input-group mb-1 input-group-sm">
+  <div class="input-group-prepend"><span class="input-group-text">Branch</span></div>
+  <select class="form-control select2-dropdown" id="branch">' . $b_opts . '</select>
+</div>';
+
+        // Accounting / Checked By / Treasury
+        $left .= '
+<div class="input-group mb-1 input-group-sm">
+  <div class="input-group-prepend"><span class="input-group-text">Accounting</span></div>
+  <input type="text" class="form-control" id="accounting"
+         onchange="fsave(this.id)" value="' . htmlspecialchars($row['accounting'] ?? '', ENT_QUOTES) . '" />
+</div>
+<div class="input-group mb-1 input-group-sm">
+  <div class="input-group-prepend"><span class="input-group-text">Checked By</span></div>
+  <input type="text" class="form-control" id="checked_by"
+         onchange="fsave(this.id)" value="' . htmlspecialchars($row['checked_by'] ?? '', ENT_QUOTES) . '" />
+</div>
+<div class="input-group mb-1 input-group-sm">
+  <div class="input-group-prepend"><span class="input-group-text">Treasury</span></div>
+  <input type="text" class="form-control" id="treasury"
+         onchange="fsave(this.id)" value="' . htmlspecialchars($row['treasury'] ?? '', ENT_QUOTES) . '" />
+</div>';
+
+        // Photo upload
+        $photo_val = !empty($row['photo']) ? $row['photo'] : 'empty.jpg';
+        $xlink     = base_url('uploads/pix/' . $photo_val);
+        $left .= '
+<div class="input-group mb-1 input-group-sm">
+  <div class="input-group-prepend"><span class="input-group-text">Quotation</span></div>
+  <div id="imgview23">
+    <a href="' . $xlink . '" target="_blank">
+      <img src="' . $xlink . '?t=' . time() . '" alt="Quotation" width="100" height="75" />
+    </a>
+  </div>
+  <form method="post" id="upload_form23" enctype="multipart/form-data" style="display:inline;">
+    <input type="file" name="image_file23" id="image_file23" />
+    <input type="submit" value="Upload" class="btn btn-info btn-sm" />
+  </form>
+</div>
+<script>
+$(document).ready(function() {
+    $("#upload_form23").on("submit", function(e) {
+        e.preventDefault();
+        if ($("#image_file23").val() === "") { alert("Please select a file"); return; }
+        $.ajax({
+            url: "' . base_url('99/dashboard/upload/' . $id) . '",
+            method: "POST", dataType: "json",
+            data: new FormData(this),
+            contentType: false, cache: false, processData: false,
+            success: function(data) { $("#imgview23").html(data.img); }
+        });
+    });
+});
+</script>';
+
+        // ── Action buttons ────────────────────────────────────
+        $buttons = '<div class="input-group mb-1 input-group-sm">';
+
+        if ($fin > 0) {
+            // Check approval permissions
+            $appr_row  = $this->db->where('userid', $uid)->get('dsr_approver')->row();
+            $appr_rfp  = $appr_row ? intval($appr_row->rfp)    : 0;
+            $appr_5k   = $appr_row ? intval($appr_row->rpf5k)  : 0;
+            $appr_10k  = $appr_row ? intval($appr_row->rpf10k) : 0;
+
+            $rr_detail = $this->db->where('id', $id)->get('ac_rfpd')->result();
+            $amt       = 0;
+            foreach ($rr_detail as $r) { $amt += $r->qty * $r->cost; }
+
+            $sww = 0;
+            if ($appr_10k) { $sww = 1; }
+            elseif ($amt <= 500 && $appr_rfp) { $sww = 1; }
+            elseif ($amt < 5000 && $appr_5k)  { $sww = 1; }
+
+            if ($unappby > 0) { $sww = 0; }
+            if ($appby > 0)   { $sww = 0; }
+
+            $dvid = $this->db->where('rfp', $id)->order_by('id', 'desc')->limit(1)->get('dvh')->row('id');
+
+            if ($sww) {
+                $buttons .= '
+<input type="button" class="form-control btn btn-outline-secondary btn-sm mb-1"
+       value="Unfinalize" onclick="unfin()" />
+<input type="button" class="form-control btn btn-success btn-sm mb-1"
+       value="Approve" onclick="appRec(1)" />
+<input type="button" class="form-control btn btn-danger btn-sm mb-1"
+       value="Disapprove" onclick="appRec(2)" />';
+            }
+
+            if (!empty($dvid)) {
+                $buttons .= '
+<input type="button" class="form-control btn btn-outline-dark btn-sm mb-1"
+       value="Print" onclick="doPrint(' . $id . ')" />';
+            }
+        } else {
+            $buttons .= '
+<input type="button" class="form-control btn btn-primary btn-sm mb-1"
+       value="Finalize" onclick="fin()" />';
+        }
+
+        $buttons .= '
+<input type="button" class="form-control btn btn-warning btn-sm mb-1"
+       value="Print RFP Form" onclick="window.open(\'' . base_url('99/dashboard/print/') . $id . '\')" />
+<input type="button" class="form-control btn btn-outline-dark btn-sm mb-1"
+       value="Save All" onclick="saveAll()" />
+<input type="button" class="form-control btn btn-secondary btn-sm mb-1"
+       value="Close" onclick="closef()" />
+</div>';
+
+        $left .= $buttons;
+
+        // ── Right panel: tabs for RR and PO ──────────────────
+        $right = '
+<ul class="nav nav-tabs">
+  <li class="nav-item">
+    <a class="nav-link active" data-toggle="tab" href="#detail_tab" onclick="info(1)">RR</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-toggle="tab" href="#detail_tab" onclick="info(2)">PO</a>
+  </li>
+</ul>
+<div class="tab-content">
+  <div class="tab-pane container-fluid active" id="detail_tab"></div>
+</div>';
+
+        // ── JavaScript ────────────────────────────────────────
+        $dvid_int = intval($this->db->where('rfp', $id)->order_by('id', 'desc')->limit(1)->get('dvh')->row('id'));
+
+        $js = '
+<script>
+// Initialise
+$(document).ready(function() {
+    $(".select2-dropdown").select2({ width: "100%", tags: true }).on("change", function() {
+        if (this.id) { fsave(this.id); }
+    });
+    info(1);
+});
+
+function fsave(fld) {
+    var val = $("#" + fld).val();
+    if (val === null || val === undefined) val = "";
+    if (Array.isArray(val)) val = val.join(",");
+    $.ajax({
+        url: "' . base_url('99/dashboard/fsave') . '",
+        method: "POST",
+        data: { datas: [' . $id . ', fld, ""], val: val }
+    });
+}
+
+function saveAll(callback) {
+    var skip = ["ca", "payment_others", "rramt", "prramt", "brramt", "damt", "seq"];
+    var fields = [];
+    $("input.form-control:not([disabled]), select.form-control, textarea.form-control").each(function() {
+        var fid = $(this).attr("id");
+        if (fid && skip.indexOf(fid) === -1) fields.push(fid);
+    });
+    var idx = 0;
+    function next() {
+        if (idx >= fields.length) {
+            refreshAmount(function() {
+                if (typeof callback === "function") callback();
+                else alert("All entries saved.");
+            });
+            return;
+        }
+        var fid = fields[idx++];
+        var val = $("#" + fid).val();
+        if (val === null || val === undefined) val = "";
+        if (Array.isArray(val)) val = val.join(",");
+        $.ajax({
+            url: "' . base_url('99/dashboard/fsave') . '",
+            method: "POST",
+            data: { datas: [' . $id . ', fid, ""], val: val },
+            complete: next
+        });
+    }
+    next();
+}
+
+function refreshAmount(callback) {
+    $.ajax({
+        url: "' . base_url('99/dashboard/recalc_rr_amount') . '",
+        method: "POST",
+        data: { id: ' . $id . ' },
+        success: function(data) {
+            $("#amount").val(data.amount);
+            if (typeof callback === "function") callback();
+        }
+    });
+}
+
+function fin() {
+    saveAll(function() {
+        $.ajax({
+            url: "' . base_url('99/dashboard/fin') . '",
+            method: "POST", dataType: "json",
+            data: { id: ' . $id . ' },
+            success: function(data) {
+                if (data.sw == 1) { alert("Transaction finalized successfully."); exits(); }
+                else { alert(data.msg); }
+            }
+        });
+    });
+}
+
+function unfin() {
+    if (!confirm("Unfinalize this record?")) return;
+    $.ajax({
+        url: "' . base_url('99/dashboard/unfin') . '",
+        method: "POST", data: { id: ' . $id . ' },
+        success: function() { exits(); }
+    });
+}
+
+function appRec(sw) {
+    var msg = (sw == 2) ? "Disapprove this record?" : "Approve this record?";
+    if (!confirm(msg)) return;
+    $.ajax({
+        url: "' . base_url('99/dashboard/app') . '",
+        method: "POST", data: { id: ' . $id . ', sw: sw },
+        success: function() { exits(); }
+    });
+}
+
+function doPrint(id) {
+    if (confirm("Print this record?")) { window.open("' . base_url('99/dashboard/print/') . '" + id); }
+}
+
+function closef() { list(); }
+
+function info(sw) {
+    $.ajax({
+        url: "' . base_url('99/dashboard/info') . '",
+        method: "POST", data: { datas: [sw, ' . $id . '] },
+        success: function(data) { $("#detail_tab").html(data); }
+    });
+}
+</script>';
+
+        // ── Output ────────────────────────────────────────────
+        echo $js;
+        echo '
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-sm-3">' . $left . '</div>
+    <div class="col-sm-9">' . $right . '</div>
+  </div>
+</div>';
+    }
+
+    // ─────────────────────────────────────────────
+    // RR TAB  (Select2 multi-select — kept for backwards compat,
+    //           but primary flow now uses info(1) which writes to ac_rfpd)
+    // ─────────────────────────────────────────────
+
+    function rr_tab() {
+        $id       = $this->input->post('id');
+        $rr_saved = $this->db->where('id', $id)->get('ac_rfph')->row('rr');
+        $saved    = ($rr_saved) ? array_filter(array_map('trim', explode(',', $rr_saved))) : [];
+
+        $rrh_records = $this->db->order_by('id', 'desc')->get('rrh')->result_array();
+        $rr_opts     = '';
+        foreach ($rrh_records as $rr) {
+            $label    = isset($rr['code']) ? $rr['code'] : 'RR-' . $rr['id'];
+            $sel      = in_array($rr['id'], $saved) ? 'selected' : '';
+            $rr_opts .= '<option value="' . $rr['id'] . '" ' . $sel . '>' . $label . '</option>';
+        }
+
+        $td = '';
+        $total_amt = 0;
+        if (!empty($saved)) {
+            $rrs = $this->db->where_in('id', $saved)
+                ->order_by('date_', 'asc')->order_by('code', 'asc')
+                ->get('rrh')->result_array();
+            foreach ($rrs as $r) {
+                $rr_date = (!empty($r['date_']) && substr($r['date_'], 0, 4) != '0000')
+                    ? date('m/d/Y', strtotime($r['date_'])) : '';
+                $rr_amt  = floatval($r['amt_rr']);
+                $total_amt += $rr_amt;
+                $td .= '<tr><td>' . $r['code'] . '</td><td>' . $rr_date . '</td>'
+                     . '<td style="text-align:right;">' . number_format($rr_amt, 2) . '</td></tr>';
+            }
+        }
+
+        echo '
+<div class="mb-2 mt-2">
+  <div class="input-group input-group-sm">
+    <div class="input-group-prepend"><span class="input-group-text">Select RR</span></div>
+    <select class="form-control select2-rr" id="rr_select" multiple="multiple" style="width:100%;">
+      ' . $rr_opts . '
+    </select>
+    <div class="input-group-append">
+      <button class="btn btn-outline-dark btn-sm" onclick="save_rr()">Save RR</button>
+    </div>
+  </div>
+</div>
+<table class="table table-sm table-bordered mt-2" style="font-size:12px;">
+<thead><tr><th>Code</th><th>Date</th><th style="text-align:right;">Amount</th></tr></thead>
+<tbody>' . $td . '</tbody>
+<tfoot><tr>
+  <td colspan="2" style="text-align:right;font-weight:bold;">TOTAL :</td>
+  <td style="text-align:right;font-weight:bold;">' . number_format($total_amt, 2) . '</td>
+</tr></tfoot>
+</table>
+<script>
+$(document).ready(function() {
+    $(".select2-rr").select2({ width: "100%" });
+});
+function save_rr(callback) {
+    var val = $("#rr_select").val();
+    if (!val) val = [];
+    if (Array.isArray(val)) val = val.join(",");
+    $.ajax({
+        url: "' . base_url('99/dashboard/fsave') . '",
+        method: "POST",
+        data: { datas: [' . $id . ', "rr", ""], val: val },
+        success: function() {
+            $.ajax({
+                url: "' . base_url('99/dashboard/recalc_rr_amount') . '",
+                method: "POST",
+                data: { id: ' . $id . ' },
+                success: function(data) {
+                    $("#amount").val(data.amount);
+                    if (typeof callback === "function") callback();
+                }
+            });
+        }
+    });
+}
+</script>';
+    }
+
+    // ─────────────────────────────────────────────
+    // INFO TAB — RR (sw=1) and PO (sw=2) detail lines
+    // ─────────────────────────────────────────────
+
+    function info() {
+        $tmp = $this->input->post('datas');
+        $sw  = intval($tmp[0]);
+        $id  = intval($tmp[1]);
+
+        $fld = explode(',', 'seq,trn_id,date_,balance,amount');
+        $th  = '';
+        foreach ($fld as $f) {
+            $th .= '<th>' . ucwords(str_replace('_', ' ', $f)) . '</th>';
+        }
+
+        $rs = $this->db->where('id', $id)->where('sw', $sw)
+            ->order_by('seq', 'asc')->get('ac_rfpd')->result_array();
+
+        $td = '';
+        foreach ($rs as $row) {
+            $td .= '<tr>';
+            foreach ($fld as $fi => $f) {
+                $val = $row[$f];
+                if ($f === 'trn_id') {
+                    $tbl  = ($sw == 1) ? 'rrh' : 'poh';
+                    $code = $this->db->where('id', $val)->get($tbl)->row('code');
+                    $val  = '<option value="' . $val . '">' . $code . '</option>';
+                } elseif ($f === 'date_') {
+                    $tbl = ($sw == 1) ? 'rrh' : 'poh';
+                    $val = $this->db->where('id', $row['trn_id'])->get($tbl)->row('date_');
+                } elseif ($f === 'amount') {
+                    $val = number_format(floatval($val), 2);
+                }
+                $td .= '<td>' . $val . '</td>';
+            }
+            $td .= '</tr>';
+        }
+
+        $label      = ($sw == 1) ? 'RR' : 'PO';
+        $lookup_tbl = ($sw == 1) ? 'rrh' : 'poh';
+        $mf_type    = ($sw == 1) ? 'rr'  : 'po';
+        $amt_label  = ($sw == 1) ? 'RR'  : 'PO';
+        $get_fn     = ($sw == 1) ? 'getrr' : 'getpo';
+
+        echo '
+<script>
+$(document).ready(function() {
+    $("#ref_select").select2({
+        placeholder: "Select ' . $label . '#", allowClear: true,
+        ajax: {
+            url: "' . base_url('99/dashboard/mf/' . $mf_type) . '",
+            type: "POST", dataType: "json", delay: 250,
+            data: function(p) { return { searchTerm: p.term, id: ' . $id . ' }; },
+            processResults: function(d) { return { results: d }; },
+            cache: true
+        }
+    });
+    var table = $("#tbl_detail_' . $sw . '").DataTable({ scrollX: true, order: [[0, "asc"]], paging: false });
+    $("#tbl_detail_' . $sw . ' tbody").on("click", "tr", function() {
+        var d = table.row(this).data();
+        $("#brramt").val(d[4]);
+        $("#damt").val(d[3]);
+        $("#seq").val(d[0]);
+        $("#ref_select").html(d[1]);
+    });
+});
+function get_ref(fld) {
+    $.ajax({
+        url: "' . base_url('99/dashboard/' . $get_fn) . '",
+        dataType: "json", method: "POST",
+        data: { id: $("#" + fld).val() },
+        success: function(data) {
+            $("#rramt").val(data.rramt);
+            $("#prramt").val(data.prramt);
+            $("#brramt").val(data.brramt);
+        }
+    });
+}
+function chkamt() {
+    var rem = parseFloat($("#brramt").val()) - parseFloat($("#damt").val());
+    if (rem < 0) { alert("Amount exceeds balance."); $("#damt").val(0).focus(); }
+}
+function dsave_detail() {
+    var trn_id = $("#ref_select").val();
+    var amt    = parseFloat($("#damt").val());
+    if (!trn_id || trn_id == 0) { alert("Please select a ' . $label . '#"); return; }
+    if (isNaN(amt) || amt <= 0)  { alert("Please enter a valid amount"); return; }
+    var datas = [' . $id . ', $("#seq").val(), ' . $sw . ', trn_id, amt, $("#brramt").val()];
+    $.ajax({
+        url: "' . base_url('99/dashboard/dsave') . '",
+        method: "POST", data: { datas: datas },
+        success: function() {
+            $.ajax({
+                url: "' . base_url('99/dashboard/recalc_rr_amount') . '",
+                method: "POST", data: { id: ' . $id . ' },
+                success: function(res) {
+                    $("#amount").val(res.amount);
+                    info(' . $sw . ');
+                }
+            });
+        }
+    });
+}
+function ddel_detail() {
+    var seq = $("#seq").val();
+    if (!seq || seq == 0) { alert("Please select a row first"); return; }
+    if (!confirm("Delete this entry?")) return;
+    $.ajax({
+        url: "' . base_url('99/dashboard/ddel') . '",
+        method: "POST", data: { datas: [' . $id . ', seq] },
+        success: function() {
+            $.ajax({
+                url: "' . base_url('99/dashboard/recalc_rr_amount') . '",
+                method: "POST", data: { id: ' . $id . ' },
+                success: function(res) {
+                    $("#amount").val(res.amount);
+                    info(' . $sw . ');
+                }
+            });
+        }
+    });
+}
+</script>
+
+<div class="container-fluid">
+<div class="row">
+  <div class="col-sm-3">
+    <div class="input-group mb-1 input-group-sm">
+      <select class="form-control" id="ref_select" onchange="get_ref(this.id)">
+        <option value="0">Select ' . $label . '#</option>
+      </select>
+    </div>
+    <div class="input-group mb-1 input-group-sm">
+      <div class="input-group-prepend"><span class="input-group-text">' . $amt_label . ' Amount</span></div>
+      <input type="number" class="form-control" id="rramt" value="0" disabled />
+    </div>
+    <div class="input-group mb-1 input-group-sm">
+      <div class="input-group-prepend"><span class="input-group-text">Paid Amount</span></div>
+      <input type="number" class="form-control" id="prramt" value="0" disabled />
+    </div>
+    <div class="input-group mb-1 input-group-sm">
+      <div class="input-group-prepend"><span class="input-group-text">Balance</span></div>
+      <input type="number" class="form-control" id="brramt" value="0" disabled />
+    </div>
+    <div class="input-group mb-1 input-group-sm">
+      <div class="input-group-prepend"><span class="input-group-text">Amount</span></div>
+      <input type="number" class="form-control" id="damt" value="0" onchange="chkamt()" />
+    </div>
+    <input type="hidden" id="seq" value="0" />
+    <div class="input-group mb-1 input-group-sm">
+      <input type="button" class="form-control btn btn-outline-dark btn-sm"
+             value="Save" onclick="dsave_detail()" />
+      <input type="button" class="form-control btn btn-outline-danger btn-sm"
+             value="Delete" onclick="ddel_detail()" />
+      <input type="button" class="form-control btn btn-outline-secondary btn-sm"
+             value="Clear" onclick="info(' . $sw . ')" />
+    </div>
+  </div>
+  <div class="col-sm-9">
+    <table id="tbl_detail_' . $sw . '" class="display nowrap" style="width:100%;">
+      <thead><tr>' . $th . '</tr></thead>
+      <tbody>' . $td . '</tbody>
+    </table>
+  </div>
+</div>
+</div>';
+    }
+
+    // ─────────────────────────────────────────────
+    // PRINT  — shows RR lines AND PO lines, correct total
+    // ─────────────────────────────────────────────
+
+    function print($id) {
+        $row = $this->db->where('id', $id)->get('ac_rfph')->row_array();
+        if (!$row) { echo 'Record not found.'; return; }
+
+        $purpose_arr = explode(',', ',Merchandise,Raw Mat,Down Payment,Mobilization,Travel,Utilities,Professional Fee,Asset,Legal Fees,Repaired Maintenance,Trucking & Delivery,Supplies,Others');
+        $pt_arr      = explode(',', 'select none,Check,Cash,Telegraphic Transfer,Others');
+
+        // People
+        $dvid          = $this->db->where('rfp', $id)->order_by('id', 'desc')->limit(1)->get('dvh')->row('id');
+        $prepared_id   = $dvid ? $this->db->where('id', $dvid)->get('dvh')->row('prepared_by') : 0;
+        $dvappby_id    = intval($row['approved_by']);
+        $dvappby_nm    = $this->db->where('id', $dvappby_id)->get('users')->row('name') ?: '';
+        $prepared_nm   = $prepared_id
+            ? ($this->db->where('id', $prepared_id)->get('users')->row('name') ?: '')
+            : ($this->db->where('id', $row['created_by'])->get('users')->row('name') ?: '');
+        $req_unit_nm   = $this->db->where('id', $row['created_by'])->get('users')->row('name') ?: '';
+        $req_head_nm   = (!empty($row['request_by']) && intval($row['request_by']) > 0)
+            ? ($this->db->where('id', $row['request_by'])->get('users')->row('name') ?: '')
+            : '';
+
+        // Dates
+        $date_created = (!empty($row['date_']) && substr($row['date_'], 0, 4) > '2000')
+            ? date_format(date_create($row['date_']), 'F d, Y') : '';
+        $date_needed  = (!empty($row['date_needed']) && substr($row['date_needed'], 0, 4) > '2000')
+            ? date_format(date_create($row['date_needed']), 'F d, Y') : '';
+
+        // ── Build detail entries and total ───────────────────
+        // Source 1: RR lines from ac_rfpd sw=1 (primary, from info tab)
+        $all_entries = [];
+        $tamt        = 0;
+
+        $rr_lines = $this->db->where('id', $id)->where('sw', 1)
+            ->order_by('seq', 'asc')->get('ac_rfpd')->result_array();
+        foreach ($rr_lines as $line) {
+            $rr = $this->db->where('id', $line['trn_id'])->get('rrh')->row_array();
+            if (!$rr) continue;
+            $rr_date = (!empty($rr['date_']) && substr($rr['date_'], 0, 4) != '0000')
+                ? date('m/d/Y', strtotime($rr['date_'])) : '';
+            $amt      = floatval($line['amount']);
+            $tamt    += $amt;
+            $all_entries[] = [
+                'type'   => 'RR',
+                'code'   => $rr['code'],
+                'date'   => $rr_date,
+                'amount' => $amt,
+            ];
+        }
+
+        // Source 2: RRs from ac_rfph.rr comma field NOT already in ac_rfpd sw=1
+        $rr_saved    = $row['rr'];
+        $saved_ids   = (!empty($rr_saved) && trim($rr_saved) !== '' && trim($rr_saved) !== '0')
+            ? array_filter(array_map('trim', explode(',', $rr_saved)))
+            : [];
+        $counted_ids = array_column($rr_lines, 'trn_id');
+
+        if (!empty($saved_ids)) {
+            $extra_rrs = $this->db->where_in('id', $saved_ids)
+                ->order_by('date_', 'asc')->order_by('code', 'asc')
+                ->get('rrh')->result_array();
+            foreach ($extra_rrs as $rr) {
+                if (in_array($rr['id'], $counted_ids)) continue;
+                $rr_date = (!empty($rr['date_']) && substr($rr['date_'], 0, 4) != '0000')
+                    ? date('m/d/Y', strtotime($rr['date_'])) : '';
+                $amt      = floatval($rr['amt_rr']);
+                $tamt    += $amt;
+                $all_entries[] = [
+                    'type'   => 'RR',
+                    'code'   => $rr['code'],
+                    'date'   => $rr_date,
+                    'amount' => $amt,
+                ];
+            }
+        }
+
+        // Source 3: PO lines from ac_rfpd sw=2
+        $po_lines = $this->db->where('id', $id)->where('sw', 2)
+            ->order_by('seq', 'asc')->get('ac_rfpd')->result_array();
+        foreach ($po_lines as $line) {
+            $po = $this->db->where('id', $line['trn_id'])->get('poh')->row_array();
+            $po_code = $po ? $po['code'] : '';
+            $po_date = ($po && !empty($po['date_']))
+                ? date('m/d/Y', strtotime($po['date_'])) : '';
+            $amt     = floatval($line['amount']);
+            $tamt   += $amt;
+            $all_entries[] = [
+                'type'   => 'PO',
+                'code'   => $po_code,
+                'date'   => $po_date,
+                'amount' => $amt,
+            ];
+        }
+
+        // Sync the stored amount with what we just calculated
+        $this->db->where('id', $id)->update('ac_rfph', ['amount' => $tamt]);
+
+        // ── Left details column (purpose + descriptions + remarks) ──
+        $purpose_label = (intval($row['purpose']) > 0 && isset($purpose_arr[intval($row['purpose'])]))
+            ? strtoupper(trim($purpose_arr[intval($row['purpose'])])) : '';
+
+        $left_html = '';
+        if (!empty($purpose_label)) {
+            $left_html .= '<div style="font-weight:bold;margin-bottom:5px;">' . $purpose_label . '</div>';
+        }
+
+        $desc_rows = $this->db->where('id', $id)->get('ac_rfpd')->result();
+        foreach ($desc_rows as $dr) {
+            if (!empty(trim($dr->description))) {
+                $left_html .= '<div style="margin-bottom:2px;">' . strtoupper($dr->description) . '</div>';
+            }
+        }
+
+        $remarks = strtoupper(trim($row['remarks'] ?? ''));
+        if (!empty($remarks)) {
+            if (!empty($left_html)) $left_html .= '<div style="margin-top:6px;"></div>';
+            foreach (explode("\n", str_replace(["\r\n", "\r"], "\n", $remarks)) as $line) {
+                $line = trim($line);
+                if (!empty($line)) {
+                    $left_html .= '<div style="margin-bottom:2px;">' . htmlspecialchars($line, ENT_QUOTES) . '</div>';
+                }
+            }
+        }
+
+        // ── Right details column: RR and PO rows side by side ──
+        $right_html = '';
+        foreach ($all_entries as $e) {
+            $right_html .= '<tr>
+                <td style="width:10%;padding:2px 6px 2px 0;white-space:nowrap;color:#555;">'
+                    . htmlspecialchars($e['type'], ENT_QUOTES) . '</td>
+                <td style="width:40%;padding:2px 8px 2px 0;white-space:nowrap;">'
+                    . htmlspecialchars($e['code'], ENT_QUOTES) . '</td>
+                <td style="width:20%;padding:2px 8px 2px 0;white-space:nowrap;">'
+                    . $e['date'] . '</td>
+                <td style="width:30%;padding:2px 0;text-align:right;white-space:nowrap;">'
+                    . number_format($e['amount'], 2) . '</td>
+            </tr>';
+        }
+        // Total row
+        $right_html .= '<tr>
+            <td colspan="3" style="text-align:right;font-weight:bold;padding-top:4px;border-top:1px solid #000;">TOTAL :</td>
+            <td style="text-align:right;font-weight:bold;padding-top:4px;border-top:1px solid #000;">'
+                . number_format($tamt, 2) . '</td>
+        </tr>';
+
+        // ── Payment mode checkboxes ────────────────────────────
+        $pt  = intval($row['payment_type']);
+        $cb  = function($n) use ($pt) {
+            return '<span class="check-box">' . ($pt == $n ? 'X' : '&nbsp;&nbsp;') . '</span>';
+        };
+        $cbe = '<span class="check-box">&nbsp;&nbsp;</span>';
+        $payment_others_text = !empty($row['payment_others'])
+            ? '<u style="padding:0 10px;">' . htmlspecialchars($row['payment_others'], ENT_QUOTES) . '</u>'
+            : '_________________';
+
+        // ── HTML Output ───────────────────────────────────────
+        echo '<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Request for Payment - ' . htmlspecialchars($row['code'], ENT_QUOTES) . '</title>
+<meta charset="utf-8">
+<style>
+body { font-family: "Times New Roman", Times, serif; font-size: 13px; color: #000; background: #f4f4f4; }
+.form-container { width: 100%; max-width: 820px; margin: 20px auto; background: #fff; padding: 30px; border: 1px solid #ddd; }
+.form-header { text-align: center; font-weight: bold; font-size: 18px; margin-bottom: 20px; letter-spacing: 1px; }
+.tbl-header { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+.tbl-header td { padding: 5px 0; vertical-align: bottom; }
+.field-label { font-weight: bold; font-size: 12px; text-transform: uppercase; }
+.underline-value { border-bottom: 1px solid #000; padding: 0 10px; display: inline-block; }
+.payment-grid { width: 100%; margin-top: 4px; margin-left: 15px; }
+.payment-grid td { padding: 3px 0; font-size: 12px; vertical-align: middle; text-transform: uppercase; }
+.check-box { font-family: monospace; font-size: 13px; font-weight: bold; margin-right: 6px;
+             display: inline-block; vertical-align: middle; border: 1px solid #000;
+             width: 15px; height: 15px; line-height: 15px; text-align: center; }
+.sig-table { width: 100%; border-collapse: collapse; margin-top: 18px;
+             border-top: 2px solid #000; border-bottom: 2px solid #000; }
+.sig-table td { padding: 3px 8px; border-right: 1px solid #000; width: 50%; vertical-align: bottom; }
+.sig-table td:last-child { border-right: none; }
+.sig-row-bottom td { border-bottom: 1px solid #000; }
+.sig-label { font-weight: bold; font-size: 12px; display: inline-block;
+             width: 170px; text-transform: uppercase; }
+.sig-value { display: inline-block; width: calc(100% - 175px); border-bottom: 1px solid #000;
+             font-weight: bold; text-transform: uppercase; min-height: 14px;
+             vertical-align: bottom; padding-bottom: 1px; }
+.footer-text { text-align: right; font-size: 10px; margin-top: 4px; text-transform: uppercase; }
+.print-btn-container { text-align: center; margin: 20px 0; }
+.print-btn { padding: 10px 20px; font-size: 15px; cursor: pointer;
+             background: #343a40; color: #fff; border: none; border-radius: 4px; }
+.print-btn:hover { background: #23272b; }
+@media print {
+    body { background: #fff; }
+    .print-btn-container { display: none !important; }
+    .form-container { max-width: 100%; padding: 0; border: none; }
+}
+</style>
+</head>
+<body>
+<div class="print-btn-container">
+  <button class="print-btn" onclick="window.print()">PRINT FORM</button>
+</div>
+<div class="form-container">
+  <div class="form-header">REQUEST FOR PAYMENT</div>
+
+  <table class="tbl-header" style="border-bottom:1px solid #000;">
+    <tr>
+      <td style="width:55%;"><span class="field-label">REQUESTING UNIT :</span>
+          <span style="text-transform:uppercase;">' . htmlspecialchars($req_unit_nm, ENT_QUOTES) . '</span></td>
+      <td style="width:45%;text-align:right;">
+        <div><span class="field-label">RFP # :</span> ' . htmlspecialchars($row['code'], ENT_QUOTES) . '</div>
+        <div style="margin-top:4px;"><span class="field-label">DATE :</span>
+            <span style="text-transform:uppercase;">' . $date_created . '</span></div>
+      </td>
+    </tr>
+  </table>
+
+  <table class="tbl-header">
+    <tr>
+      <td style="width:55%;"><span class="field-label">PAYEE :</span>
+          <span style="text-transform:uppercase;">' . htmlspecialchars($row['payee'], ENT_QUOTES) . '</span></td>
+      <td style="width:45%;text-align:right;">
+        <span class="field-label">AMOUNT :</span>
+        <span class="underline-value" style="min-width:150px;text-align:right;font-weight:bold;">'
+            . number_format($tamt, 2) . '</span>
+      </td>
+    </tr>
+  </table>
+
+  <div style="margin-top:12px;">
+    <span class="field-label">MODE OF PAYMENT :</span>
+    <table class="payment-grid">
+      <tr>
+        <td style="width:33%;">' . $cb(1) . ' CHECK</td>
+        <td style="width:34%;">' . $cb(3) . ' TELEGRAPHIC TRANSFER</td>
+        <td style="width:33%;">' . $cbe . ' MANAGER\'S CHECK</td>
+      </tr>
+      <tr>
+        <td>' . $cb(2) . ' CASH</td>
+        <td>' . $cbe . ' DEMAND DRAFT</td>
+        <td>' . $cb(4) . ' OTHERS ' . $payment_others_text . '</td>
+      </tr>
+    </table>
+  </div>
+
+  <div style="margin-top:10px;min-height:220px;">
+    <span class="field-label">DETAILS :</span>
+    <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;">
+      <tr>
+        <td style="width:40%;vertical-align:top;padding-right:16px;border-right:1px solid #ccc;">
+          ' . $left_html . '
+        </td>
+        <td style="width:60%;vertical-align:top;padding-left:14px;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;">
+            <thead>
+              <tr style="font-weight:bold;border-bottom:1px solid #ccc;">
+                <td style="padding:2px 6px 2px 0;">Type</td>
+                <td style="padding:2px 8px 2px 0;">Code</td>
+                <td style="padding:2px 8px 2px 0;">Date</td>
+                <td style="padding:2px 0;text-align:right;">Amount</td>
+              </tr>
+            </thead>
+            <tbody>' . $right_html . '</tbody>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <table class="sig-table">
+    <tr class="sig-row-bottom">
+      <td style="height:28px;">
+        <span class="sig-label">PREPARED BY :</span>
+        <span class="sig-value">' . htmlspecialchars($prepared_nm, ENT_QUOTES) . '</span>
+      </td>
+      <td>
+        <span class="sig-label">DEPT. HEAD APPROVAL :</span>
+        <span class="sig-value">' . htmlspecialchars($req_head_nm, ENT_QUOTES) . '</span>
+      </td>
+    </tr>
+    <tr>
+      <td style="height:28px;">
+        <span class="sig-label">CHECKED BY :</span>
+        <span class="sig-value">' . htmlspecialchars($row['checked_by'] ?? '', ENT_QUOTES) . '</span>
+      </td>
+      <td>
+        <span class="sig-label">APPROVED BY :</span>
+        <span class="sig-value">' . htmlspecialchars($dvappby_nm, ENT_QUOTES) . '</span>
+      </td>
+    </tr>
+  </table>
+  <div class="footer-text">PRINTED ON: ' . date('m/d/Y h:i:s A') . ' BY ' . htmlspecialchars($req_unit_nm, ENT_QUOTES) . '</div>
+</div>';
+
+        // Attached photo (second page)
+        $photo = $row['photo'] ?? '';
+        if (!empty($photo) && $photo !== 'empty.jpg') {
+            $img_url = base_url('uploads/pix/' . $photo);
+            echo '
+<div style="page-break-before:always;clear:both;padding-top:20px;"></div>
+<div style="width:100%;max-width:900px;margin:0 auto;text-align:center;">
+  <h3 style="text-align:left;margin-bottom:10px;">ATTACHED FILE:</h3>
+  <img id="attached_img" src="' . $img_url . '" alt="Attachment"
+       style="max-width:100%;max-height:900px;object-fit:contain;border:2px solid #000;padding:5px;" />
+</div>';
+        }
+
+        echo '
+<script>
+window.onload = function() {
+    var img = document.getElementById("attached_img");
+    if (img && !img.complete) {
+        img.onload  = function() { setTimeout(window.print, 200); };
+        img.onerror = function() { setTimeout(window.print, 200); };
+    } else {
+        setTimeout(window.print, 500);
+    }
+};
+</script>
+</body></html>';
+    }
+
+    // ─────────────────────────────────────────────
+    // LOOKUP / DROPDOWN AJAX
+    // ─────────────────────────────────────────────
+
+    function getrr() {
+        $id  = $this->input->post('id');
+        $row = $this->db->where('id', $id)
+            ->where('CAST(amt_rr AS DECIMAL) >', 10)
+            ->get('rrh')->row_array();
+
+        $dat = ['rramt' => 0, 'prramt' => 0, 'brramt' => 0];
+        if ($row) {
+            $dat['rramt']  = floatval($row['amt_rr']);
+            $dat['prramt'] = floatval($row['amt_paid']);
+            $dat['brramt'] = $dat['rramt'] - floatval($row['amt_ret']) - $dat['prramt'];
+        }
+        echo json_encode($dat);
+    }
+
+    function getpo() {
+        $id  = $this->input->post('id');
+        $row = $this->db->where('id', $id)
+            ->where('CAST(amt_po AS DECIMAL) >', 10)
+            ->get('poh')->row_array();
+
+        $dat = ['rramt' => 0, 'prramt' => 0, 'brramt' => 0];
+        if ($row) {
+            $dat['rramt']  = floatval($row['amt_po']);
+            $dat['brramt'] = $dat['rramt'];
+        }
+        echo json_encode($dat);
+    }
+
+    function mf($sw) {
+        $id = $this->input->post('id');
+        $xs = $this->input->post('searchTerm');
+
+        $data   = [['id' => 0, 'text' => 'select none']];
+
+        if ($sw === 'rr') {
+            $rs = $this->db
+                ->like('concat(code,date_)', $xs)
+                ->where('CAST((amt_rr - amt_paid) AS DECIMAL) >', 10)
+                ->order_by('code')->limit(10)
+                ->get('rrh')->result_array();
+
+            foreach ($rs as $row) {
+                $already = $this->db->where('id', $id)->where('sw', 1)
+                    ->where('trn_id', $row['id'])->get('ac_rfpd')->result();
+                if (count($already) == 0) {
+                    $bal = floatval($row['amt_rr']) - floatval($row['amt_ret']) - floatval($row['amt_paid']);
+                    if ($bal > 0) {
+                        $data[] = [
+                            'id'   => $row['id'],
+                            'text' => $row['code'] . ' - ' . $row['date_']
+                                    . ' Amt ' . $row['amt_rr']
+                                    . ' Ret '  . $row['amt_ret']
+                                    . ' Paid ' . $row['amt_paid'],
+                        ];
+                    }
+                }
+            }
+        }
+
+        if ($sw === 'po') {
+            $rs = $this->db
+                ->like('concat(code,date_)', $xs)
+                ->order_by('code')->limit(10)
+                ->get('poh')->result_array();
+
+            foreach ($rs as $row) {
+                $data[] = [
+                    'id'   => $row['id'],
+                    'text' => $row['code'] . ' - ' . $row['date_'] . ' Amt ' . $row['amt_po'],
+                ];
+            }
+        }
+
+        echo json_encode($data);
+    }
+
+    function dept() {
+        $xs = $this->input->post('searchTerm');
+        $rs = $this->db->like('name', $xs)->order_by('name')->limit(10)->get('dept')->result_array();
+        $data = [['id' => 0, 'text' => 'select none']];
+        foreach ($rs as $row) { $data[] = ['id' => $row['id'], 'text' => $row['name']]; }
+        header('Content-Type: application/json');
+        echo json_encode($data);
+    }
+
+    function branch() {
+        $xs = $this->input->post('searchTerm', TRUE);
+        $this->db->order_by('Branch_Name')->limit(20);
+        if (!empty($xs)) { $this->db->like('Branch_Name', $xs); }
+        $rs   = $this->db->get('branch')->result_array();
+        $data = [['id' => 0, 'text' => 'select none']];
+        foreach ($rs as $row) { $data[] = ['id' => $row['id'], 'text' => $row['Branch_Name']]; }
+        header('Content-Type: application/json');
+        echo json_encode($data);
+    }
+
+    function location() {
+        $xs = $this->input->post('searchTerm');
+        $rs = $this->db->where('status', 1)->like('name', $xs)
+            ->order_by('name')->limit(20)->get('location')->result_array();
+        $data = [['id' => 0, 'text' => 'select none']];
+        foreach ($rs as $row) { $data[] = ['id' => $row['id'], 'text' => $row['name']]; }
+        header('Content-Type: application/json');
+        echo json_encode($data);
+    }
+
+    function names() {
+        $xs = $this->input->post('searchTerm', TRUE);
+        $this->db->order_by('name')->limit(30);
+        if (!empty($xs)) { $this->db->like('name', $xs); }
+        $rs   = $this->db->get('users')->result_array();
+        $data = [['id' => 0, 'text' => 'select none']];
+        foreach ($rs as $row) { $data[] = ['id' => $row['id'], 'text' => $row['name']]; }
+        header('Content-Type: application/json');
+        echo json_encode($data);
+    }
+
+    function payee_list() {
+        $xs = $this->input->post('searchTerm', TRUE);
+        $this->db->where('status', 1)->order_by('name')->limit(30);
+        if (!empty($xs)) { $this->db->like('name', $xs); }
+        $rs   = $this->db->get('subsi')->result_array();
+        $data = [];
+        foreach ($rs as $row) { $data[] = ['id' => $row['id'], 'text' => $row['name']]; }
+        header('Content-Type: application/json');
+        echo json_encode($data);
+    }
+
+    function status() {
+        $stat = explode(',', 'select status,Waiting Parts,WIP,On Site Diagnose,Return to Office,Dispose,Repaired Finish');
+        $data = [['id' => 0, 'text' => 'SELECT NONE']];
+        for ($a = 1; $a < count($stat); $a++) {
+            $data[] = ['id' => $a, 'text' => strtoupper(trim($stat[$a]))];
+        }
+        echo json_encode($data);
+    }
+
+}

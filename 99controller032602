@@ -1,0 +1,4610 @@
+<?php
+
+defined('BASEPATH') OR exit('No direct script access allowed');
+
+class Dashboard extends CI_Controller {    
+
+public function __construct() {
+parent::__construct();
+$this->load->model('Recordset');
+$this->load->helper('form'); $this->load->helper('url', 'form');$this->load->model('user_model');if(!$this->session->userdata('user_id'))  { redirect('user/login');  }    
+
+if($this->Recordset->ac_chk(99)==0){ redirect('dashboard/index'); }
+
+
+}
+
+function index()  { 
+$data['tbl']='ac_rfph'; 
+$data['fld']=$this->db->list_fields($data['tbl']); 
+$data['mod']=99; 
+$data['title']=$rs=$this->db->where('id',$data['mod'])->get('scm_settings')->row('caption'); 
+//if($this->user_model->chk_group($a)==true) 
+{ 
+
+
+$data['mod']=99; $this->load->model('user_model');    
+
+if($this->user_model->chk_group($data['mod'])==true)  { 
+    $this->load->view("header"); $this->load->view($data['mod']."/view",$data);    
+} 
+else { redirect(base_url()); }
+
+//$this->load->view("header"); $this->load->view("99/view",$data); 
+} 
+// else { redirect(base_url()); }
+} 
+
+function view2($id)  { 
+$data['tbl']='ac_rfph'; 
+$data['fld']=$this->db->list_fields($data['tbl']); 
+$data['mod']=99; 
+$data['id']=$id; 
+$data['title']=$rs=$this->db->where('id',$data['mod'])->get('scm_settings')->row('caption'); 
+//if($this->user_model->chk_group($a)==true) 
+{ 
+
+
+$data['mod']=99; $this->load->model('user_model');    
+
+if($this->user_model->chk_group($data['mod'])==true)  { 
+    $this->load->view("header"); $this->load->view($data['mod']."/view2",$data);    
+} 
+else { redirect(base_url()); }
+
+//$this->load->view("header"); $this->load->view("99/view",$data); 
+} 
+// else { redirect(base_url()); }
+} 
+
+function view($id)  { 
+$data['tbl']='ac_rfph'; 
+$data['fld']=$this->db->list_fields($data['tbl']); 
+$data['mod']=99; 
+$data['id']=$id; 
+$data['title']=$rs=$this->db->where('id',$data['mod'])->get('scm_settings')->row('caption'); 
+$this->load->view("header"); $this->load->view($data['mod']."/view2",$data);    
+} 
+
+function proof()  {
+$tmp = $this->input->post('datas');   
+$rv=explode(',','On-Site, Video Call, Remote Desktop'); 
+$tbl='ac_rfph'; 
+$fld=$this->db->list_fields('ac_rfph'); 
+
+date_default_timezone_set("Asia/Manila");
+
+    //$xd= date("Y-m-d H:i");    echo $xd;
+$loc=$_SESSION['location']; 
+
+$uid=$_SESSION['user_id']; 
+$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights'); 
+
+$mid=$this->db->where('userid',$uid)->get('manager')->row('id');
+$sw=0;    
+if($ur==4 or $ur==8) {$sw=1;}
+if($sw==0){
+$this->db->where('request_by',$uid);    
+}    
+
+
+$rs=$this->db
+//->where('date_',$_SESSION['datex']) //->where('date_<=',$de)
+->where('date_>=',$tmp[0])
+->where('date_<=',$tmp[1])
+// ->where('request_by>',0)  
+->order_by('id','desc')
+->get($tbl)->result_array();
+$fld=$this->db->list_fields($tbl);
+$fld=explode(',','id,code,payee,amount,payment_type,remarks,date_,created_by');
+$td=''; $th='';
+for($a=0;$a<count($fld);$a++)  { 
+$fldnm=str_replace('_',' ',$fld[$a]); $th.='<th>'.ucwords($fldnm).'</th>';}
+
+$error=explode(',','Human, Machine, Software,Computer');
+$rv=explode(',','On-Site, Video Call, Remote Desktop'); 
+
+
+$stat=explode(',','
+select status
+,Waiting Parts 
+,WIP 
+,On Site Diagnose 
+,Return to Office 
+,Dispose 
+,Repaired Finish'); 
+
+foreach($rs as $row) {   
+$td.='<tr>' ; 
+for($a=0;$a<count($fld);$a++)  { 
+$datafld=$row[$fld[$a]];    
+if($fld[$a] == 'date_'){
+    $date=date_create($datafld);
+    $datafld=date_format($date,'Y-m-d');
+}
+
+if($fld[$a] == 'payment_type'){
+    $pt_arr=explode(',','select none,Check, Cash, Telegraphic Transfer, Others');
+    $datafld= (intval($datafld) > 0 && isset($pt_arr[$datafld])) ? $pt_arr[$datafld] : '';
+}
+
+if($fld[$a] == 'amount'){
+    $datafld = number_format(floatval($datafld), 2);
+}
+
+if($fld[$a] == 'created_by'){
+    if(is_numeric($datafld) && $datafld > 0) {
+        $nm = $this->db->where('id',$datafld)->get('users')->row('name');
+        $datafld = !empty($nm) ? $nm : $datafld;
+    }
+}
+
+if($datafld == '0') { $datafld = ''; } 
+
+if($fld[$a] == 'remarks') {
+    $datafld = '<div style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="'.htmlspecialchars($datafld, ENT_QUOTES).'">'.$datafld.'</div>';
+}
+
+$td.='<td>'.$datafld.'</td>';
+}
+$td.='</tr>' ;
+
+}
+
+echo ' 
+<script>
+$("#xsearch").hide()
+
+function refresh_page(){ $("#rrno").val() }
+
+function getsubsi() {
+var subsi=$("#subsi").val(); var st=$("#stype").val();
+
+$.ajax({url:"'.base_url("99/dashboard/getsubsi").'", method:"POST", dataType:"json", data:{id:subsi,st:st},success:function(data) 
+{  
+$("#phone").val(data.phone);
+saveh();
+} });  
+
+}
+
+$(document).ready(function() {  
+
+var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[ 0, "desc" ]]});
+$("#tbl_list tbody").on("click", "tr", function () { var data = table.row( this ).data();  edit_rec(data[0]); });
+
+function edit_rec(id) {
+$("#id").val(id);
+
+$.ajax({url:"'.base_url("99/dashboard/edit_rec").'", method:"POST",  data:{id:id},success:function(data) 
+{ 
+
+$("#xsearch").hide();
+$("#forms").empty();  
+//$("#form_entry").show();  $("#form_entry").empty();  
+$("#forms").html(data);     
+
+}  });  
+}
+
+
+});
+
+</script>
+
+<div class="container-fluid">
+<table id="tbl_list" class="display nowrap" style="width:100%" >
+<thead> <tr>'.$th.'</tr> </thead>
+<tbody>'.$td.'</tbody>
+</table>
+</div>';
+
+}   
+
+function list2()  {
+$qs  = $this->input->post('qs');    
+$rv=explode(',','On-Site, Video Call, Remote Desktop'); 
+$tbl='ac_rfph'; 
+$fld=$this->db->list_fields('ac_rfph'); 
+$qs=$tmp;
+
+
+//code / purpose / approved by / dept / remarks   
+$fld=explode(',','code,purpose,approved_by,dept,remarks')    ;
+
+date_default_timezone_set("Asia/Manila");
+
+    //$xd= date("Y-m-d H:i");    echo $xd;
+$loc=$_SESSION['location']; 
+
+$uid=$_SESSION['user_id']; 
+$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights'); 
+
+$mid=$this->db->where('userid',$uid)->get('manager')->row('id');
+
+$sw=0;
+if($ur==4 or $ur==8 or $ur==22) { $sw=1; }
+if($sw==0){ $this->db->where('created_by',$uid); }
+
+$this->db->where('fin>',0); 
+$this->db->like('code',$qs);
+//$this->db->or_like('sor',$qs); 
+$this->db->limit(5);
+
+$rs=$this->db
+//->where('date_',$_SESSION['datex']) //->where('date_<=',$de)
+// ->where('request_by>',0)  
+//->where('date_>=',$tmp[0]) ->where('date_<=',$tmp[1])
+->order_by('id','desc')
+->get($tbl)->result_array();
+$fld=$this->db->list_fields($tbl);
+$fld=explode(',','id,code,payee,amount,payment_type,remarks')    ;
+
+$td=''; $th=''; 
+for($a=0;$a<count($fld);$a++)  { 
+$fldnm=str_replace('_',' ',$fld[$a]); $th.='<th>'.ucwords($fldnm).'</th>';}
+
+$error=explode(',','Human, Machine, Software,Computer');
+$rv=explode(',','On-Site, Video Call, Remote Desktop'); 
+
+
+$stat=explode(',','
+select status
+,Waiting Parts 
+,WIP 
+,On Site Diagnose 
+,Return to Office 
+,Dispose 
+,Repaired Finish'); 
+
+foreach($rs as $row) {   
+
+$date=date_create($row['date_']);
+$datex=date_format($date,'Y-m-d');
+//if($datex>=$ds){ if($datex<=$de)
+{ 
+$td.='<tr>' ;     
+for($a=0;$a<count($fld);$a++)  { 
+$datafld=$row[$fld[$a]];   
+if($fld[$a] == 'payment_type'){
+    $pt_arr=explode(',','select none,Check, Cash, Telegraphic Transfer, Others');
+    $datafld= (intval($datafld) > 0 && isset($pt_arr[$datafld])) ? $pt_arr[$datafld] : '';
+}
+
+if($fld[$a] == 'amount'){
+    $datafld = number_format(floatval($datafld), 2);
+}
+
+if($datafld == '0') { $datafld = ''; } 
+
+if($fld[$a] == 'remarks') {
+    $datafld = '<div style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="'.htmlspecialchars($datafld, ENT_QUOTES).'">'.$datafld.'</div>';
+}
+
+$td.='<td>'.$datafld.'</td>';
+} 
+    $td.='</tr>' ;     
+}   
+}    
+
+
+
+//}
+
+echo ' 
+<script>
+$("#xsearch").hide()
+
+function refresh_page(){ $("#rrno").val() }
+
+function getsubsi() {
+var subsi=$("#subsi").val(); var st=$("#stype").val();
+
+$.ajax({url:"'.base_url("99/dashboard/getsubsi").'", method:"POST", dataType:"json", data:{id:subsi,st:st},success:function(data) 
+{  
+$("#phone").val(data.phone);
+saveh();
+} });  
+
+}
+
+$(document).ready(function() { 
+
+var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[ 0, "desc" ]]});
+$("#tbl_list tbody").on("click", "tr", function () { var data = table.row( this ).data();  edit_rec(data[0]); });
+
+function edit_rec(id) {
+$("#id").val(id);
+
+$.ajax({url:"'.base_url("99/dashboard/edit_rec").'", method:"POST",  data:{id:id},success:function(data) 
+{ 
+
+$("#xsearch").hide();
+$("#forms").empty();  
+//$("#form_entry").show();  $("#form_entry").empty();  
+$("#forms").html(data);     
+$("#xsearch").hide();
+
+}  });  
+}
+
+
+});
+
+</script>
+
+<div class="container-fluid">
+<table id="tbl_list" class="display nowrap" style="width:100%" >
+<thead> <tr>'.$th.'</tr> </thead>
+<tbody>'.$td.'</tbody>
+</table>
+</div>';
+
+} 
+
+function list() {
+    $tmp = $this->input->post('datas');       
+    $tbl='ac_rfph'; 
+    $ds=$tmp[0];   
+    $de=$tmp[1];   
+
+    date_default_timezone_set("Asia/Manila");
+    $uid=$_SESSION['user_id']; 
+    $ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights'); 
+
+    $sw=0;    
+    if($ur==4 or $ur==8) { $sw=1; }
+    if($sw==0){ $this->db->where('created_by',$uid); }    
+
+    $this->db->where('DATE(date_)>=',$ds);
+    $this->db->where('DATE(date_)<=',$de);
+
+    $rs=$this->db
+        ->order_by('id','desc')
+        ->get($tbl)->result_array();
+
+    $fld=explode(',','id,code,payee,amount,payment_type,remarks');
+    $td=''; $th=''; 
+    for($a=0;$a<count($fld);$a++) { 
+        $fldnm=str_replace('_',' ',$fld[$a]); 
+        if($a==1){$th.='<th>RFP Type</th>';}
+        $th.='<th>'.ucwords($fldnm).'</th>';
+    }
+    $type=explode(',',',Cash Advance,Reimburse,Replenish,Quotation');
+    foreach($rs as $row) {   
+        $td.='<tr>';     
+        for($a=0;$a<count($fld);$a++) { 
+            $datafld=$row[$fld[$a]];   
+            if($fld[$a]=='payment_type'){
+                $pt_arr=explode(',','select none,Check, Cash, Telegraphic Transfer, Others');
+                $datafld=(intval($datafld)>0 && isset($pt_arr[$datafld])) ? $pt_arr[$datafld] : '';
+            }
+            if($fld[$a]=='amount'){
+                $datafld=number_format(floatval($datafld),2);
+            }
+            if($datafld=='0') { $datafld=''; }
+            if($fld[$a]=='remarks'){
+                $datafld='<div style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'.htmlspecialchars($datafld,ENT_QUOTES).'">'.$datafld.'</div>';
+            }
+            if($a==1){
+                $td.='<td>'.$type[$row['r_type']].'</td>';
+            }
+            $td.='<td>'.$datafld.'</td>';
+        } 
+        $td.='</tr>';     
+    }
+
+    echo '
+<script>
+$(document).ready(function() {  
+    var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[ 0, "desc" ]]});
+    $("#tbl_list tbody").on("click", "tr", function() { 
+        var data = table.row(this).data(); 
+        edit_rec(data[0]); 
+    });
+
+    function edit_rec(id) {
+        $.ajax({
+            url: "'.base_url("99/dashboard/edit_rec").'", 
+            method: "POST",  
+            data: {id: id},
+            success: function(data) { 
+                $("#xsearch").hide();
+                $("#forms").empty();  
+                $("#forms").html(data);    
+            }  
+        });  
+    }
+});
+</script>
+
+<div class="container-fluid">
+<table id="tbl_list" class="display nowrap" style="width:100%">
+<thead><tr>'.$th.'</tr></thead>
+<tbody>'.$td.'</tbody>
+</table>
+</div>';
+}
+
+function addrec() {
+
+$rt=$_POST['rt']; 
+$uid=$_SESSION['user_id']; 
+$loc=$_SESSION['location']; 
+
+$mcode=$this->db 
+    ->like('code', 'RFP-'.$loc.'-', 'after') 
+    ->order_by('id','desc') 
+    ->limit(1)->get('ac_rfph')->row('code');
+
+    $pref='RFP';
+    $series=1; 
+
+    if(!empty($mcode)){
+        $rcode=explode('-',$mcode); 
+        if(count($rcode)==3){        
+            $vseries=intval($rcode[2]);
+        }
+        else {
+            $rcode=explode('RFP',$mcode); 
+            $vseries=isset($rcode[1]) ? intval($rcode[1]) : 0;
+        }
+        $series = $vseries + 1;
+    }
+
+    $code=$pref.'-'.$loc.'-'.$series;        
+
+    $dat['created_by']=$_SESSION['user_id'];
+    $dat['request_by']=$_SESSION['user_id'];
+    date_default_timezone_set("Asia/Manila");
+    $xdate=$dat['date_']=date("Y-m-d H:i:s");
+    $adate=explode(' ',$xdate);
+    $vdate=$adate[1];
+    $adate=explode(':',$vdate);
+    $tr=1;
+    if($adate[0]<=11){
+        if(intval($adate[1])<=30){
+            $tr=2;
+        }
+    }
+
+    $dat['r_type']=$rt;  
+    $dat['time_release']=$tr;  
+    $dat['branch']=0;  
+    $dat['code']=$code;    
+
+$this->db->insert('ac_rfph',$dat);
+
+$id=$this->db->insert_id();
+if(empty($id)) {
+    $id=$this->db->where('code',$dat['code'])->get('ac_rfph')->row('id');
+}
+
+echo json_encode(array('id'=>$id));
+
+}
+
+function addrecx() {
+
+$uid=$_SESSION['user_id']; 
+$loc=$_SESSION['location']; 
+
+$code=$this->db->order_by('id','desc')->limit(1)->get('ac_rfph')->row('id');
+
+$vcode=intval($code) + 1;  
+$cl=strlen($vcode); 
+$code='RFP'; 
+for($a=0;$a< 8 - $cl;$a++) { $code.='0'; }       
+
+    $dat['created_by']=$_SESSION['user_id'];
+    $dat['request_by']=$_SESSION['user_id'];
+    date_default_timezone_set("Asia/Manila");
+    $xdate=$dat['date_']=date("Y-m-d H:i:s");
+    $adate=explode(' ',$xdate);
+    $vdate=$adate[1];
+    $adate=explode(':',$vdate);
+    $tr=1;
+    if($adate[0]<=11){
+        if(intval($adate[1])<=30){
+            $tr=2;
+        }
+    }
+
+    $dat['time_release']=$tr;  
+    $dat['branch']=0;  
+    $dat['code']=$code.$vcode;    
+
+$this->db->insert('ac_rfph',$dat);
+
+$id=$this->db->insert_id();
+if(empty($id)) {
+    $id=$this->db->where('code',$dat['code'])->get('ac_rfph')->row('id');
+}
+
+echo json_encode(array('id'=>$id));
+
+}
+
+function getamount($id) {
+    $total = $this->_calc_total($id);
+    $this->db->where('id', $id)->update('ac_rfph', ['amount' => $total]);
+    return ['amount' => $total];
+}
+    
+private function _calc_total($id) {
+    $total = 0;
+
+    $rr_lines = $this->db->where('id', $id)->where('sw', 1)->get('ac_rfpd')->result_array();
+    foreach ($rr_lines as $line) {
+        $total += floatval($line['amount']);
+    }
+
+    $po_lines = $this->db->where('id', $id)->where('sw', 2)->get('ac_rfpd')->result_array();
+    foreach ($po_lines as $line) {
+        $total += floatval($line['amount']);
+    }
+
+    $rr_saved    = $this->db->where('id', $id)->get('ac_rfph')->row('rr');
+    $saved_ids   = (!empty($rr_saved) && trim($rr_saved) !== '' && trim($rr_saved) !== '0')
+        ? array_filter(array_map('trim', explode(',', $rr_saved))) : [];
+    $counted_ids = array_column($rr_lines, 'trn_id');
+
+    foreach ($saved_ids as $rr_id) {
+        if (in_array($rr_id, $counted_ids)) continue;
+        $amt = $this->db->where('id', $rr_id)->get('rrh')->row('amt_rr');
+        if ($amt) $total += floatval($amt);
+    }
+
+    return $total;
+}
+    
+function fin() { 
+
+$id  = $this->input->post('id');
+$rs=$this->db->where('id',$id)->get('ac_rfph')->result();
+$sw=0;
+$dat['msg']='';$dat['sw']=0;
+$today = date('Y-m-d');
+foreach($rs as $row){
+    if(intval($row->purpose)>0){
+        if(intval($row->payment_type)>0){
+            if(!empty($row->date_needed) && $row->date_needed > $today){
+                $dat['sw']=$sw=1; $dat['msg']='record finalized';
+            } else {$dat['msg']='please enter a valid Date Needed (must be a future date)';}
+        } else {$dat['msg']='please select payment type';}
+    } else {$dat['msg']='please select purpose';}
+}   
+
+if ($sw == 1) {
+    $total = $this->_calc_total($id);
+    $this->db->where('id', $id)->update('ac_rfph', ['amount' => $total]);
+
+    $this->db->where('id', $id)->update('ac_rfph', [
+        'fin' => $this->session->userdata('user_id')
+    ]);
+}   
+
+echo json_encode($dat);
+
+}
+
+function unfin() { 
+$dat['fin']=0; 
+$id  = $this->input->post('id'); 
+$this->db->where('id',$id)->update('ac_rfph',$dat); 
+}  
+
+function fsave() {
+$tmp = $this->input->post('datas'); $uid = $_SESSION['user_id'];
+$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights'); 
+$fin=$this->db->where('id',$tmp[0])->get('ac_rfph')->row('fin'); 
+
+$val = isset($_POST['val']) ? $_POST['val'] : (isset($tmp[2]) ? $tmp[2] : '');
+
+$dat[$tmp[1]] = $val; $sw=0;    
+if($fin==0) {$sw=1;}
+if($ur==4 or $ur==8) { $sw=1; }
+if($sw==1) { $this->db->where('id', $tmp[0])->update('ac_rfph',$dat); }
+
+echo json_encode($dat);
+
+}  
+
+function fsavexx() {
+$tmp = $this->input->post('datas');
+$sw = $_POST['sw'];
+
+$fld=$this->db->list_fields('ac_rfph');  
+$fld=explode(',','id,code,date_,location,machine,error_,diag,operator,tech,t_cost,via,date_repaired,rv_link,rv_proof,status,fin');
+
+$id=$tmp[0]; 
+$dat[$fld[$sw]]=$tmp[$sw];
+$this->db->where('id', $id)->update('ac_rfph',$dat);
+//$vdat[0]=$dat;$vdat[1]=$sw;
+echo json_encode($dat);
+
+}   
+
+function status() { 
+
+
+$stat=explode(',','
+select status
+,Waiting Parts 
+,WIP 
+,On Site Diagnose 
+,Return to Office 
+,Dispose 
+,Repaired Finish'); 
+
+$data[]=array("id"=>0, "text"=>'select none'); $xx=0;
+for($a=1;$a<count($stat);$a++) { 
+    $data[]=array("id"=>$a, "text"=>strtoupper($stat[$a])); 
+}
+
+echo json_encode($data); 
+} 
+
+function names() { 
+    header('Content-Type: application/json');
+    $xs = $this->input->post('searchTerm', TRUE);  
+
+    $data = [];
+    $data[] = array("id" => 0, "text" => "select none"); 
+
+    if (!empty($xs)) {
+        $this->db->like('name', $xs);
+    }
+
+    $rs = $this->db  
+        ->order_by('name') 
+        ->limit(30)
+        ->get('users')
+        ->result_array(); 
+
+    foreach($rs as $row) { 
+        $data[] = array("id" => $row['id'], "text" => $row['name']); 
+    }
+
+    echo json_encode($data); 
+    exit; 
+}
+    
+function payee_list() {
+header('Content-Type: application/json');
+$xs = $this->input->post('searchTerm', TRUE);
+
+$data = [];
+
+if(!empty($xs)) {
+$this->db->like('name', $xs);
+}
+
+$rs = $this->db
+->where('status', 1)
+->order_by('name')
+->limit(30)
+->get('subsi')
+->result_array();
+
+foreach($rs as $row) {
+$data[] = array("id" => $row['id'], "text" => $row['name']);
+}
+
+echo json_encode($data);
+exit;
+}
+    
+function ddel() { 
+$tmp = $this->input->post('datas');
+$id=$tmp[0];
+$seq=$tmp[1];   
+$fin=$this->db ->where('id',$id) ->get('ac_rfph')->row('fin');       
+
+if($fin==0){    
+    $this->db->where('seq',$seq)->delete('ac_rfpd');       
+}  
+
+}   
+function deldtl() {
+    $seq = $this->input->post('seq');
+    $id  = $this->input->post('id');
+    $fin = $this->db->where('id',$id)->get('ac_rfph')->row('fin');
+    if($fin == 0) {
+        $this->db->where('seq',$seq)->delete('ac_rfpd');
+        $total = $this->_calc_total($id);
+        $this->db->where('id',$id)->update('ac_rfph', ['amount' => $total]);
+        echo json_encode(['sw' => 1, 'amount' => number_format($total, 2)]);
+    } else {
+        echo json_encode(['sw' => 0, 'msg' => 'Record is finalized.']);
+    }
+}
+function dsave() { 
+
+$tmp = $this->input->post('datas');           
+//var datas=['.$id.',$("#seq").val(),1,$("#rr").val(),$("#damt").val()];        
+    
+$id=$tmp[0];
+$seq=$tmp[1];  
+$sw=$tmp[2];  
+$fin=$this->db->where('id',$id) 
+    ->get('ac_rfph')->row('fin');
+
+$dat['id']=$tmp[0];
+$dat['trn_type']=$sw;
+$dat['sw']=$sw;
+$dat['trn_id']=$tmp[3];
+$dat['amount']=$tmp[4];  
+$dat['balance']=$tmp[5];  
+    
+if($fin==0){
+    if($seq==0) { $this->db->insert('ac_rfpd',$dat); }   
+
+    else { $this->db->where('seq',$seq)->update('ac_rfpd',$dat); } 
+}
+
+echo json_encode($dat);
+
+}      
+
+function get_item($sw){}
+
+function recalc_rr_amount() {
+    $id    = $this->input->post('id');
+    $total = $this->_calc_total($id);
+    $this->db->where('id', $id)->update('ac_rfph', ['amount' => $total]);
+    echo json_encode(['amount' => number_format($total, 2)]);
+}
+
+function rr_tab() {
+$id  = $this->input->post('id');
+
+// Get saved RR ids for this RFP
+$rr_saved = $this->db->where('id',$id)->get('ac_rfph')->row('rr');
+$saved_rrs = ($rr_saved) ? array_filter(array_map('trim', explode(',', $rr_saved))) : [];
+
+// Build RR dropdown options
+$rrh_records = $this->db->order_by('id','desc')->get('rrh')->result_array();
+$rr_opts = '';
+foreach($rrh_records as $rr_row) {
+$rr_label = isset($rr_row['code']) ? $rr_row['code'] : 'RR-'.$rr_row['id'];
+$sel = in_array($rr_row['id'], $saved_rrs) ? 'selected' : '';
+$rr_opts .= '<option value="'.$rr_row['id'].'" '.$sel.'>'.$rr_label.'</option>';
+}
+
+$td = '';
+$total_amt = 0;
+if(!empty($saved_rrs)) {
+$sorted_rrs = $this->db
+->where_in('id', $saved_rrs)
+->order_by('date_', 'asc')
+->order_by('code', 'asc')
+->get('rrh')->result_array();
+foreach($sorted_rrs as $rr_record) {
+$rr_date = (!empty($rr_record['date_']) && substr($rr_record['date_'], 0, 4) != '0000')
+    ? date("m/d/Y", strtotime($rr_record['date_'])) : '';
+$rr_code = isset($rr_record['code']) ? $rr_record['code'] : '';
+$rr_amt  = isset($rr_record['amt_rr']) ? floatval($rr_record['amt_rr']) : 0;
+$total_amt += $rr_amt;
+$td .= '<tr>
+    <td>'.$rr_code.'</td>
+    <td>'.$rr_date.'</td>
+    <td style="text-align:right;">'.number_format($rr_amt, 2).'</td>
+</tr>';
+}
+}
+
+echo '
+<div class="mb-2 mt-2">
+<div class="input-group input-group-sm">
+    <div class="input-group-prepend"><span class="input-group-text">Select RR</span></div>
+    <select class="form-control select2-rr" multiple="multiple" id="rr_select" style="width:100%;">
+        '.$rr_opts.'
+    </select>
+    <div class="input-group-append">
+        <button class="btn btn-outline-dark btn-sm" onclick="save_rr()">Save RR</button>
+    </div>
+</div>
+</div>
+
+<table class="table table-sm table-bordered mt-2" style="font-size:12px;">
+<thead>
+    <tr>
+        <th>Code</th>
+        <th>Date</th>
+        <th style="text-align:right;">Amount</th>
+    </tr>
+</thead>
+<tbody>'.$td.'</tbody>
+<tfoot>
+    <tr>
+        <td colspan="2" style="text-align:right;font-weight:bold;">TOTAL :</td>
+        <td style="text-align:right;font-weight:bold;">'.number_format($total_amt, 2).'</td>
+    </tr>
+</tfoot>
+</table> 
+
+<style>
+.select2-container--default .select2-selection--multiple .select2-selection__choice {
+display: inline-flex;
+align-items: center;
+padding: 2px 6px;
+}
+.select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+order: -1;
+margin-right: 4px;
+margin-left: 0;
+float: none;
+position: static;
+}
+.select2-container--default .select2-selection--multiple .select2-selection__choice__display {
+padding-left: 0;
+padding-right: 0;
+}
+</style>
+<script>
+$(document).ready(function() {
+$(".select2-rr").select2({ width: "100%", tags: false });
+});
+
+function save_rr(callback) {
+var rr_select = $("#rr_select");
+if(rr_select.length === 0) {
+    if(typeof callback === "function") callback();
+    return;
+}
+var val = rr_select.val();
+if(val === null || val === undefined) val = [];
+if(Array.isArray(val)) { val = val.join(","); }
+
+var datas=['.$id.',"rr",""];
+$.ajax({
+    url: "'.base_url("99/dashboard/fsave").'",
+    method: "POST",
+    data: {datas: datas, val: val},
+    success: function() {
+        $.ajax({
+            url: "'.base_url("99/dashboard/recalc_rr_amount").'",
+            method: "POST",
+            data: {id: '.$id.'},
+            success: function(data) {
+    $(window.parent ? window.parent.document : document).find("input[type=number][disabled]").each(function(){
+        var fid = $(this).attr("id");
+        if(fid && fid !== "rramt" && fid !== "prramt" && fid !== "brramt") {
+            $(this).val(data.amount);
+        }
+    });
+    $("input[type=number][disabled]").each(function(){
+        var fid = $(this).attr("id");
+        if(fid && fid !== "rramt" && fid !== "prramt" && fid !== "brramt") {
+            $(this).val(data.amount);
+        }
+    });
+    if(typeof callback === "function") callback();
+}
+        });
+    }
+});
+}
+</script>
+';
+}  
+
+function app() { 
+$id  = $this->input->post('id');  
+$sw=$_POST['sw'];    
+if($sw==2){
+    $dat['unapprove_by']=$_SESSION['user_id']; 
+}
+    else { $dat['approved_by']=$_SESSION['user_id']; }
+
+$this->db->where('id', $id)->update('ac_rfph', $dat);
+    echo json_encode($dat);
+} 
+
+function print($id) {
+    $rs=$this->db->where('id',$id)->get('ac_rfph')->result_array();
+    $fld=$this->db->list_fields('ac_rfph'); 
+
+    foreach($rs as $row){   
+        for($a=0;$a<count($fld);$a++){
+            $dath[$fld[$a]]=$row[$fld[$a]];
+        }
+    }
+
+    $purpose=explode(',',' ,Merchandise, Raw Mat, Down Payment, Mobilization, Travel, Utilities, Professional Fee, Asset, Legal Fees, Repaired Maintenance, Trucking & Delivery, Supplies, Others');
+
+    $dvid=$this->db->where('rfp',$id)->get('dvh')->row('id');
+    if($dvid) {
+        $dvappby=$this->db->where('id',$dvid)->get('dvh')->row('approved_by');
+        $prepared=$this->db->where('id',$dvid)->get('dvh')->row('prepared_by');
+    } else {
+        $dvappby = 0; $prepared = 0;
+    }
+
+    $dvappbynm   = $this->db->where('id',$dath['approved_by'])->get('users')->row('name');
+    $preparednm  = $this->db->where('id',$prepared)->get('users')->row('name');
+    if(!$preparednm) $preparednm = $this->db->where('id',$dath['created_by'])->get('users')->row('name');
+
+    $requesting_unit = $this->db->where('id',$dath['created_by'])->get('users')->row('name');
+    $requesting_head = '';
+    if(!empty($dath['request_by']) && intval($dath['request_by']) > 0) {
+        $nm = $this->db->where('id',$dath['request_by'])->get('users')->row('name');
+        $requesting_head = !empty($nm) ? $nm : '';
+    }
+    $left_details = '';
+    $purpose_label = (isset($dath['purpose']) && intval($dath['purpose'])>0) ? strtoupper(trim($purpose[$dath['purpose']])) : '';
+    if(!empty($purpose_label)) $left_details .= '<div style="font-weight:bold;margin-bottom:5px;">'.$purpose_label.'</div>';
+
+    $date_created = '';
+    if(!empty($dath['date_']) && $dath['date_'] != '0000-00-00' && $dath['date_'] != '0000-00-00 00:00:00' && substr($dath['date_'], 0, 4) > '2000') {
+        $date_created = date_format(date_create($dath['date_']), "F d, Y");
+    }
+
+    $date_needed_new = '';
+if(!empty($dath['date_needed']) && $dath['date_needed'] != '0000-00-00' && $dath['date_needed'] != '0000-00-00 00:00:00' && substr($dath['date_needed'], 0, 4) > '2000') {
+    $date_needed_new = date_format(date_create($dath['date_needed']), "F d, Y");
+}
+
+    $all_entries = [];
+$tamt        = 0;
+
+$rr_lines = $this->db->where('id', $id)->where('sw', 1)
+    ->order_by('seq', 'asc')->get('ac_rfpd')->result_array();
+foreach ($rr_lines as $line) {
+    $rr = $this->db->where('id', $line['trn_id'])->get('rrh')->row_array();
+    if (!$rr) continue;
+    $rr_date = (!empty($rr['date_']) && substr($rr['date_'], 0, 4) != '0000')
+        ? date('m/d/Y', strtotime($rr['date_'])) : '';
+    $amt          = floatval($line['amount']);
+    $tamt        += $amt;
+    $all_entries[] = ['type' => 'RR', 'code' => $rr['code'], 'date' => $rr_date, 'amount' => $amt];
+}
+
+$rr_saved    = $dath['rr'];
+$saved_ids   = (!empty($rr_saved) && trim($rr_saved) !== '' && trim($rr_saved) !== '0')
+    ? array_filter(array_map('trim', explode(',', $rr_saved))) : [];
+$counted_ids = array_column($rr_lines, 'trn_id');
+
+if (!empty($saved_ids)) {
+    $extra_rrs = $this->db->where_in('id', $saved_ids)
+        ->order_by('date_', 'asc')->order_by('code', 'asc')
+        ->get('rrh')->result_array();
+    foreach ($extra_rrs as $rr) {
+        if (in_array($rr['id'], $counted_ids)) continue;
+        $rr_date = (!empty($rr['date_']) && substr($rr['date_'], 0, 4) != '0000')
+            ? date('m/d/Y', strtotime($rr['date_'])) : '';
+        $amt          = floatval($rr['amt_rr']);
+        $tamt        += $amt;
+        $all_entries[] = ['type' => 'RR', 'code' => $rr['code'], 'date' => $rr_date, 'amount' => $amt];
+    }
+}
+
+$po_lines = $this->db->where('id', $id)->where('sw', 2)
+    ->order_by('seq', 'asc')->get('ac_rfpd')->result_array();
+foreach ($po_lines as $line) {
+    $po      = $this->db->where('id', $line['trn_id'])->get('poh')->row_array();
+    $po_code = $po ? $po['code'] : '';
+    $po_date = ($po && !empty($po['date_'])) ? date('m/d/Y', strtotime($po['date_'])) : '';
+    $amt          = floatval($line['amount']);
+    $tamt        += $amt;
+    $all_entries[] = ['type' => 'PO', 'code' => $po_code, 'date' => $po_date, 'amount' => $amt];
+}
+
+$this->db->where('id', $id)->update('ac_rfph', ['amount' => $tamt]);
+
+$details_right = '';
+foreach ($all_entries as $e) {
+    $details_right .= '<tr>
+        <td style="width:10%;padding:2px 6px 2px 0;white-space:nowrap;color:#555;">'
+            . htmlspecialchars($e['type'], ENT_QUOTES) . '</td>
+        <td style="width:40%;padding:2px 8px 2px 0;white-space:nowrap;">'
+            . htmlspecialchars($e['code'], ENT_QUOTES) . '</td>
+        <td style="width:20%;padding:2px 8px 2px 0;white-space:nowrap;">'
+            . $e['date'] . '</td>
+        <td style="width:30%;padding:2px 0;text-align:right;white-space:nowrap;">'
+            . number_format($e['amount'], 2) . '</td>
+    </tr>';
+}
+$details_right .= '<tr>
+    <td colspan="3" style="text-align:right;font-weight:bold;padding-top:4px;border-top:1px solid #000;">TOTAL :</td>
+    <td style="text-align:right;font-weight:bold;padding-top:4px;border-top:1px solid #000;">'
+        . number_format($tamt, 2) . '</td>
+</tr>';
+
+$left_details = '';
+$purpose_label = (isset($dath['purpose']) && intval($dath['purpose'])>0) ? strtoupper(trim($purpose[$dath['purpose']])) : '';
+if(!empty($purpose_label)) $left_details .= '<div style="font-weight:bold;margin-bottom:5px;">'.$purpose_label.'</div>';
+
+$rs_det2 = $this->db->where('id',$id)->get('ac_rfpd')->result();
+foreach($rs_det2 as $row) {
+    if(!empty(trim($row->description))) $left_details .= '<div style="margin-bottom:2px;">'.strtoupper($row->description).'</div>';
+}
+
+$remarks_text = isset($dath['remarks']) ? strtoupper(trim($dath['remarks'])) : '';
+if(!empty($remarks_text)) {
+    if(!empty($left_details)) $left_details .= '<div style="margin-top:6px;"></div>';
+    foreach(explode("\n", str_replace(["\r\n","\r"],"\n",$remarks_text)) as $line) {
+        $line = trim($line);
+        if(!empty($line)) $left_details .= '<div style="margin-bottom:2px;">'.$line.'</div>';
+    }
+}
+
+    $pt = isset($dath['payment_type']) ? $dath['payment_type'] : 0;
+    $cb = function($n) use ($pt) { return '<span class="check-box">'.($pt==$n?'X':'&nbsp;&nbsp;').'</span>'; };
+    $cb_empty = '<span class="check-box">&nbsp;&nbsp;</span>';
+    $payment_others_text = (!empty($dath['payment_others'])) ? '<u style="padding:0 10px;">'.$dath['payment_others'].'</u>' : '_________________';
+    $payee = isset($dath['payee']) ? $dath['payee'] : '';
+
+    echo '<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Request for Payment - '.$dath['code'].'</title>
+<meta charset="utf-8">
+<style>
+    body { font-family: "Times New Roman", Times, serif; font-size: 13px; color: #000; background-color: #f4f4f4; }
+    .form-container { width: 100%; max-width: 800px; margin: 20px auto; background-color: #fff; padding: 30px; border: 1px solid #ddd; }
+    .form-header { text-align: center; font-weight: bold; font-size: 18px; margin-bottom: 25px; letter-spacing: 1px; }
+    .tbl-header { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    .tbl-header td { padding: 6px 0; vertical-align: bottom; }
+    .field-label { font-weight: bold; font-size: 12px; text-transform: uppercase; }
+    .underline-value { border-bottom: 1px solid #000; padding: 0 10px; display: inline-block; }
+    .payment-grid { width: 100%; margin-top: 5px; margin-left: 15px; }
+    .payment-grid td { padding: 4px 0; font-size: 12px; vertical-align: middle; text-transform: uppercase; }
+    .check-box { font-family: monospace; font-size: 14px; font-weight: bold; margin-right: 8px; display: inline-block; vertical-align: middle; border: 1px solid #000; width: 16px; height: 16px; line-height: 16px; text-align: center; }
+    .sig-table { width: 100%; border-collapse: collapse; margin-top: 20px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
+    .sig-table td { padding: 3px 8px; border-right: 1px solid #000; width: 50%; vertical-align: bottom; }
+    .sig-table td:last-child { border-right: none; }
+    .sig-row-bottom td { border-bottom: 1px solid #000; }
+    .sig-label { font-weight: bold; font-size: 12px; display: inline-block; width: 160px; text-transform: uppercase; }
+    .sig-value { display: inline-block; width: calc(100% - 165px); border-bottom: 1px solid #000; font-weight: bold; text-transform: uppercase; min-height: 14px; vertical-align: bottom; padding-bottom: 1px; }
+    .footer-text { text-align: right; font-size: 10px; margin-top: 5px; text-transform: uppercase; }
+    .print-btn-container { text-align: center; margin: 20px 0; }
+    .print-btn { padding: 10px 20px; font-size: 16px; cursor: pointer; background-color: #343a40; color: white; border: none; border-radius: 4px; }
+    .print-btn:hover { background-color: #23272b; }
+    @media print {
+        body { margin: 0; padding: 0; background-color: #fff; }
+        .print-btn-container { display: none !important; }
+        .form-container { max-width: 100%; padding: 0; border: none; }
+    }
+</style>
+</head>
+<body>
+<div class="print-btn-container">
+    <button class="print-btn" onclick="window.print()">PRINT FORM</button>
+</div>
+<div class="form-container">
+    <div class="form-header">REQUEST FOR PAYMENT</div>
+    <table class="tbl-header" style="border-bottom:1px solid #000;">
+        <tr>
+            <td style="width:55%;"><span class="field-label">REQUESTING UNIT :</span> <span style="text-transform:uppercase;">'.$requesting_unit.'</span></td>
+            <td style="width:45%;text-align:right;">
+                <div><span class="field-label">RFP # :</span> '.$dath['code'].'</div>
+                <div style="margin-top:5px;"><span class="field-label">DATE :</span> <span style="text-transform:uppercase;">'.$date_created.'</span></div>
+            </td>
+        </tr>
+    </table>
+    <table class="tbl-header">
+        <tr>
+            <td style="width:55%;"><span class="field-label">PAYEE :</span> <span style="text-transform:uppercase;">'.$payee.'</span></td>
+            <td style="width:45%;text-align:right;"><span class="field-label">AMOUNT :</span> <span class="underline-value" style="min-width:150px;text-align:right;font-weight:bold;">'.number_format($tamt,2).'</span></td>
+        </tr>
+    </table>
+    <div style="margin-top:15px;">
+        <span class="field-label">MODE OF PAYMENT :</span>
+        <table class="payment-grid">
+            <tr>
+                <td style="width:30%;">'.$cb(1).' CHECK</td>
+                <td style="width:40%;">'.$cb(3).' TELEGRAPHIC TRANSFER</td>
+                <td style="width:30%;">'.$cb_empty.' MANAGER\'S CHECK</td>
+            </tr>
+            <tr>
+                <td>'.$cb(2).' CASH</td>
+                <td>'.$cb_empty.' DEMAND DRAFT</td>
+                <td>'.$cb(4).' OTHERS '.$payment_others_text.'</td>
+            </tr>
+        </table>
+    </div>
+
+    <div style="margin-top:10px;min-height:250px;">
+        <span class="field-label">DETAILS :</span>
+        <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;">
+            <tr>
+                <td style="width:50%;vertical-align:top;padding-right:20px;border-right:1px solid #ccc;">
+                    '.$left_details.'
+                </td>
+                <td style="width:50%;vertical-align:top;padding-left:14px;">
+                    <table style="width:100%;border-collapse:collapse;font-size:11px;">
+                      <thead>
+                        <tr style="font-weight:bold;border-bottom:1px solid #ccc;">
+                          <td style="padding:2px 6px 2px 0;">Type</td>
+                          <td style="padding:2px 8px 2px 0;">Code</td>
+                          <td style="padding:2px 8px 2px 0;">Date</td>
+                          <td style="padding:2px 0;text-align:right;">Amount</td>
+                        </tr>
+                      </thead>
+                      <tbody>'.$details_right.'</tbody>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <table class="sig-table">
+        <tr class="sig-row-bottom">
+            <td style="height:28px;"><div><span class="sig-label">PREPARED BY :</span> <span class="sig-value">'.$preparednm.'</span></div></td>
+            <td><div><span class="sig-label">DEPT. HEAD APPROVAL :</span> <span class="sig-value">'.$requesting_head.'</span></div></td>
+        </tr>
+        <tr>
+            <td style="height:28px;"><div><span class="sig-label">CHECKED BY :</span> <span class="sig-value">'.(isset($dath['checked_by']) ? $dath['checked_by'] : '').'</span></div></td>
+            <td><div><span class="sig-label">APPROVED BY :</span> <span class="sig-value">'.$dvappbynm.'</span></div></td>
+        </tr>
+    </table>
+    <div class="footer-text">PRINTED ON: '.date("m/d/Y h:i:s A").' BY '.$requesting_unit.'</div>
+</div>';
+
+    $photo_b64_print  = isset($dath['photo_b64'])  ? $dath['photo_b64']  : '';
+    $photo_mime_print = isset($dath['photo_mime']) ? $dath['photo_mime'] : 'image/jpeg';
+    $photo_name_print = isset($dath['photo'])      ? $dath['photo']      : '';
+    if (!empty($photo_b64_print)) {
+        if ($photo_mime_print === 'application/pdf') {
+            echo '
+            <div style="page-break-before:always;clear:both;padding-top:20px;"></div>
+            <div style="width:100%;max-width:900px;margin:0 auto;text-align:center;">
+                <h3 style="text-align:left;margin-bottom:10px;">ATTACHED FILE:</h3>
+                <iframe src="data:application/pdf;base64,'.$photo_b64_print.'" style="width:100%;height:900px;border:2px solid #000;"></iframe>
+            </div>';
+        } else {
+            echo '
+            <div style="page-break-before:always;clear:both;padding-top:20px;"></div>
+            <div style="width:100%;max-width:900px;margin:0 auto;text-align:center;">
+                <h3 style="text-align:left;margin-bottom:10px;">ATTACHED FILE:</h3>
+                <img id="attached_img" src="data:'.$photo_mime_print.';base64,'.$photo_b64_print.'" alt="Attachment" style="max-width:100%;max-height:900px;object-fit:contain;border:2px solid #000;padding:5px;" />
+            </div>';
+        }
+    }
+
+    echo '
+    <script>
+        window.onload = function() {
+            var img = document.getElementById("attached_img");
+            if(img && !img.complete) {
+                img.onload  = function() { setTimeout(window.print, 200); };
+                img.onerror = function() { setTimeout(window.print, 200); };
+            } else {
+                setTimeout(window.print, 500);
+            }
+        };
+    </script>
+    </body>
+    </html>';
+}
+
+function edit_recx(){
+
+$id  = $this->input->post('id');
+
+$title=$this->db->where('id',99)->get('scm_settings')->row('caption'); 
+$uid=$_SESSION['user_id']; 
+$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights'); 
+
+$this->getamount($id);
+
+$rs2=$this->db->where('id',$id)->get('ac_rfph')->result_array();    
+
+$fld=$this->db->list_fields('ac_rfph');  
+$cap=$fld; $top=$left=$right=$btn=''; $rtop=$top=' ';  
+$appr=0;  
+
+foreach($rs2 as $row) { 
+    for($a=0;$a<count($fld);$a++) { 
+        $datafld[$fld[$a]]=$row[$fld[$a]]; 
+    } 
+    $appr=$row['approved_by'];
+}
+
+$fin = $datafld['fin']; 
+
+$flds=$id;
+$fldcap= $fld;
+
+$top.='
+<input type="hidden" id="ur" value='.$ur.' />
+<input type="hidden" id="id" value='.$id.' />
+<input type="hidden" id="dfin" value='.$datafld['fin'].'>   
+
+<div class="row">  
+<div class="col-sm-3">  ';
+
+for($a=1;$a<count($fldcap);$a++) {
+
+$flds.=',$("#'.$fld[$a].'").val()';
+    $xcap=ucwords(str_replace('_',' ',$fldcap[$a]));
+    //$xcap=$a.'-'.ucwords(str_replace('_',' ',$fldcap[$a]));
+$dataf=$datafld[$fld[$a]];    
+
+if($a==1 ){ 
+    $dataf2=$datafld[$fld[2]];   
+$top.=' 
+
+<div class="input-group mb-1 input-group-sm ">  
+     <p class="form-control"  ><b>'.$dataf.' [ '.$dataf2.']</b></p>     
+  </div>   ';
+
+}   
+
+elseif($a==2){ }  
+
+elseif($a==19 ){}
+
+elseif($fld[$a] == 'photo'){
+    $photo_val = !empty($datafld['photo']) ? $datafld['photo'] : 'empty.jpg';
+    $xlink = base_url('uploads/pix/'.$photo_val);
+
+$top.= '
+<br />
+
+<div class="input-group mb-1 input-group-sm"> 
+<div class="input-group-prepend">    <span class="input-group-text">Quotation</span></div>
+    <div id="imgview23">        
+        <a href="'.$xlink.'" target="_blank">
+        <img src="'.$xlink.'?t='.time().'" alt="Quotation" width="100" height="75"></a> </div> 
+
+    <form method="post" id="upload_form23" align="center" enctype="multipart/form-data">
+    <input type="file" name="image_file23" id="image_file23" /> 
+    <input type="submit" name="upload" id="upload" 
+    value="Upload" class="btn btn-info" /> </form>
+</div>   
+
+<script>
+$(document).ready(function() {  
+
+$("#upload_form23").on("submit", function(e){e.preventDefault();
+if($("#image_file23").val() == "") { 
+alert("Please Select the File"); 
+}
+else { 
+$.ajax({url:"'.base_url('99/dashboard/upload/'.$id).'", 
+method:"POST",
+dataType:"json",
+data:new FormData(this),
+contentType: false,cache: false,processData:false,
+success:function(data){ 
+    if(data.error) {
+        alert("Upload failed: " + data.error);
+        return;
+    }
+    $("#imgview23").html(data.img);    
+}
+}); 
+}
+
+}); 
+
+}); 
+
+</script>
+
+';
+
+}
+
+elseif($a==17 ){}
+
+elseif($a==3 ){
+    $ca=$datafld['ca']; $chk=''; if($ca==1){$chk='checked';}        
+    $top.=' 
+    <div class="custom-control custom-switch">
+    <input type="checkbox" onclick="ca();" class="custom-control-input" id="ca" value="'.$ca.'" '.$chk.' />
+    <label class="custom-control-label" for="ca">Cash Advance</label> </div>
+
+    <script>
+    function ca() {  
+        var x = document.getElementById("ca").checked;  
+        if(x) {$("#ca").val(1);} else {$("#ca").val(0);} 
+        fsave("ca");
+    }
+    </script>';
+
+    $disp_val = ($dataf == '0') ? '' : $dataf;
+
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm " id="'.$fld[$a].'x">
+     <div class="input-group-prepend">
+        <span class="input-group-text">'.$xcap.'</span></div>
+     <input type="text" class="form-control" id="'.$fld[$a].'" 
+     onchange="fsave(this.id)" value="'.$disp_val.'" />
+    </div> ';
+}
+
+elseif($a==4){
+    $display_val = '';
+    if ($dataf != 0 && $dataf != '') {
+        $row_name = $this->db->where('id', $dataf)->get('dept')->row('name');
+        $display_val = !empty($row_name) ? $row_name : $dataf;
+    }
+    if(empty($display_val)) $display_val = $dataf;
+
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend">
+            <span class="input-group-text">'.$xcap.'</span></div>
+         <input type="text" class="form-control" id="'.$fld[$a].'" 
+         onchange="fsave(this.id)" value="'.htmlspecialchars($display_val, ENT_QUOTES).'" />
+    </div> ';
+}
+
+elseif($a==5){
+    $display_val = '';
+    if ($dataf != 0 && $dataf != '') {
+        $row_name = $this->db->where('id', $dataf)->get('branch')->row('Branch_Name');
+        $display_val = !empty($row_name) ? $row_name : $dataf;
+    }
+
+    $branch_rs = $this->db->order_by('Branch_Name')->get('branch')->result_array();
+    $select_opts = '<option value="0">Select Branch</option>';
+    $found = false;
+    foreach($branch_rs as $b) { 
+        $selected = ((string)$dataf === (string)$b['id']) ? 'selected' : '';
+        if($selected) { $found = true; }
+        $select_opts .= '<option value="'.$b['id'].'" '.$selected.'>'.$b['Branch_Name'].'</option>'; 
+    }
+    if (!$found && (string)$dataf !== '0' && (string)$dataf !== '') {
+        $select_opts .= '<option value="'.$dataf.'" selected>'.$dataf.'</option>';
+    }
+
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend">
+            <span class="input-group-text">'.$xcap.'</span></div>
+         <select class="form-control select2-dropdown" id="'.$fld[$a].'">
+            '.$select_opts.'
+         </select>
+    </div> ';
+}
+
+elseif($a==6){
+    $error=explode(',','select none,Merchandise, Raw Mat, Down Payment, Mobilization, Travel, Utilities, Professional Fee , Asset, Legal Fees, Repaired Maintenance, Trucking & Delivery, Supplies, Others');
+    $eopt='';
+    for($b=0;$b<count($error);$b++){
+        $sel='';if($b==$dataf){$sel='selected';}
+        $eopt.='<option value='.$b.' '.$sel.'>'.$error[$b].'</option>';
+    } 
+
+$top.=' 
+<div class="input-group mb-1 input-group-sm">
+     <div class="input-group-prepend">
+        <span class="input-group-text">'.$xcap.'</span></div>
+     <select class="form-control" id="'.$fld[$a].'" 
+     onchange="fsave(this.id)" >'.$eopt.'</select>
+  </div> ';
+
+}  
+
+elseif($a==7){
+    $payee_fld = $fld[$a];
+    $current_val = htmlspecialchars($dataf, ENT_QUOTES);
+    $init_opt = !empty($dataf) 
+        ? '<option value="'.$current_val.'" selected>'.$current_val.'</option>' 
+        : '';
+    $top .= '
+    <div class="input-group mb-1 input-group-sm">
+        <div class="input-group-prepend">
+            <span class="input-group-text">Payee</span>
+        </div>
+        <select class="form-control" id="'.$payee_fld.'" style="width:100%;">
+            '.$init_opt.'
+        </select>
+    </div>
+    <script>
+    $(document).ready(function() {
+        $("#'.$payee_fld.'").select2({
+            width: "100%",
+            placeholder: "Type to search or enter payee...",
+            allowClear: true,
+            tags: true,
+            minimumInputLength: 0,
+            ajax: {
+                url: "'.base_url("99/dashboard/payee_list").'",
+                type: "POST",
+                dataType: "json",
+                delay: 300,
+                data: function(params) {
+                    return { searchTerm: params.term || "" };
+                },
+                processResults: function(data) {
+                    return { results: data };
+                },
+                cache: true
+            },
+            createTag: function(params) {
+                var term = $.trim(params.term);
+                if(term === "") return null;
+                return { id: term, text: term, newTag: true };
+            }
+        }).on("select2:select", function(e) {
+            var val = e.params.data.text;
+            var datas = ['.$id.',"'.$payee_fld.'",""];
+            $.ajax({
+                url: "'.base_url("99/dashboard/fsave").'",
+                method: "POST",
+                data: { datas: datas, val: val },
+                success: function() {}
+            });
+        }).on("select2:clear", function() {
+            var datas = ['.$id.',"'.$payee_fld.'",""];
+            $.ajax({
+                url: "'.base_url("99/dashboard/fsave").'",
+                method: "POST",
+                data: { datas: datas, val: "" },
+                success: function() {}
+            });
+        });
+    });
+    </script>';
+}
+elseif($a==8){    
+$mtop=' 
+<div class="input-group mb-1 input-group-sm col-sm-9">
+     <div class="input-group-prepend">
+        <span class="input-group-text">'.$xcap.'</span></div>
+        <textarea onchange="fsave(this.id)"  
+        class="form-control" type="text" 
+         id="'.$fld[$a].'"  rows="1" cols="50">'.$dataf.'</textarea></div>'; 
+}  
+
+elseif($a==9){
+$amt_display = (floatval($dataf) > 0) ? number_format(floatval($dataf), 2, '.', '') : '';
+$top.=' 
+<div class="input-group mb-1 input-group-sm ">
+     <div class="input-group-prepend">
+        <span class="input-group-text">'.$xcap.'</span></div>
+     <input type="number" class="form-control" id="'.$fld[$a].'" 
+     value="'.$amt_display.'" disabled
+     style="background-color:#e9ecef;color:#6c757d;cursor:not-allowed;"/>
+  </div> ';
+}
+
+elseif($a==10){
+    $error=explode(',','select none,Check, Cash, Telegraphic Transfer, Others');
+    $eopt='';
+    for($b=0;$b<count($error);$b++){
+        $sel='';if($b==$dataf){$sel='selected';}
+        $eopt.='<option value='.$b.' '.$sel.'>'.$error[$b].'</option>';
+    }
+
+    $pay_others = isset($datafld['payment_others']) ? $datafld['payment_others'] : '';
+
+    $disp = ($dataf == 4) ? '' : 'style="display:none;"';
+
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend">
+            <span class="input-group-text">'.$xcap.'</span></div>
+         <select class="form-control" id="'.$fld[$a].'" 
+         onchange="check_others(this.id)" >'.$eopt.'</select>
+    </div>
+
+    <div class="input-group mb-1 input-group-sm" id="payment_others_wrapper" '.$disp.'>
+         <div class="input-group-prepend">
+            <span class="input-group-text">Others</span></div>
+         <input type="text" class="form-control" id="payment_others" 
+         onchange="fsave(this.id)" value="'.$pay_others.'" placeholder="Specify Others" />
+    </div> 
+
+    <script>
+    function check_others(id) {
+        fsave(id); 
+        if($("#" + id).val() == "4") {
+            $("#payment_others_wrapper").show();
+            $("#payment_others").focus();
+        } else {
+            $("#payment_others_wrapper").hide();
+            $("#payment_others").val("");
+            fsave("payment_others"); 
+        }
+    }
+    </script>';
+}
+
+elseif($a==11){    
+$top.=' 
+<div class="input-group mb-1 input-group-sm ">
+ <div class="input-group-prepend">
+    <span class="input-group-text">Date Requested</span></div>
+ <input type="date" class="form-control" id="'.$fld[$a].'" 
+ onchange="fsave(this.id)" value="'.$dataf.'" />
+</div> '; 
+}
+
+elseif($a==12){
+$today = date('Y-m-d');
+$dn_val = (!empty($dataf) && $dataf > $today && substr($dataf,0,4) > '2000') ? $dataf : '';
+$top.=' 
+<div class="input-group mb-1 input-group-sm">
+<div class="input-group-prepend">
+<span class="input-group-text">Date Needed</span></div>
+<input type="date" class="form-control" id="'.$fld[$a].'" 
+min="'.$today.'"
+onchange="validateDateNeeded(this)" value="'.$dn_val.'" />
+</div> ';
+}
+
+elseif($a==13){ 
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend">
+            <span class="input-group-text">'.$xcap.'</span></div>
+         <input type="number" class="form-control" id="'.$fld[$a].'" 
+         onchange="fsave(this.id)" value="'.$dataf.'" />
+    </div> ';
+}
+
+
+//elseif($a==13 or $a==14 or $a==15 or $a==17  ){
+elseif($a==14){}
+elseif($a==15 or $a==16 or $a==18 or $a==21 ){    
+//if($a==13){    $dataf=$dvapp;    $dataf2=$dvprep;}    
+
+$topt='<option value='.$dataf.'>'.$this->db
+    ->where('id',$dataf)->get('users')->row('name').'</option>';
+
+//$topt2='<option value='.$dataf2.'>'.$this->db
+//    ->where('id',$dataf2)->get('users')->row('name').'</option>';
+{
+$rtop.=' 
+<div class="input-group mb-1 input-group-sm col-sm-3">
+     <div class="input-group-prepend"> <span class="input-group-text">'.$xcap.'</span></div>
+     <select class="form-control" id="'.$fld[$a].'" >'.$topt.'</select> </div> '; 
+
+}
+
+if($a==20)   
+{
+$rtop.=$mtop.$xrtop;
+
+}
+
+//    else {
+//$top.=' 
+//<div class="input-group mb-1 input-group-sm">
+//     <div class="input-group-prepend"> <span class="input-group-text">'.$a.'-'.$xcap.'</span></div>
+//     <select class="form-control" id="'.$fld[$a].'" >'.$topt.'</select> </div> '; 
+//        
+//    }
+
+//$top.=' 
+//<div class="input-group mb-1 input-group-sm">
+//     <div class="input-group-prepend"> <span class="input-group-text">DV Released</span></div>
+//     <select class="form-control" >'.$topt2.'</select> </div> '; 
+
+}
+elseif($fld[$a]=='accounting' or $fld[$a]=='checked_by' or $fld[$a]=='treasury'){ 
+}  
+
+else {
+$safe_val = ($dataf === '0' || $dataf === 0) ? '' : htmlspecialchars($dataf, ENT_QUOTES);
+$top.=' 
+<div class="input-group mb-1 input-group-sm " id="'.$fld[$a].'x">
+<div class="input-group-prepend">
+<span class="input-group-text">'.$xcap.'</span></div>
+<input type="text" class="form-control" id="'.$fld[$a].'" 
+onchange="fsave(this.id)" value="'.$safe_val.'" />
+</div> ';
+
+}
+if($fld[$a] == 'fin') {
+    $acc_val = isset($datafld['accounting']) ? $datafld['accounting'] : '';
+    $chk_val = isset($datafld['checked_by']) ? $datafld['checked_by'] : '';
+    $trs_val = isset($datafld['treasury']) ? $datafld['treasury'] : '';
+
+    $top.='
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend"> <span class="input-group-text">Accounting</span></div>
+         <input type="text" class="form-control" id="accounting" onchange="fsave(this.id)" value="'.$acc_val.'" />
+    </div>
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend"> <span class="input-group-text">Checked By</span></div>
+         <input type="text" class="form-control" id="checked_by" onchange="fsave(this.id)" value="'.$chk_val.'" />
+    </div>
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend"> <span class="input-group-text">Treasury</span></div>
+         <input type="text" class="form-control" id="treasury" onchange="fsave(this.id)" value="'.$trs_val.'" />
+    </div>';
+}
+
+}
+
+$fin=$datafld['fin'];          
+$appby=$appr;
+$appby=$datafld['approved_by'];
+$unappby=$datafld['unapprove_by'];
+$ca=$datafld['ca'];
+
+$top.='  <div class="input-group mb-1 input-group-sm " > ';
+$app=$appr; 
+
+if($fin>0){
+
+$uid=$_SESSION['user_id']; 
+$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights');     
+$dat[0]=$appr=$this->db->where('userid',$uid)->get('dsr_approver')->row('rfp');    
+$dat[1]=$appr5k=$this->db->where('userid',$uid)->get('dsr_approver')->row('rpf5k');    
+$dat[2]=$appr10k=$this->db->where('userid',$uid)->get('dsr_approver')->row('rpf10k');   
+//print_r($dat);
+
+$rs=$this->db->where('id',$id)->get('ac_rfpd')->result();   
+$sww=$amt=0;
+foreach($rs as $rows){ $amt+=$rows->qty * $rows->cost; }
+
+if($dat[2]==1){$sww=1;}
+else{
+    if($amt<=500){if($dat[0]==1){$sww=1;}}    
+    if($amt<5000){if($dat[1]==1){$sww=1;}}    
+}     
+//$sww=1;    
+if($unappby>0){$sww=0;}
+
+if($appby>0){
+    $sww=0;
+    if($ca==1){    
+    $top.=' 
+    <input type="button" 
+    class="form-control btn btn-outline-dark btn-sm" 
+    value="print" onclick="print('.$id.')" id="printx" > ';
+}              
+} 
+
+if($sww==1){    
+
+$top.='  
+<input type="button" 
+class="form-control btn btn-outline-dark btn-sm" 
+value="Unfinalize" onclick="unfin()" id="unfinx" > 
+
+<input type="button" 
+class="form-control btn btn-outline-dark btn-sm" 
+value="Approve" onclick="app(1)" id="appx" > 
+
+<input type="button" 
+class="form-control btn btn-outline-dark btn-sm" 
+value="Disapprove" onclick="app(2)" id="uappx" >   ';
+}
+
+$top.='  
+
+<script>
+
+function print(id){ 
+    var xurl="'.base_url('99/dashboard/print/').'" + id ;
+    if(confirm("Print this record?")==true) { 
+        window.open(xurl); 
+    } 
+}
+
+</script>
+';
+}   
+
+else {
+$top.='         
+<input type="button" 
+class="form-control btn btn-outline-dark btn-sm" 
+value="finalize" onclick="fin()" id="finx" > ';
+}
+
+$top.='  
+<input type="button" class="form-control btn btn-success btn-sm mb-1" value="Save All" onclick="save_all_left()">
+<input type="button" class="form-control btn btn-warning btn-sm mb-1" value="Print RFP Form" onclick="window.open(\''.base_url('99/dashboard/print/').$id.'\')">
+<input type="button" class="form-control btn btn-outline-dark btn-sm" value="Close" onclick="closef()"> 
+</div>';
+
+$dvid = $this->db->where('rfp', $id)->order_by('id', 'desc')->limit(1)->get('dvh')->row('id');
+if (empty($dvid)) { $dvid = 0; }
+
+$top.='
+<script>
+$("#printx").hide();
+$("#reason").show(); 
+
+if('.intval($dvid).'>0){ $("#printx").show(); } 
+
+if('.intval($dvid).'>0){ $("#printx").show(); }
+
+function app(sw){
+var msg="Approved this record?";
+if(sw==2){msg="Unapproved this record?";}
+if(confirm(msg)==true){
+
+$.ajax({url: "'.base_url("99/dashboard/app").'",
+method: "POST",
+data: {id:'.$id.',sw:sw}, success:function(data){
+exits();
+} }) 
+
+} 
+
+} 
+
+</script>
+
+';
+
+//$tloc=$this->db ->where('id',$id) ->get('ac_rfph')->row('location');        
+
+
+$loc=$_SESSION['location'];    
+
+//if($fin>0) 
+
+$top.='  
+
+</div> 
+
+<div class="col-sm-9"> 
+<div class="row"> 
+
+'.$rtop.'
+</div>
+    <ul class="nav nav-tabs"> 
+
+<li class="nav-item"><a class="nav-link active" data-toggle="tab" 
+href="#rr_tab" onclick="load_rr()" >RR</a></li>  
+
+</ul> 
+
+<div class="tab-content">
+
+    <div class="tab-pane container-fluid active" id="rr_tab"></div> 
+
+</div>
+
+</div>
+
+<script>  
+
+function validateDateNeeded(el) {
+    var today = new Date().toISOString().split("T")[0];
+    if (el.value && el.value <= today) {
+        alert("Date Needed must be a future date.");
+        el.value = "";
+        return;
+    }
+    fsave(el.id);
+}
+
+function closef() { list(); }
+
+function load_rr() { 
+$.ajax({url: "'.base_url("99/dashboard/rr_tab").'", 
+method:"POST", data:{id:'.$id.'},success:function(data) { 
+$("#rr_tab").html(data);  } }) 
+} 
+
+
+
+$(".select2-dropdown").select2({ width: "100%", tags: true }).on("change", function() {
+if(this.id) { fsave(this.id); }
+});
+
+$(".select2-payee").select2({
+width: "100%",
+ajax: {
+    url: "'.base_url("99/dashboard/payee_list").'",
+    type: "POST",
+    dataType: "json",
+    delay: 250,
+    data: function(params) {
+        return { searchTerm: params.term || "" };
+    },
+    processResults: function(response) {
+        return { results: response };
+    },
+    cache: true
+}
+});
+
+function save_all_left(callback) {
+var fields = [];
+$("input.form-control, select.form-control, textarea.form-control").each(function() {
+    var fld_id = $(this).attr("id");
+    if(fld_id && fld_id !== "ca" && fld_id !== "payment_others" && fld_id !== "rramt" && fld_id !== "prramt" && fld_id !== "brramt" && fld_id !== "damt" && fld_id !== "seq") {
+        fields.push(fld_id);
+    }
+});
+var idx = 0;
+function saveNext() {
+    if(idx >= fields.length) {
+        save_rr(function() {
+            if(typeof callback === "function") callback();
+            else alert("All entries saved");
+        });
+        return;
+    }
+    var fld_id = fields[idx++];
+    var val = $("#" + fld_id).val();
+    if(val === null || val === undefined) val = "";
+    if(Array.isArray(val)) val = val.join(",");
+    var datas = ['.$id.',fld_id,""];
+    $.ajax({
+        url: "'.base_url("99/dashboard/fsave").'",
+        method: "POST",
+        data: {datas: datas, val: val},
+        complete: saveNext
+    });
+}
+saveNext();
+}
+
+$("#approved_by, #unapprove_by").select2({
+    ajax: {
+        url: "'.base_url("99/dashboard/names").'", 
+        type: "POST", 
+        dataType: "json",  
+        delay: 250,  
+        data: function (params) { 
+            return { searchTerm: params.term || "" };  
+        },
+        processResults: function (response) {  
+            return { results: response };  
+        },  
+        cache: true   
+    }
+});
+
+$("#accounting, #checked_by, #treasury, #approved_by").prop("disabled", true);
+
+function fsave(fld){
+
+var vsw=1;
+//if($("#dfin").val() == 0) { vsw=1;}
+
+if(vsw == 1) {
+
+var val = $("#" + fld).val();
+if(val === null || val === undefined) val = "";
+if(Array.isArray(val)) { val = val.join(","); }
+
+var datas=['.$id.',fld,""];
+$.ajax({url: "'.base_url("99/dashboard/fsave").'",
+method: "POST",
+data: {datas:datas, val:val},
+success:function(){ 
+
+} }) 
+} 
+
+//else{ alert("Transaction Finalized"); }
+
+}
+
+function fin(){
+var tamt=$("#tamt").val();
+var remarks=$("#remarks").val();
+
+if(tamt>0){
+if(remarks.length>0){
+    $.ajax({url: "'.base_url("99/dashboard/fin").'",
+    method: "POST",
+    dataType: "json",
+    data: {id:'.$id.'}, success:function(data){
+    if(data.sw==1){exits();}
+    else { alert(data.msg); }
+
+    } }); 
+
+} 
+else { 
+    alert("please enter remarks"); 
+}
+
+} 
+else { 
+alert("total amount cannot be zero"); 
+}
+
+}
+
+
+function unfin(){
+
+$.ajax({url: "'.base_url("99/dashboard/unfin").'",
+method: "POST",
+data: {id:'.$id.'}, success:function(data){
+exits();
+} }) 
+
+} 
+
+function fsavex(sw){
+
+if($("#dfin").val() == 0) {
+
+fsave(8); 
+var tot=$("#total").val();
+var t= $("#tender").val(); 
+var c= t - tot ;
+$("#change_").val(c);
+$("#total").val(tot);
+fsave(9);
+slip();
+
+} 
+
+else{ alert("Transaction Finalized"); }
+
+}
+
+function getqrcode(sw){ 
+}  
+
+
+</script>
+'; 
+
+
+echo '<script>    
+
+</script>' ; 
+
+echo '  
+<div class="container-fluid"> 
+    <div class="row">
+        <div id="top" class="col-sm-12" >'.$top.' </div> 
+    </div>   
+</div> ';
+
+
+
+} 
+
+function edit_rec2(){
+
+$id  = $this->input->post('id'); 
+
+$title=$this->db->where('id',99)->get('scm_settings')->row('caption'); 
+$uid=$_SESSION['user_id']; 
+$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights'); 
+
+$this->getamount($id);
+
+$rs2=$this->db->where('id',$id)->get('ac_rfph')->result_array();    
+
+$fld=$this->db->list_fields('ac_rfph');  
+$cap=$fld; $top=$left=$right=$btn=''; $top=' ';  
+$appr=0;  
+
+foreach($rs2 as $row) { 
+    for($a=0;$a<count($fld);$a++) { 
+        $datafld[$fld[$a]]=$row[$fld[$a]]; 
+    } 
+    $appr=$row['approved_by'];
+}
+
+$fin = $datafld['fin']; 
+
+$flds=$id;
+$fldcap= $fld;
+
+$top.='
+<input type="hidden" id="ur" value='.$ur.' />
+<input type="hidden" id="id" value='.$id.' />
+<input type="hidden" id="dfin" value='.$datafld['fin'].'>   
+
+<div class="row">  
+<div class="col-sm-3">  ';
+
+for($a=1;$a<count($fldcap);$a++) {
+
+$flds.=',$("#'.$fld[$a].'").val()';
+    //$xcap=ucwords(str_replace('_',' ',$fldcap[$a]));
+    $xcap=$a.'-'.ucwords(str_replace('_',' ',$fldcap[$a]));
+$dataf=$datafld[$fld[$a]];    
+
+if($a==1 ){ 
+    $dataf2=$datafld[$fld[2]];   
+$top.=' 
+
+<div class="input-group mb-1 input-group-sm ">  
+     <p class="form-control"  ><b>'.$dataf.' [ '.$dataf2.']</b></p>     
+  </div>   ';
+
+}   
+
+elseif($a==2){ }  
+
+elseif($a==19 ){}
+
+elseif($fld[$a] == 'photo'){
+    $photo_val = !empty($datafld['photo']) ? $datafld['photo'] : 'empty.jpg';
+    $xlink = base_url('uploads/pix/'.$photo_val);
+
+$top.= '
+<br />
+
+<div class="input-group mb-1 input-group-sm"> 
+<div class="input-group-prepend">    <span class="input-group-text">Quotation</span></div>
+    <div id="imgview23">        
+        <a href="'.$xlink.'" target="_blank">
+        <img src="'.$xlink.'?t='.time().'" alt="Quotation" width="100" height="75"></a> </div>
+
+    <form method="post" id="upload_form23" align="center" enctype="multipart/form-data">
+    <input type="file" name="image_file23" id="image_file23" /> 
+    <input type="submit" name="upload" id="upload" 
+    value="Upload" class="btn btn-info" /> </form>
+</div>   
+
+<script>
+$(document).ready(function() {  
+
+$("#upload_form23").on("submit", function(e){e.preventDefault();
+if($("#image_file23").val() == "") { 
+alert("Please Select the File"); 
+}
+else { 
+$.ajax({url:"'.base_url('99/dashboard/upload/'.$id).'", 
+method:"POST",
+dataType:"json",
+data:new FormData(this),
+contentType: false,cache: false,processData:false,
+success:function(data){ 
+    if(data.error) {
+        alert("Upload failed: " + data.error);
+        return;
+    }
+    $("#imgview23").html(data.img);    
+}
+}); 
+}
+
+}); 
+
+}); 
+
+</script>
+
+';
+
+}
+
+//elseif($a==17 ){
+//$top.=' 
+//<div class="input-group mb-1 input-group-sm " id="'.$fld[$a].'x">
+// <div class="input-group-prepend">    <span class="input-group-text">'.$xcap.'</span></div>';
+//    
+//if($appr==1){
+//    $top.='  
+// <input type="text" class="form-control" id="'.$fld[$a].'" 
+// onchange="fsave(this.id)" value="'.$dataf.'" />';
+//} 
+//    
+//else {
+//    $top.='
+// <p class="form-control">'.$dataf.'</p>';  
+//    
+//}
+//    $top.='  
+//</div> ';   
+//}
+
+elseif($a==3 ){
+    $ca=$datafld['ca']; $chk=''; if($ca==1){$chk='checked';}        
+    $top.=' 
+    <div class="custom-control custom-switch">
+    <input type="checkbox" onclick="ca();" class="custom-control-input" id="ca" value="'.$ca.'" '.$chk.' />
+    <label class="custom-control-label" for="ca">Cash Advance</label> </div>
+
+    <script>
+    function ca() {  
+        var x = document.getElementById("ca").checked;  
+        if(x) {$("#ca").val(1);} else {$("#ca").val(0);} 
+        fsave("ca");
+    }
+    </script>';
+
+    $disp_val = ($dataf == '0') ? '' : $dataf;
+
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm " id="'.$fld[$a].'x">
+     <div class="input-group-prepend">
+        <span class="input-group-text">'.$xcap.'</span></div>
+     <input type="text" class="form-control" id="'.$fld[$a].'" 
+     onchange="fsave(this.id)" value="'.$disp_val.'" />
+    </div> ';
+}
+
+elseif($a==4){
+    $display_val = '';
+    if ($dataf != 0 && $dataf != '') {
+        $row_name = $this->db->where('id', $dataf)->get('dept')->row('name');
+        $display_val = !empty($row_name) ? $row_name : $dataf;
+    }
+    if(empty($display_val)) $display_val = $dataf;
+
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend">
+            <span class="input-group-text">'.$xcap.'</span></div>
+         <input type="text" class="form-control" id="'.$fld[$a].'" 
+         onchange="fsave(this.id)" value="'.htmlspecialchars($display_val, ENT_QUOTES).'" />
+    </div> ';
+}
+
+elseif($a==5){
+    $display_val = '';
+    if ($dataf != 0 && $dataf != '') {
+        $row_name = $this->db->where('id', $dataf)->get('branch')->row('Branch_Name');
+        $display_val = !empty($row_name) ? $row_name : $dataf;
+    }
+
+    $branch_rs = $this->db->order_by('Branch_Name')->get('branch')->result_array();
+    $select_opts = '<option value="0">Select Branch</option>';
+    $found = false;
+    foreach($branch_rs as $b) { 
+        $selected = ((string)$dataf === (string)$b['id']) ? 'selected' : '';
+        if($selected) { $found = true; }
+        $select_opts .= '<option value="'.$b['id'].'" '.$selected.'>'.$b['Branch_Name'].'</option>'; 
+    }
+    if (!$found && (string)$dataf !== '0' && (string)$dataf !== '') {
+        $select_opts .= '<option value="'.$dataf.'" selected>'.$dataf.'</option>';
+    }
+
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend">
+            <span class="input-group-text">'.$xcap.'</span></div>
+         <select class="form-control select2-dropdown" id="'.$fld[$a].'">
+            '.$select_opts.'
+         </select>
+    </div> ';
+}
+
+elseif($a==6){
+    $error=explode(',','select none,Merchandise, Raw Mat, Down Payment, Mobilization, Travel, Utilities, Professional Fee , Asset, Legal Fees, Repaired Maintenance, Trucking & Delivery, Supplies, Others');
+    $eopt='';
+    for($b=0;$b<count($error);$b++){
+        $sel='';if($b==$dataf){$sel='selected';}
+        $eopt.='<option value='.$b.' '.$sel.'>'.$error[$b].'</option>';
+    } 
+
+$top.=' 
+<div class="input-group mb-1 input-group-sm">
+     <div class="input-group-prepend">
+        <span class="input-group-text">'.$xcap.'</span></div>
+     <select class="form-control" id="'.$fld[$a].'" 
+     onchange="fsave(this.id)" >'.$eopt.'</select>
+  </div> ';
+
+}  
+elseif($a==7){
+    $payee_fld = $fld[$a];
+    $init_opt = '';
+    if(!empty($dataf)) {
+        $init_opt = '<option value="'.htmlspecialchars($dataf, ENT_QUOTES).'" selected>'
+                   .htmlspecialchars($dataf, ENT_QUOTES).'</option>';
+    }
+    $top .= '
+    <div class="input-group mb-1 input-group-sm">
+        <div class="input-group-prepend">
+            <span class="input-group-text">Payee</span>
+        </div>
+        <select class="form-control select2-payee-field" 
+                id="'.$payee_fld.'" 
+                style="width:100%;">
+            '.$init_opt.'
+        </select>
+    </div>
+    <script>
+    $(document).ready(function() {
+        $("#'.$payee_fld.'").select2({
+            width: "100%",
+            placeholder: "Type to search or enter payee name...",
+            allowClear: true,
+            tags: true,
+            minimumInputLength: 0,
+            ajax: {
+                url: "'.base_url("99/dashboard/payee_list").'",
+                type: "POST",
+                dataType: "json",
+                delay: 250,
+                data: function(params) {
+                    return { searchTerm: params.term || "" };
+                },
+                processResults: function(response) {
+                    return { results: response };
+                },
+                cache: true
+            },
+            createTag: function(params) {
+                var term = $.trim(params.term);
+                if(term === "") { return null; }
+                return { id: term, text: term, newTag: true };
+            }
+        }).on("change", function() {
+            var val = $(this).val();
+            if(val === null || val === undefined) { val = ""; }
+            var text = $(this).find("option:selected").text();
+            if(text && text !== "") { val = text; }
+            var datas=['.$id.',"'.$payee_fld.'",""];
+            $.ajax({
+                url: "'.base_url("99/dashboard/fsave").'",
+                method: "POST",
+                data: {datas: datas, val: val},
+                success: function() {}
+            });
+        });
+    });
+    </script>';
+}
+elseif($a==8){    
+$top.=' 
+<div class="input-group mb-1 input-group-sm ">
+     <div class="input-group-prepend">
+        <span class="input-group-text">'.$xcap.'</span></div>
+        <textarea onchange="fsave(this.id)"  
+        class="form-control" type="text" 
+         id="'.$fld[$a].'"  rows="3" cols="50">'.$dataf.'</textarea></div>'; 
+}  
+
+elseif($a==9){
+$amt_display = (floatval($dataf) > 0) ? number_format(floatval($dataf), 2, '.', '') : '';
+$top.=' 
+<div class="input-group mb-1 input-group-sm ">
+     <div class="input-group-prepend">
+        <span class="input-group-text">'.$xcap.'</span></div>
+     <input type="number" class="form-control" id="'.$fld[$a].'" 
+     value="'.$amt_display.'" disabled
+     style="background-color:#e9ecef;color:#6c757d;cursor:not-allowed;"/>
+  </div> ';
+}
+
+elseif($a==10){
+    $error=explode(',','select none,Check, Cash, Telegraphic Transfer, Others');
+    $eopt='';
+    for($b=0;$b<count($error);$b++){
+        $sel='';if($b==$dataf){$sel='selected';}
+        $eopt.='<option value='.$b.' '.$sel.'>'.$error[$b].'</option>';
+    }
+
+    $pay_others = isset($datafld['payment_others']) ? $datafld['payment_others'] : '';
+
+    $disp = ($dataf == 4) ? '' : 'style="display:none;"';
+
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend">
+            <span class="input-group-text">'.$xcap.'</span></div>
+         <select class="form-control" id="'.$fld[$a].'" 
+         onchange="check_others(this.id)" >'.$eopt.'</select>
+    </div>
+
+    <div class="input-group mb-1 input-group-sm" id="payment_others_wrapper" '.$disp.'>
+         <div class="input-group-prepend">
+            <span class="input-group-text">Others</span></div>
+         <input type="text" class="form-control" id="payment_others" 
+         onchange="fsave(this.id)" value="'.$pay_others.'" placeholder="Specify Others" />
+    </div> 
+
+    <script>
+    function check_others(id) {
+        fsave(id); 
+        if($("#" + id).val() == "4") {
+            $("#payment_others_wrapper").show();
+            $("#payment_others").focus();
+        } else {
+            $("#payment_others_wrapper").hide();
+            $("#payment_others").val("");
+            fsave("payment_others"); 
+        }
+    }
+    </script>';
+}
+
+elseif($a==11){    
+$top.=' 
+<div class="input-group mb-1 input-group-sm ">
+ <div class="input-group-prepend">
+    <span class="input-group-text">Date Requested</span></div>
+ <input type="date" class="form-control" id="'.$fld[$a].'" 
+ onchange="fsave(this.id)" value="'.$dataf.'" />
+</div> '; 
+} 
+
+elseif($a==12){
+$today = date('Y-m-d');
+$dn_val = (!empty($dataf) && $dataf > $today && substr($dataf,0,4) > '2000') ? $dataf : '';
+$top.=' 
+<div class="input-group mb-1 input-group-sm">
+<div class="input-group-prepend">
+<span class="input-group-text">Date Needed</span></div>
+<input type="date" class="form-control" id="'.$fld[$a].'" 
+min="'.$today.'"
+onchange="validateDateNeeded(this)" value="'.$dn_val.'" />
+</div> ';
+}
+
+elseif($a==13){ 
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend">
+            <span class="input-group-text">'.$xcap.'</span></div>
+         <input type="number" class="form-control" id="'.$fld[$a].'" 
+         onchange="fsave(this.id)" value="'.$dataf.'" />
+    </div> ';
+}
+
+
+//elseif($a==13 or $a==14 or $a==15 or $a==17  ){
+elseif($a==14){}
+elseif($a==15 or $a==16 or $a==18 or $a==21  ){
+
+//if($a==13){    $dataf=$dvapp;    $dataf2=$dvprep;}    
+
+$topt='<option value='.$dataf.'>'.$this->db
+    ->where('id',$dataf)->get('users')->row('name').'</option>';
+
+//$topt2='<option value='.$dataf2.'>'.$this->db
+//    ->where('id',$dataf2)->get('users')->row('name').'</option>';
+
+$top.=' 
+<div class="input-group mb-1 input-group-sm">
+     <div class="input-group-prepend"> <span class="input-group-text">'.$xcap.'</span></div>
+     <select class="form-control" id="'.$fld[$a].'" >'.$topt.'</select> </div> '; 
+
+//$top.=' 
+//<div class="input-group mb-1 input-group-sm">
+//     <div class="input-group-prepend"> <span class="input-group-text">DV Released</span></div>
+//     <select class="form-control" >'.$topt2.'</select> </div> '; 
+
+}
+elseif($fld[$a]=='accounting' or $fld[$a]=='checked_by' or $fld[$a]=='treasury'){ 
+}  
+
+else {
+$safe_val = ($dataf === '0' || $dataf === 0) ? '' : htmlspecialchars($dataf, ENT_QUOTES);
+$top.=' 
+<div class="input-group mb-1 input-group-sm " id="'.$fld[$a].'x">
+<div class="input-group-prepend">
+<span class="input-group-text">'.$xcap.'</span></div>
+<input type="text" class="form-control" id="'.$fld[$a].'" 
+onchange="fsave(this.id)" value="'.$safe_val.'" />
+</div> ';
+
+}        
+
+if($fld[$a] == 'fin') {
+    $acc_val = isset($datafld['accounting']) ? $datafld['accounting'] : '';
+    $chk_val = isset($datafld['checked_by']) ? $datafld['checked_by'] : '';
+    $trs_val = isset($datafld['treasury']) ? $datafld['treasury'] : '';
+
+    $top.='
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend"> <span class="input-group-text">Accounting</span></div>
+         <input type="text" class="form-control" id="accounting" onchange="fsave(this.id)" value="'.$acc_val.'" />
+    </div>
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend"> <span class="input-group-text">Checked By</span></div>
+         <input type="text" class="form-control" id="checked_by" onchange="fsave(this.id)" value="'.$chk_val.'" />
+    </div>
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend"> <span class="input-group-text">Treasury</span></div>
+         <input type="text" class="form-control" id="treasury" onchange="fsave(this.id)" value="'.$trs_val.'" />
+    </div>';
+}
+
+}
+
+$fin=$datafld['fin'];          
+$appby=$appr;
+$appby=$datafld['approved_by'];
+$unappby=$datafld['unapprove_by'];
+$ca=$datafld['ca'];
+
+$top.='  <div class="input-group mb-1 input-group-sm " > ';
+$app=$appr; 
+
+if($fin>0){
+
+$uid=$_SESSION['user_id']; 
+$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights');     
+$dat[0]=$appr=$this->db->where('userid',$uid)->get('dsr_approver')->row('rfp');    
+$dat[1]=$appr5k=$this->db->where('userid',$uid)->get('dsr_approver')->row('rpf5k');    
+$dat[2]=$appr10k=$this->db->where('userid',$uid)->get('dsr_approver')->row('rpf10k');   
+//print_r($dat);
+
+$rs=$this->db->where('id',$id)->get('ac_rfpd')->result();   
+$sww=$amt=0;
+foreach($rs as $rows){ $amt+=$rows->qty * $rows->cost; }
+
+if($dat[2]==1){$sww=1;}
+else{
+    if($amt<=500){if($dat[0]==1){$sww=1;}}    
+    if($amt<5000){if($dat[1]==1){$sww=1;}}    
+}     
+//$sww=1;    
+if($unappby>0){$sww=0;}
+
+if($appby>0){
+    $sww=0;
+    if($ca==1){    
+    $top.=' 
+    <input type="button" 
+    class="form-control btn btn-outline-dark btn-sm" 
+    value="print" onclick="print('.$id.')" id="printx" > ';
+}              
+} 
+
+if($sww==1){    
+
+$top.='  
+<input type="button" 
+class="form-control btn btn-outline-dark btn-sm" 
+value="Unfinalize" onclick="unfin()" id="unfinx" > 
+
+<input type="button" 
+class="form-control btn btn-outline-dark btn-sm" 
+value="Approve" onclick="app(1)" id="appx" > 
+
+<input type="button" 
+class="form-control btn btn-outline-dark btn-sm" 
+value="Disapprove" onclick="app(2)" id="uappx" >   ';
+}
+
+$top.='  
+
+<script>
+
+function print(id){ 
+    var xurl="'.base_url('99/dashboard/print/').'" + id ;
+    if(confirm("Print this record?")==true) { 
+        window.open(xurl); 
+    } 
+}
+
+</script>
+';
+}   
+
+else {
+$top.='         
+<input type="button" 
+class="form-control btn btn-outline-dark btn-sm" 
+value="finalize" onclick="fin()" id="finx" > ';
+}
+
+$top.='  
+<input type="button" class="form-control btn btn-success btn-sm mb-1" value="Save All" onclick="save_all_left()">
+<input type="button" class="form-control btn btn-warning btn-sm mb-1" value="Print RFP Form" onclick="window.open(\''.base_url('99/dashboard/print/').$id.'\')">
+<input type="button" class="form-control btn btn-outline-dark btn-sm" value="Close" onclick="closef()"> 
+</div>';
+$dvid = $this->db->where('rfp', $id)->order_by('id', 'desc')->limit(1)->get('dvh')->row('id');
+if (empty($dvid)) { $dvid = 0; }
+
+$top.='
+<script>
+$("#printx").hide();
+$("#reason").show(); 
+
+if('.intval($dvid).'>0){ $("#printx").show(); } 
+
+if('.intval($dvid).'>0){ $("#printx").show(); }
+
+function app(sw){
+var msg="Approved this record?";
+if(sw==2){msg="Unapproved this record?";}
+if(confirm(msg)==true){
+
+$.ajax({url: "'.base_url("99/dashboard/app").'",
+method: "POST",
+data: {id:'.$id.',sw:sw}, success:function(data){
+exits();
+} }) 
+
+} 
+
+} 
+
+</script>
+
+';
+
+//$tloc=$this->db ->where('id',$id) ->get('ac_rfph')->row('location');        
+
+
+$loc=$_SESSION['location'];    
+
+//if($fin>0) 
+
+$top.='  
+
+</div> 
+
+<div class="col-sm-9"> 
+
+    <ul class="nav nav-tabs"> 
+
+<li class="nav-item"><a class="nav-link active" data-toggle="tab" 
+href="#rr_tab" onclick="load_rr()" >RR</a></li>  
+
+</ul> 
+
+<div class="tab-content">
+
+    <div class="tab-pane container-fluid active" id="rr_tab"></div> 
+
+</div>
+
+</div>
+
+<script>  
+
+function validateDateNeeded(el) {
+    var today = new Date().toISOString().split("T")[0];
+    if (el.value && el.value <= today) {
+        alert("Date Needed must be a future date.");
+        el.value = "";
+        return;
+    }
+    fsave(el.id);
+}
+
+function closef() { list(); }
+
+function load_rr() { 
+$.ajax({url: "'.base_url("99/dashboard/rr_tab").'", 
+method:"POST", data:{id:'.$id.'},success:function(data) { 
+$("#rr_tab").html(data);  } }) 
+} 
+
+
+
+$(".select2-dropdown").select2({ width: "100%", tags: true }).on("change", function() {
+if(this.id) { fsave(this.id); }
+});
+
+$(".select2-payee").select2({
+width: "100%",
+ajax: {
+    url: "'.base_url("99/dashboard/payee_list").'",
+    type: "POST",
+    dataType: "json",
+    delay: 250,
+    data: function(params) {
+        return { searchTerm: params.term || "" };
+    },
+    processResults: function(response) {
+        return { results: response };
+    },
+    cache: true
+}
+});
+
+function save_all_left(callback) {
+var fields = [];
+$("input.form-control, select.form-control, textarea.form-control").each(function() {
+    var fld_id = $(this).attr("id");
+    if(fld_id && fld_id !== "ca" && fld_id !== "payment_others" && fld_id !== "rramt" && fld_id !== "prramt" && fld_id !== "brramt" && fld_id !== "damt" && fld_id !== "seq") {
+        fields.push(fld_id);
+    }
+});
+var idx = 0;
+function saveNext() {
+    if(idx >= fields.length) {
+        save_rr(function() {
+            if(typeof callback === "function") callback();
+            else alert("All entries saved");
+        });
+        return;
+    }
+    var fld_id = fields[idx++];
+    var val = $("#" + fld_id).val();
+    if(val === null || val === undefined) val = "";
+    if(Array.isArray(val)) val = val.join(",");
+    var datas = ['.$id.',fld_id,""];
+    $.ajax({
+        url: "'.base_url("99/dashboard/fsave").'",
+        method: "POST",
+        data: {datas: datas, val: val},
+        complete: saveNext
+    });
+}
+saveNext();
+}
+
+$("#approved_by, #unapprove_by").select2({
+    ajax: { 
+        url: "'.base_url("99/dashboard/names").'", 
+        type: "POST", 
+        dataType: "json",  
+        delay: 250,  
+        data: function (params) { 
+            return { searchTerm: params.term || "" };  
+        },
+        processResults: function (response) {  
+            return { results: response };  
+        },  
+        cache: true   
+    }
+});
+
+$("#accounting, #checked_by, #treasury, #approved_by").prop("disabled", true);
+
+function fsave(fld){
+
+var vsw=1;
+//if($("#dfin").val() == 0) { vsw=1;}
+
+if(vsw == 1) {
+
+var val = $("#" + fld).val();
+if(val === null || val === undefined) val = "";
+if(Array.isArray(val)) { val = val.join(","); }
+
+var datas=['.$id.',fld,""];
+$.ajax({url: "'.base_url("99/dashboard/fsave").'",
+method: "POST",
+data: {datas:datas, val:val},
+success:function(){ 
+
+} }) 
+} 
+
+//else{ alert("Transaction Finalized"); }
+
+}
+
+function fin(){
+var tamt=$("#tamt").val();
+
+if(tamt>0){
+$.ajax({url: "'.base_url("99/dashboard/fin").'",
+method: "POST",
+dataType: "json",
+data: {id:'.$id.'}, success:function(data){
+if(data.sw==1){exits();}
+
+else {
+    alert(data.msg);
+}
+
+} }) 
+
+} 
+
+} 
+
+
+function unfin(){
+
+$.ajax({url: "'.base_url("99/dashboard/unfin").'",
+method: "POST",
+data: {id:'.$id.'}, success:function(data){
+exits();
+} }) 
+
+} 
+
+function fsavex(sw){
+
+if($("#dfin").val() == 0) {
+
+fsave(8); 
+var tot=$("#total").val();
+var t= $("#tender").val(); 
+var c= t - tot ;
+$("#change_").val(c);
+$("#total").val(tot);
+fsave(9);
+slip();
+
+} 
+
+else{ alert("Transaction Finalized"); }
+
+}
+
+function getqrcode(sw){ 
+}  
+
+
+</script>
+'; 
+
+
+echo '<script>    
+
+</script>' ; 
+
+echo '  
+<div class="container-fluid"> 
+    <div class="row">
+        <div id=" top"class="col-sm-12" >'.$top.' </div> 
+    </div>   
+</div> ';
+
+
+
+} 
+
+function getpo() {
+$id  = $this->input->post('id');
+    $rs=$this->db
+        ->where('id',$id)
+        ->where('CAST(amt_po AS DECIMAL) >',10)
+        ->get('poh')
+        ->result_array();
+    $fld=$this->db->list_fields('poh');
+    
+        for($a=0;$a<count($fld);$a++){
+            $dat[$fld[$a]]=0;
+        }
+    $dat['brramt']=
+    $dat['rramt']=
+    $dat['prramt']=0;
+    
+    foreach($rs as $row){
+        
+        $dat['brramt']=$dat['rramt']=$row['amt_po'];
+//        $dat['brramt']-=$dat['amt_ret']=$row['amt_ret'];
+//        $dat['brramt']-=$dat['prramt']=$row['amt_paid'];
+        //if($dat['brramt']>0)
+        {
+        for($a=0;$a<count($fld);$a++){
+            $dat[$fld[$a]]=
+            $row[$fld[$a]];
+        }
+        }
+    }
+    echo json_encode($dat);
+}
+
+function getrr() {
+$id  = $this->input->post('id');
+    $rs=$this->db
+        ->where('id',$id)
+        ->where('CAST(amt_rr AS DECIMAL) >',10)
+        ->get('rrh')
+        ->result_array();
+    $fld=$this->db->list_fields('rrh');
+    
+        for($a=0;$a<count($fld);$a++){
+            $dat[$fld[$a]]=0;
+        }
+    $dat['brramt']=
+    $dat['rramt']=
+    $dat['prramt']=0;
+    
+    foreach($rs as $row){
+        
+        $dat['brramt']=$dat['rramt']=$row['amt_rr'];
+        $dat['brramt']-=$dat['amt_ret']=$row['amt_ret'];
+        $dat['brramt']-=$dat['prramt']=$row['amt_paid'];
+        if($dat['brramt']>0){
+        for($a=0;$a<count($fld);$a++){
+            $dat[$fld[$a]]=
+            $row[$fld[$a]];
+        }
+        }
+    }
+    echo json_encode($dat);
+}
+    
+function info() {
+    
+$tmp = $this->input->post('datas');
+$sw=$tmp[0];
+$id=$tmp[1];
+
+if($sw==2) {
+    
+$tbl='ac_rfpd'; 
+$fld=$this->db->list_fields('ac_rfpd'); 
+$ds=$tmp[0]; $de=$tmp[1];
+    
+$fld=explode(',','seq,trn_id,amount')    ;
+
+date_default_timezone_set("Asia/Manila");
+    
+$loc=$_SESSION['location']; 
+
+$uid=$_SESSION['user_id']; 
+    
+$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights'); 
+
+$mid=$this->db->where('userid',$uid)->get('manager')->row('id');
+    
+//$sw=0;    
+//if($ur==4 or $ur==8) {$sw=1;}
+//if($sw==0){ $this->db->where('created_by',$uid);    }    
+
+$rs=$this->db
+//->where('date_',$_SESSION['datex']) //->where('date_<=',$de)
+ ->where('id',$id) 
+ ->where('sw',$tmp[0]) 
+//->where('date_>=',$tmp[0]) ->where('date_<=',$tmp[1])
+->order_by('id','desc')
+->get('ac_rfpd')->result_array(); 
+    
+$fld=$this->db->list_fields($tbl);
+$fld=explode(',','id,code,payee,amount,payment_type,remarks')    ;
+
+$fld=explode(',','seq,trn_id,date_,balance,amount') ;
+    
+$td=''; $th=''; 
+for($a=0;$a<count($fld);$a++)  { 
+$fldnm=str_replace('_',' ',$fld[$a]); $th.='<th>'.ucwords($fldnm).'</th>';} 
+
+foreach($rs as $row) {    
+    $td.='<tr>' ;     
+        for($a=0;$a<count($fld);$a++) {  
+        $datafld=$row[$fld[$a]];
+            if($a==1){
+                $datafld='<option value='.$datafld.'>
+                '.$this->db->where('id',$datafld)->get('poh')->row('code').'</option>';
+            }
+            if($a==2){
+                $datafld=$this->db->where('id',$row['trn_id'])->get('poh')->row('date_');
+            }
+            
+        $td.='<td>'.$datafld.'</td>';
+            
+        } 
+    $td.='</tr>' ;     
+}     
+    
+echo ' 
+<script>
+
+(function(){ 
+
+    $("#rr").select2({
+    placeholder: "Select active PO#",
+    allowClear: true,
+    ajax: {
+        url: "'.base_url("99/dashboard/mf/po").'",
+        type: "post",
+        dataType: "json",
+        delay: 250,
+        data: function(params) { return { searchTerm: params.term || "", id: '.$id.' }; },
+        processResults: function(response) { return { results: response }; },
+        cache: true
+    }
+    });
+
+})(); 
+
+function refresh_page(){ $("#rrno").val() }
+
+function getsubsi() {
+var subsi=$("#subsi").val(); var st=$("#stype").val();
+
+$.ajax({url:"'.base_url("99/dashboard/getsubsi").'", method:"POST", dataType:"json", data:{id:subsi,st:st},success:function(data) 
+{  
+$("#phone").val(data.phone);
+saveh();
+} });  
+
+}
+
+(function() {  
+
+var table = $("#tbl_list'.$tmp[0].'").DataTable({"scrollX": true, "order": [[ 0, "desc" ]]});
+$("#tbl_list'.$tmp[0].' tbody").on("click", "tr", function () { var data = table.row( this ).data();  edit_rec(data); });
+
+function edit_rec(dat) {    
+
+    $("#brramt").val(dat[4]);
+    $("#damt").val(dat[3]);
+    $("#seq").val(dat[0]);
+    $("#rr").html(dat[1]);
+    $("#del_seq").val(dat[0]);
+
+}
+
+})();
+
+</script>
+
+<div class="container-fluid">
+<br>
+
+<div class="row">
+    <div class="col-sm-3">
+    
+        <div class="input-group mb-1 input-group-sm"> 
+             <select class="form-control" id="rr" onchange="getrr(this.id)">
+             <option value="0">select PO#</option>
+             </select> </div>
+             
+         <div class="input-group mb-1 input-group-sm">
+            <div class="input-group-prepend">  <span class="input-group-text">PO Amount</span></div>
+            <input type="number" class="form-control" id="rramt" value=0 disabled/></div>
+             
+         <div class="input-group mb-1 input-group-sm">
+            <div class="input-group-prepend">  <span class="input-group-text">Paid Amount</span></div>
+            <input type="number" class="form-control" id="prramt" value=0 disabled/></div>
+             
+         <div class="input-group mb-1 input-group-sm">
+            <div class="input-group-prepend">  <span class="input-group-text">Balance Amount</span></div>
+            <input type="number" class="form-control" id="brramt" value=0 disabled/></div>
+             
+         <div class="input-group mb-1 input-group-sm">
+            <div class="input-group-prepend">  <span class="input-group-text">Amount</span></div>
+            <input type="number" class="form-control" id="damt" value=0 onchange="chkamt()"></div>
+            
+        <div class="input-group mb-1 input-group-sm ">          
+            <input type="button" class="form-control btn btn-outline-dark btn-sm" 
+                value="Save" onclick="dsave()" id="dsave">  
+            
+            <input type="hidden" id="seq" value=0 /> 
+            <input type="hidden" id="del_seq" value=0 />
+            
+            <input type="button" class="form-control btn btn-outline-dark btn-sm"
+                value="Clear" onclick="info(2)">
+
+            <input type="button" class="form-control btn btn-danger btn-sm"
+                value="Delete" onclick="deldtl_row(2)">
+        </div>
+    
+    </div>
+    
+<script>
+    function chkamt(){   
+            
+            var amt =parseFloat($("#brramt").val()) - parseFloat($("#damt").val());  
+            if(amt<0) {            
+            
+                alert("Invalid Amount");
+                $("#damt").val(0);
+                $("#damt").focus();
+                
+            } 
+        } 
+    
+    function getrr(fld){    
+
+        $.ajax({url:"'.base_url("99/dashboard/getpo").'"
+        , dataType:"json" 
+        , method:"POST" 
+        , data:{id:$("#" + fld).val()}
+        ,success:function(data) {  
+            var dat=data;
+            $("#rramt").val(dat.rramt);
+            $("#prramt").val(dat.prramt);
+            $("#brramt").val(dat.brramt);
+        } });  
+
+    }
+    function dsave(){
+    var datas=['.$id.',$("#seq").val(),2,$("#rr").val(),$("#damt").val(),$("#brramt").val()];        
+    if(datas[3]>0){
+        if(datas[4]>0){
+            $.ajax({url:"'.base_url("99/dashboard/dsave").'"
+            , method:"POST"        
+            , data:{datas:datas}
+            ,success:function(data) {
+                $.ajax({
+                    url:"'.base_url("99/dashboard/recalc_rr_amount").'",
+                    method:"POST",
+                    data:{id:'.$id.'},
+                    success:function(res){
+                        $("input[type=number][disabled]").each(function(){
+    var fid = $(this).attr("id");
+    if(fid && fid !== "rramt" && fid !== "prramt" && fid !== "brramt") {
+        $(this).val(res.amount);
+    }
+});
+                        info(2);
+                    }
+                });
+            } }); 
+        } else {alert("please enter amount");}
+} else {alert("please select PO#");} 
+}
+
+function deldtl_row(sw) {
+    var seq = $("#del_seq").val();
+    if(seq == 0) { alert("Please select a row to delete."); return; }
+    if(!confirm("Delete this entry?")) return;
+    $.ajax({
+        url: "'.base_url("99/dashboard/deldtl").'",
+        method: "POST",
+        dataType: "json",
+        data: { seq: seq, id: '.$id.' },
+        success: function(res) {
+            if(res.sw == 1) {
+                $("input[type=number][disabled]").each(function(){
+                    var fid = $(this).attr("id");
+                    if(fid && fid !== "rramt" && fid !== "prramt" && fid !== "brramt") {
+                        $(this).val(res.amount);
+                    }
+                });
+                info(sw);
+            } else { alert(res.msg); }
+        }
+    });
+}
+</script>
+
+<div class="col-sm-9"> 
+    <table id="tbl_list'.$tmp[0].'" class="display nowrap" style="width:100%" >
+    <thead> <tr>'.$th.'</tr> </thead>
+    <tbody>'.$td.'</tbody>
+    </table>
+</div>';
+
+}
+    
+else if($sw==1) {
+    
+$tbl='ac_rfpd'; 
+$fld=$this->db->list_fields('ac_rfpd'); 
+$ds=$tmp[0]; $de=$tmp[1];
+    
+$fld=explode(',','seq,trn_id,amount')    ;
+
+date_default_timezone_set("Asia/Manila");
+    
+$loc=$_SESSION['location']; 
+
+$uid=$_SESSION['user_id']; 
+    
+$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights'); 
+
+$mid=$this->db->where('userid',$uid)->get('manager')->row('id');
+    
+$sw=0;    
+if($ur==4 or $ur==8) {$sw=1;}
+if($sw==0){ $this->db->where('created_by',$uid);    }    
+
+$rs=$this->db
+//->where('date_',$_SESSION['datex']) //->where('date_<=',$de)
+ ->where('id',$id) 
+ ->where('sw',$tmp[0]) 
+//->where('date_>=',$tmp[0]) ->where('date_<=',$tmp[1])
+->order_by('id','desc')
+->get($tbl)->result_array();
+$fld=$this->db->list_fields($tbl);
+$fld=explode(',','id,code,payee,amount,payment_type,remarks')    ;
+
+$fld=explode(',','seq,trn_id,date_,balance,amount') ;
+    
+$td=''; $th=''; 
+for($a=0;$a<count($fld);$a++)  { 
+$fldnm=str_replace('_',' ',$fld[$a]); $th.='<th>'.ucwords($fldnm).'</th>';} 
+
+foreach($rs as $row) {    
+    $td.='<tr>' ;     
+        for($a=0;$a<count($fld);$a++) {  
+        $datafld=$row[$fld[$a]];
+            if($a==1){
+                $datafld='<option value='.$datafld.'>
+                '.$this->db->where('id',$datafld)->get('rrh')->row('code').'</option>';
+            }
+            if($a==2){
+                $datafld=$this->db->where('id',$row['trn_id'])->get('rrh')->row('date_');
+            }
+            
+        $td.='<td>'.$datafld.'</td>';
+            
+        } 
+    $td.='</tr>' ;     
+}     
+    
+echo ' 
+<script>
+
+(function(){ 
+
+    $("#rr").select2({
+    placeholder: "Select active RR#",
+    allowClear: true,
+    ajax: {
+        url: "'.base_url("99/dashboard/mf/rr").'",
+        type: "post",
+        dataType: "json",
+        delay: 250,
+        data: function(params) { return { searchTerm: params.term || "", id: '.$id.' }; },
+        processResults: function(response) { return { results: response }; },
+        cache: true
+    }
+    });
+
+})();
+
+$("#xsearch").hide()
+
+function refresh_page(){ $("#rrno").val() }
+
+function getsubsi() {
+var subsi=$("#subsi").val(); var st=$("#stype").val();
+
+$.ajax({url:"'.base_url("99/dashboard/getsubsi").'", method:"POST", dataType:"json", data:{id:subsi,st:st},success:function(data) 
+{  
+$("#phone").val(data.phone);
+saveh();
+} });  
+
+}
+
+(function() {  
+
+var table = $("#tbl_list'.$tmp[0].'").DataTable({"scrollX": true, "order": [[ 0, "desc" ]]});
+$("#tbl_list'.$tmp[0].' tbody").on("click", "tr", function () { var data = table.row( this ).data();  edit_rec(data); });
+
+function edit_rec(dat) {    
+
+    $("#brramt").val(dat[4]);
+    $("#damt").val(dat[3]);
+    $("#seq").val(dat[0]);
+    $("#rr").html(dat[1]);
+    $("#del_seq").val(dat[0]);
+
+}
+
+})();
+
+</script>
+
+<div class="container-fluid">
+<br>
+
+<div class="row">
+    <div class="col-sm-3">
+    
+        <div class="input-group mb-1 input-group-sm"> 
+             <select class="form-control" id="rr" onchange="getrr(this.id)">
+             <option value="0">select RR#</option>
+             </select> </div>
+             
+         <div class="input-group mb-1 input-group-sm">
+            <div class="input-group-prepend">  <span class="input-group-text">RR Amount</span></div>
+            <input type="number" class="form-control" id="rramt" value=0 disabled/></div>
+             
+         <div class="input-group mb-1 input-group-sm">
+            <div class="input-group-prepend">  <span class="input-group-text">Paid Amount</span></div>
+            <input type="number" class="form-control" id="prramt" value=0 disabled/></div>
+             
+         <div class="input-group mb-1 input-group-sm">
+            <div class="input-group-prepend">  <span class="input-group-text">Balance Amount</span></div>
+            <input type="number" class="form-control" id="brramt" value=0 disabled/></div>
+             
+         <div class="input-group mb-1 input-group-sm">
+            <div class="input-group-prepend">  <span class="input-group-text">Amount</span></div>
+            <input type="number" class="form-control" id="damt" value=0 onchange="chkamt()"></div>
+            
+        <div class="input-group mb-1 input-group-sm ">          
+            <input type="button" class="form-control btn btn-outline-dark btn-sm" 
+                value="Save" onclick="dsave()" id="dsave">  
+            
+            <input type="hidden" id="seq" value=0 /> 
+            <input type="hidden" id="del_seq" value=0 />
+            
+            <input type="button" class="form-control btn btn-outline-dark btn-sm"
+                value="Clear" onclick="info(2)">
+
+            <input type="button" class="form-control btn btn-danger btn-sm"
+                value="Delete" onclick="deldtl_row(2)">
+        </div>
+    
+    </div>
+    
+<script>
+    function chkamt(){   
+            
+            var amt =parseFloat($("#brramt").val()) - parseFloat($("#damt").val());  
+            if(amt<0) {            
+            
+                alert("Invalid Amount");
+                $("#damt").val(0);
+                $("#damt").focus();
+                
+            } 
+        } 
+    
+    function getrr(fld){    
+
+        $.ajax({url:"'.base_url("99/dashboard/getrr").'"
+        , dataType:"json" 
+        , method:"POST" 
+        , data:{id:$("#" + fld).val()}
+        ,success:function(data) {  
+            var dat=data;
+            $("#rramt").val(dat.rramt);
+            $("#prramt").val(dat.prramt);
+            $("#brramt").val(dat.brramt);
+        } });  
+
+    }
+    function dsave(){
+    var datas=['.$id.',$("#seq").val(),'.$tmp[0].',$("#rr").val(),$("#damt").val(),$("#brramt").val()]; 
+    if(datas[3]>0){
+        if(datas[4]>0){
+            $.ajax({url:"'.base_url("99/dashboard/dsave").'"
+            , method:"POST"        
+            , data:{datas:datas}
+            ,success:function(data) {
+                $.ajax({
+                    url:"'.base_url("99/dashboard/recalc_rr_amount").'",
+                    method:"POST",
+                    data:{id:'.$id.'},
+                    success:function(res){
+                        $("input[type=number][disabled]").each(function(){
+    var fid = $(this).attr("id");
+    if(fid && fid !== "rramt" && fid !== "prramt" && fid !== "brramt") {
+        $(this).val(res.amount);
+    }
+});
+                        info(1);
+                    }
+                });
+            } }); 
+        } else {alert("please enter amount");}
+} else {alert("please select RR#");} 
+}
+
+function deldtl_row(sw) {
+    var seq = $("#del_seq").val();
+    if(seq == 0) { alert("Please select a row to delete."); return; }
+    if(!confirm("Delete this entry?")) return;
+    $.ajax({
+        url: "'.base_url("99/dashboard/deldtl").'",
+        method: "POST",
+        dataType: "json",
+        data: { seq: seq, id: '.$id.' },
+        success: function(res) {
+            if(res.sw == 1) {
+                $("input[type=number][disabled]").each(function(){
+                    var fid = $(this).attr("id");
+                    if(fid && fid !== "rramt" && fid !== "prramt" && fid !== "brramt") {
+                        $(this).val(res.amount);
+                    }
+                });
+                info(sw);
+            } else { alert(res.msg); }
+        }
+    });
+}
+</script>
+
+<div class="col-sm-9"> 
+    <table id="tbl_list'.$tmp[0].'" class="display nowrap" style="width:100%" >
+    <thead> <tr>'.$th.'</tr> </thead>
+    <tbody>'.$td.'</tbody>
+    </table>
+</div>';
+
+}
+    
+}    
+
+function upload($id) {
+    if (empty($_FILES['image_file23']['tmp_name'])) {
+        echo json_encode(['error' => 'No file received.']);
+        return;
+    }
+
+    $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+    $mime = mime_content_type($_FILES['image_file23']['tmp_name']);
+
+    if (!in_array($mime, $allowed_types)) {
+        echo json_encode(['error' => 'Invalid file type. Allowed: jpg, png, gif, pdf.']);
+        return;
+    }
+
+    if ($_FILES['image_file23']['size'] > 5 * 1024 * 1024) {
+        echo json_encode(['error' => 'File exceeds 5MB limit.']);
+        return;
+    }
+
+    $b64      = base64_encode(file_get_contents($_FILES['image_file23']['tmp_name']));
+    $orig_name = basename($_FILES['image_file23']['name']);
+
+    $this->db->where('id', $id)->update('ac_rfph', [
+        'photo'      => $orig_name,
+        'photo_b64'  => $b64,
+        'photo_mime' => $mime,
+    ]);
+
+    if ($mime === 'application/pdf') {
+        $img_tag = '<a href="data:application/pdf;base64,'.$b64.'" target="_blank" download="'.htmlspecialchars($orig_name,ENT_QUOTES).'">
+                    <span style="font-size:32px;">&#128196;</span><br><small>'.htmlspecialchars($orig_name,ENT_QUOTES).'</small></a>';
+    } else {
+        $img_tag = '<a href="data:'.$mime.';base64,'.$b64.'" target="_blank">
+                    <img src="data:'.$mime.';base64,'.$b64.'" width="100" height="75" style="object-fit:cover;"></a>';
+    }
+
+    echo json_encode(['img' => $img_tag, 'filename' => $orig_name]);
+}
+
+function mf($sw) { 
+    
+$data[]=array("id"=>0, "text"=>'select none'); 
+    
+if($sw=='purpose') {
+    
+$error=explode(',','select none,Merchandise, Raw Mat, Down Payment, Mobilization, Travel, Utilities, Professional Fee , Asset, Legal Fees, Repaired Maintenance, Trucking & Delivery, Supplies, Others');
+    
+for($a=1;$a<count($error);$a++){
+    $data[]=array("id"=>$a, "text"=>$error[$a]); 
+}
+    
+    
+echo json_encode($data); 
+}
+    
+if($sw=='dv_no') {
+
+$id  = $this->input->post('id');    
+$xs=$this->input->post('searchTerm');  
+$rs = $this->db  
+
+->like('concat(trncode,date_)',$xs)    
+
+//->where('CAST((amt_po) AS DECIMAL) >',10)    
+->order_by('trncode') 
+->limit(10)->get('dvh')->result_array(); 
+$xx=0;
+
+foreach($rs as $row) {    
+
+            $data[]=array("id"=>$row['id'], "text"=>$row['trncode']
+            .' - '.$row['date_']
+            .' Amt '.$row['dv_amt']
+            );  
+}
+    
+    
+echo json_encode($data); 
+    
+}
+    
+if($sw=='po') {
+
+$id  = $this->input->post('id');    
+$xs=$this->input->post('searchTerm');  
+$rs = $this->db  
+
+->like('concat(code,date_)',$xs)    
+
+//->where('CAST((amt_po) AS DECIMAL) >',10)    
+->order_by('code') 
+->limit(10)->get('poh')->result_array(); 
+$xx=0;
+
+foreach($rs as $row) {  
+    
+    $rs=$this->db
+        ->where('id',$id)
+        ->where('sw',2)
+        ->where('trn_id',$row['id'])
+        ->get('ac_rfpd')->result();
+        
+    //if(count($rs)==0)
+    {
+//        $dat['brramt']=$dat['rramt']=$row['amt_rr'];
+//        $dat['brramt']-=$dat['amt_ret']=$row['amt_ret'];
+//        $dat['brramt']-=$dat['prramt']=$row['amt_paid'];
+
+        //if($dat['brramt']>0)
+        {
+
+            $data[]=array("id"=>$row['id'], "text"=>$row['code']
+            .' - '.$row['date_']
+            .' Amt '.$row['amt_po']
+            ); 
+        }
+        
+    }
+}
+    
+}
+
+if($sw=='rr') {
+
+$id  = $this->input->post('id');   
+$xs=$this->input->post('searchTerm');  
+$rs = $this->db  
+
+->like('concat(code,date_)',$xs)    
+
+->where('CAST((amt_rr - amt_paid) AS DECIMAL) >',10)    
+->order_by('code') 
+->limit(10)->get('rrh')->result_array(); 
+    $xx=0;
+    
+foreach($rs as $row) {  
+    
+    $rs=$this->db
+        ->where('id',$id)
+        ->where('sw',1)
+        ->where('trn_id',$row['id'])
+        ->get('ac_rfpd')->result();
+        
+    if(count($rs)==0){
+        $dat['brramt']=$dat['rramt']=$row['amt_rr'];
+        $dat['brramt']-=$dat['amt_ret']=$row['amt_ret'];
+        $dat['brramt']-=$dat['prramt']=$row['amt_paid'];
+
+        if($dat['brramt']>0){
+
+            $data[]=array("id"=>$row['id'], "text"=>$row['code']
+            .' - '.$row['date_']
+            .' Amt '.$row['amt_rr']
+            .' Ret '.$row['amt_ret']
+            .' Paid '.$row['amt_paid']
+            ); 
+        }
+        
+    }
+}
+    
+}
+
+if($sw=='branch') {
+
+$id  = $this->input->post('id');   
+$xs=$this->input->post('searchTerm');  
+$rs = $this->db  
+
+->like('concat(code,name)',$xs)    
+->where('parent',0) 
+->where('cd_scat',2) 
+->order_by('name') 
+->limit(10)->get('subsi')->result_array(); 
+    $xx=0;
+    
+foreach($rs as $row) {  $data[]=array("id"=>$row['id'], "text"=>$row['code']); }
+    
+echo json_encode($data); 
+    
+} 
+
+if($sw=='dept') {
+
+$id  = $this->input->post('id');   
+$xs=$this->input->post('searchTerm');  
+$rs = $this->db  
+
+->like('concat(code,name)',$xs)    
+->order_by('name') 
+->limit(10)->get('dept')->result_array(); 
+    $xx=0;
+    
+foreach($rs as $row) {  $data[]=array("id"=>$row['id'], "text"=>$row['code']); }
+    
+echo json_encode($data); 
+    
+} 
+    
+}  
+
+function edit_rec(){
+
+$id  = $this->input->post('id');
+
+$title=$this->db->where('id',99)->get('scm_settings')->row('caption'); 
+$uid=$_SESSION['user_id']; 
+$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights'); 
+
+$this->getamount($id);
+
+$rs2=$this->db->where('id',$id)->get('ac_rfph')->result_array();    
+
+$fld=$this->db->list_fields('ac_rfph');  
+$cap=$fld; $top=$left=$right=$btn=''; $top=' ';  
+$appr=0;  
+
+foreach($rs2 as $row) { 
+    for($a=0;$a<count($fld);$a++) { 
+        $datafld[$fld[$a]]=$row[$fld[$a]]; 
+    } 
+    $appr=$row['approved_by'];
+}
+
+$fin = $datafld['fin']; //if($ur==4 or $ur==8) { $fin=0; }
+
+$flds=$id;
+$fldcap= $fld;
+
+$top.='
+
+<script> 
+
+$(document).ready(function() {  
+
+    $("#dv_no").select2({ajax: {  placeholder: "Select a dv_no#"
+    ,allowClear: true
+    ,url: "'.base_url("99/dashboard/mf/dv_no").'"
+    ,type: "post", dataType: "json"
+    ,  delay: 250,  data: function (params) { return  { searchTerm: params.term , id:'.$id.' };  }
+    ,processResults: function (response) {  return { results: response  };  }
+    ,  cache: true   }});  
+
+    $("#purpose").select2({ajax: {  placeholder: "Select a purpose#"
+    ,allowClear: true
+    ,url: "'.base_url("99/dashboard/mf/purpose").'"
+    ,type: "post", dataType: "json"
+    ,  delay: 250,  data: function (params) { return  { searchTerm: params.term , id:'.$id.' };  }
+    ,processResults: function (response) {  return { results: response  };  }
+    ,  cache: true   }});  
+
+    $("#dept").select2({ajax: {  placeholder: "Select a Department#"
+    ,allowClear: true
+    ,url: "'.base_url("99/dashboard/mf/dept").'"
+    ,type: "post", dataType: "json"
+    ,  delay: 250,  data: function (params) { return  { searchTerm: params.term , id:'.$id.' };  }
+    ,processResults: function (response) {  return { results: response  };  }
+    ,  cache: true   }});  
+    
+});
+    
+</script>
+<input type="hidden" id="ur" value='.$ur.' />
+<input type="hidden" id="id" value='.$id.' />
+<input type="hidden" id="dfin" value='.$datafld['fin'].'>   
+
+<div class="row">  
+<div class="col-sm-3">  ';
+$xx=0;
+if($xx==1) {
+    
+for($a=1;$a<count($fldcap);$a++) {
+
+$flds.=',$("#'.$fld[$a].'").val()';
+    $xcap=ucwords(str_replace('_',' ',$fldcap[$a]));
+    $xcap=$a.'-'.ucwords(str_replace('_',' ',$fldcap[$a]));
+$dataf=$datafld[$fld[$a]];    
+
+if($a==1 ){ 
+    $dataf2=$datafld[$fld[2]];   
+$top.=' 
+
+<div class="input-group mb-1 input-group-sm ">  
+     <p class="form-control"  ><b>'.$dataf.' [ '.$dataf2.']</b></p>     
+  </div>   ';
+
+}   
+
+elseif($a==2){ }  
+
+elseif($a==19 ){}
+
+elseif($fld[$a] == 'photo'){
+    $photo_val = !empty($datafld['photo']) ? $datafld['photo'] : 'empty.jpg';
+    $xlink = base_url('uploads/pix/'.$photo_val);
+
+$top.= '
+<br />
+
+<div class="input-group mb-1 input-group-sm"> 
+<div class="input-group-prepend">    <span class="input-group-text">Quotation</span></div>
+    <div id="imgview23">        
+        <a href="'.$xlink.'" target="_blank">
+        <img src="'.$xlink.'?t='.time().'" alt="Quotation" width="100" height="75"></a> </div> 
+
+    <form method="post" id="upload_form23" align="center" enctype="multipart/form-data">
+    <input type="file" name="image_file23" id="image_file23" /> 
+    <input type="submit" name="upload" id="upload" 
+    value="Upload" class="btn btn-info" /> </form>
+</div>   
+
+<script>
+$(document).ready(function() {  
+
+$("#upload_form23").on("submit", function(e){e.preventDefault();
+if($("#image_file23").val() == "") { 
+alert("Please Select the File"); 
+}
+else { 
+$.ajax({url:"'.base_url('99/dashboard/upload/'.$id).'", 
+method:"POST",
+dataType:"json",
+data:new FormData(this),
+contentType: false,cache: false,processData:false,
+success:function(data){ 
+    if(data.error) {
+        alert("Upload failed: " + data.error);
+        return;
+    }
+    $("#imgview23").html(data.img);    
+}
+}); 
+}
+
+}); 
+
+}); 
+
+</script>
+
+';
+
+}
+
+elseif($a==17 ){} 
+
+elseif($a==3 ){
+    $ca=$datafld['ca']; $chk=''; if($ca==1){$chk='checked';}     
+
+    $top.=' 
+    <div class="custom-control custom-switch">
+    <input type="checkbox" onclick="ca();" class="custom-control-input" id="ca" value="'.$ca.'" '.$chk.' />
+    <label class="custom-control-label" for="ca">Cash Advance</label> </div>
+
+    <script>
+    function ca() {  
+        var x = document.getElementById("ca").checked;  
+        if(x) {$("#ca").val(1);} else {$("#ca").val(0);} 
+        fsave("ca");
+    }
+    </script>';
+
+    $disp_val = ($dataf == '0') ? '' : $dataf;
+
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm " id="'.$fld[$a].'x">
+     <div class="input-group-prepend">
+        <span class="input-group-text">'.$xcap.'</span></div>
+     <input type="text" class="form-control" id="'.$fld[$a].'" 
+     onchange="fsave(this.id)" value="'.$disp_val.'" />
+    </div> 
+    ';
+    
+}
+
+elseif($a==44){
+    $display_val = '';
+    if ($dataf != 0 && $dataf != '') {
+        $row_name = $this->db->where('id', $dataf)->get('dept')->row('name');
+        $display_val = !empty($row_name) ? $row_name : $dataf;
+    }
+    if(empty($display_val)) $display_val = $dataf;
+
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend">
+            <span class="input-group-text">'.$xcap.'</span></div>
+         <input type="text" class="form-control" id="'.$fld[$a].'" 
+         onchange="fsave(this.id)" value="'.htmlspecialchars($display_val, ENT_QUOTES).'" />
+    </div> ';
+}
+
+elseif($a==4){ 
+
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm"> 
+         <select class="form-control select2-dropdown" id="'.$fld[$a].'">
+            <option value='.$dataf.' >'.$this->db->where('id', $dataf)->get('dept')->row('name').'<option>
+         </select>
+    </div> ';
+}
+
+elseif($a==6) {
+    
+    $error=explode(',','select none,Merchandise, Raw Mat, Down Payment, Mobilization, Travel, Utilities, Professional Fee , Asset, Legal Fees, Repaired Maintenance, Trucking & Delivery, Supplies, Others');
+    $eopt='';
+    for($b=0;$b<count($error);$b++){
+        $sel='';if($b==$dataf){$sel='selected';}
+        $eopt.='<option value='.$b.' '.$sel.'>'.$error[$b].'</option>';
+    } 
+
+$top.=' 
+<div class="input-group mb-1 input-group-sm">
+     <div class="input-group-prepend">
+        <span class="input-group-text">'.$xcap.'</span></div>
+     <select class="form-control" id="'.$fld[$a].'" 
+     onchange="fsave(this.id)" >'.$eopt.'</select>
+  </div> 
+  
+        
+    
+    <div class="input-group mb-1 input-group-sm ">
+         <div class="input-group-prepend">
+            <span class="input-group-text">8-Remarks</span></div>
+            <textarea onchange="fsave(this.id)" class="form-control" type="text" id="remarks" rows="3" cols="50">'.(($datafld['remarks'] != '0') ? htmlspecialchars($datafld['remarks'], ENT_QUOTES) : '').'</textarea></div>
+  ';
+
+}  
+    
+elseif($a==7){
+    $payee_fld = $fld[$a];
+    $current_payee = htmlspecialchars($dataf, ENT_QUOTES);
+    $top .= '
+    <div class="input-group mb-1 input-group-sm">
+        <div class="input-group-prepend">
+            <span class="input-group-text">Payee</span>
+        </div>
+        <input type="text" class="form-control" id="'.$payee_fld.'_text" 
+            placeholder="Type payee name..." 
+            value="'.$current_payee.'" 
+            autocomplete="off"
+            style="flex:1;" />
+        <select class="form-control" id="'.$payee_fld.'_drop" style="max-width:160px;">
+            <option value="">-- from list --</option>
+        </select>
+    </div>
+    <input type="hidden" id="'.$payee_fld.'" value="'.$current_payee.'" />
+
+    <script>
+    $(document).ready(function() {
+
+        $.ajax({
+            url: "'.base_url("99/dashboard/payee_list").'",
+            method: "POST",
+            dataType: "json",
+            data: { searchTerm: "" },
+            success: function(data) {
+                $.each(data, function(i, row) {
+                    $("#'.$payee_fld.'_drop").append(
+                        $("<option>").val(row.text).text(row.text)
+                    );
+                });
+                var cur = "'.$current_payee.'";
+                if(cur) { $("#'.$payee_fld.'_drop").val(cur); }
+            }
+        });
+
+        $("#'.$payee_fld.'_drop").on("change", function() {
+            var val = $(this).val();
+            if(val) {
+                $("#'.$payee_fld.'_text").val(val);
+                $("#'.$payee_fld.'").val(val);
+                savePayee(val);
+            }
+        });
+
+        $("#'.$payee_fld.'_text").on("blur", function() {
+            var val = $(this).val().trim();
+            $("#'.$payee_fld.'").val(val);
+            savePayee(val);
+        });
+
+        function savePayee(val) {
+            var datas = ['.$id.',"'.$payee_fld.'",""];
+            $.ajax({
+                url: "'.base_url("99/dashboard/fsave").'",
+                method: "POST",
+                data: { datas: datas, val: val },
+                success: function() {}
+            });
+        }
+    });
+    </script>';
+}
+    
+elseif($a==88){    
+$top.=' 
+<div class="input-group mb-1 input-group-sm ">
+     <div class="input-group-prepend">
+        <span class="input-group-text">'.$xcap.'</span></div>
+        <textarea onchange="fsave(this.id)"  
+        class="form-control" type="text" 
+         id="'.$fld[$a].'"  rows="3" cols="50">'.$dataf.'</textarea></div>'; 
+}  
+
+elseif($a==9){
+$amt_display = (floatval($dataf) > 0) ? number_format(floatval($dataf), 2, '.', '') : '';
+$top.=' 
+<div class="input-group mb-1 input-group-sm ">
+     <div class="input-group-prepend">
+        <span class="input-group-text">'.$xcap.'</span></div>
+     <input type="number" class="form-control" id="'.$fld[$a].'" 
+     value="'.$amt_display.'" disabled
+     style="background-color:#e9ecef;color:#6c757d;cursor:not-allowed;"/>
+  </div> ';
+} 
+
+elseif($a==10){
+    $error=explode(',','select none,Check, Cash, Telegraphic Transfer, Others');
+    $eopt='';
+    for($b=0;$b<count($error);$b++){
+        $sel='';if($b==$dataf){$sel='selected';}
+        $eopt.='<option value='.$b.' '.$sel.'>'.$error[$b].'</option>';
+    }
+
+    $pay_others = isset($datafld['payment_others']) ? $datafld['payment_others'] : '';
+
+    $disp = ($dataf == 4) ? '' : 'style="display:none;"';
+
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend">
+            <span class="input-group-text">'.$xcap.'</span></div>
+         <select class="form-control" id="'.$fld[$a].'" 
+         onchange="check_others(this.id)" >'.$eopt.'</select>
+    </div>
+
+    <div class="input-group mb-1 input-group-sm" id="payment_others_wrapper" '.$disp.'>
+         <div class="input-group-prepend">
+            <span class="input-group-text">Others</span></div>
+         <input type="text" class="form-control" id="payment_others" 
+         onchange="fsave(this.id)" value="'.$pay_others.'" placeholder="Specify Others" />
+    </div> 
+
+    <script>
+    function check_others(id) {
+        fsave(id); 
+        if($("#" + id).val() == "4") {
+            $("#payment_others_wrapper").show();
+            $("#payment_others").focus();
+        } else {
+            $("#payment_others_wrapper").hide();
+            $("#payment_others").val("");
+            fsave("payment_others"); 
+        }
+    }
+    </script>';
+}
+
+elseif($a==11){    
+$top.=' 
+<div class="input-group mb-1 input-group-sm ">
+<div class="input-group-prepend">
+<span class="input-group-text">Date Requested</span></div>
+<input type="date" class="form-control" id="'.$fld[$a].'" 
+onchange="fsave(this.id)" value="'.$dataf.'" />
+</div> '; 
+}
+
+elseif($a==12){
+$today = date('Y-m-d');
+$dn_val = (!empty($dataf) && $dataf > $today && substr($dataf,0,4) > '2000') ? $dataf : '';
+$top.=' 
+<div class="input-group mb-1 input-group-sm">
+<div class="input-group-prepend">
+<span class="input-group-text">Date Needed</span></div>
+<input type="date" class="form-control" id="'.$fld[$a].'" 
+min="'.$today.'"
+onchange="validateDateNeeded(this)" value="'.$dn_val.'" />
+</div> ';
+}
+
+elseif($a==13){ 
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend">
+            <span class="input-group-text">'.$xcap.'</span></div>
+         <input type="number" class="form-control" id="'.$fld[$a].'" 
+         onchange="fsave(this.id)" value="'.$dataf.'" />
+    </div> ';
+}
+
+
+    //elseif($a==13 or $a==14 or $a==15 or $a==17  ){
+    elseif($a==8){}
+    elseif($a==14){}
+    elseif($a==15 or $a==16 or $a==18 or $a==21 ){    
+    $topt='<option value='.$dataf.'>'.$this->db->where('id',$dataf)->get('users')->row('name').'</option>';
+
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend"> <span class="input-group-text">'.$xcap.'</span></div>
+         <select class="form-control" id="'.$fld[$a].'" onchange="fsave(this.id)">'.$topt.'</select> </div> '; 
+
+    }  
+
+    elseif($fld[$a]=='accounting' or $fld[$a]=='checked_by' or $fld[$a]=='treasury' or $fld[$a]=='payment_others' or $fld[$a]=='rr' or $fld[$a]=='photo_b64' or $fld[$a]=='photo_mime'){ 
+        }
+
+            else {
+            $safe_val = ($dataf === '0' || $dataf === 0) ? '' : htmlspecialchars($dataf, ENT_QUOTES);
+            $top.=' 
+            <div class="input-group mb-1 input-group-sm " id="'.$fld[$a].'x">
+            <div class="input-group-prepend">
+            <span class="input-group-text">'.$xcap.'</span></div>
+            <input type="text" class="form-control" id="'.$fld[$a].'" 
+            onchange="fsave(this.id)" value="'.$safe_val.'" />
+            </div> ';
+
+            }
+
+            if($fld[$a] == 'fin') {
+        $acc_val = isset($datafld['accounting']) ? $datafld['accounting'] : '';
+        $chk_val = isset($datafld['checked_by']) ? $datafld['checked_by'] : '';
+        $trs_val = isset($datafld['treasury']) ? $datafld['treasury'] : '';
+
+        $top.='
+        <div class="input-group mb-1 input-group-sm">
+             <div class="input-group-prepend"> <span class="input-group-text">Accounting</span></div>
+             <input type="text" class="form-control" id="accounting" onchange="fsave(this.id)" value="'.$acc_val.'" />
+        </div>
+        <div class="input-group mb-1 input-group-sm">
+             <div class="input-group-prepend"> <span class="input-group-text">Checked By</span></div>
+             <input type="text" class="form-control" id="checked_by" onchange="fsave(this.id)" value="'.$chk_val.'" />
+        </div>
+        <div class="input-group mb-1 input-group-sm">
+             <div class="input-group-prepend"> <span class="input-group-text">Treasury</span></div>
+             <input type="text" class="form-control" id="treasury" onchange="fsave(this.id)" value="'.$trs_val.'" />
+        </div>';
+    }
+    if($a==3 or $a==6 or $a==8){
+        $top.=' </div><div class="col-sm-3">  ';
+    }
+    
+    
+    if($a==3 ){
+        $top.='
+            
+        ';
+    }
+    
+
+
+    }
+    
+}
+    
+$left='';    
+for($a=1;$a<21;$a++) {
+
+    $flds.=',$("#'.$fld[$a].'").val()';
+    $xcap=ucwords(str_replace('_',' ',$fldcap[$a]));
+    $xcap=$a.'-'.ucwords(str_replace('_',' ',$fldcap[$a]));
+    $dataf=$datafld[$fld[$a]];   
+
+    if($a==1 ){ 
+    $dataf2=$datafld[$fld[2]];   
+    $top.=' 
+
+    <div class="input-group mb-1 input-group-sm ">  
+    <p class="form-control"  ><b>'.$dataf.' [ '.$dataf2.']</b></p>     
+    </div>   ';
+
+    }   
+
+    else if($a==2 ){} 
+
+    elseif($a==3  ){   
+
+    $ca=$datafld['ca']; $chk=''; if($ca==1){$chk='checked';}        
+    $top.=' 
+    <div class="custom-control custom-switch">
+    <input type="checkbox" onclick="ca();" class="custom-control-input" id="ca" value="'.$ca.'" '.$chk.' />
+    <label class="custom-control-label" for="ca">Cash Advance</label> </div>
+
+    <script>
+    function ca() {  
+    var x = document.getElementById("ca").checked;  
+    if(x) {$("#ca").val(1);} else {$("#ca").val(0);} 
+    fsave("ca");
+    }
+    </script>'; 
+
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm">
+    <div class="input-group-prepend"> <span class="input-group-text">'.$xcap.'</span></div>
+    <select class="form-control" id="'.$fld[$a].'" onchange="fsave(this.id)">
+    <option value='.$dataf.'>'.$this->db->where('id',$dataf)->get('users')->row('name').'</option>
+    </select> </div> '; 
+
+    }   
+
+    elseif($a==4){ 
+    $opt='<option value= >Select Department<option>';
+    if($dataf>0){$opt='<option value='.$dataf.' >'.$this->db->where('id', $dataf)->get('dept')->row('name').'<option>';}
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm"> 
+    <select class="form-control select2-dropdown" id="'.$fld[$a].'"> '.$opt.'</select> </div> ';
+    } 
+
+    else if($a==5){ } 
+
+    else if($a==6) {
+
+    $error=explode(',','select none,Merchandise, Raw Mat, Down Payment, Mobilization, Travel, Utilities, Professional Fee , Asset, Legal Fees, Repaired Maintenance, Trucking & Delivery, Supplies, Others');
+    $eopt='<option value='.$dataf.'>'.$error[$dataf].'</option>';
+
+
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm">
+    <div class="input-group-prepend">
+    <span class="input-group-text">'.$xcap.'</span></div>
+    <select class="form-control" id="'.$fld[$a].'" 
+    onchange="fsave(this.id)" >'.$eopt.'</select>
+    </div>  
+    ';
+
+    }      
+
+    else if($a>8){ 
+
+    if($a==9){
+    $amt_display = (floatval($dataf) > 0) ? number_format(floatval($dataf), 2, '.', '') : '';
+    $left.=' 
+    <div class="input-group mb-1 input-group-sm">
+    <div class="input-group-prepend">
+    <span class="input-group-text">'.$xcap.'</span></div>
+    <input type="number" class="form-control" id="'.$fld[$a].'" 
+    value="'.$amt_display.'" disabled
+    style="background-color:#e9ecef;color:#6c757d;cursor:not-allowed;"/>
+    </div> ';
+    }
+
+    elseif($a==12){
+    $time_options = ['8:00 AM','9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM'];
+    $topt = '<option value="">-- Select Time --</option>';
+    foreach($time_options as $t){
+        $sel = ($dataf == $t) ? 'selected' : '';
+        $topt .= '<option value="'.htmlspecialchars($t,ENT_QUOTES).'" '.$sel.'>'.htmlspecialchars($t,ENT_QUOTES).'</option>';
+    }
+    $left.=' 
+    <div class="input-group mb-1 input-group-sm">
+    <div class="input-group-prepend">
+    <span class="input-group-text">Time Release</span></div>
+    <select class="form-control" id="'.$fld[$a].'" onchange="fsave(this.id)">
+    '.$topt.'
+    </select>
+    </div> ';
+    }
+
+    elseif($a==14 ){
+    $left.=' 
+    <div class="input-group mb-1 input-group-sm">
+    <div class="input-group-prepend">
+    <span class="input-group-text">'.$xcap.'</span></div>
+    <select class="form-control" id="'.$fld[$a].'" disabled >
+    <option value='.$dataf.'>'.$this->db->where('id',$dataf)->get('users')->row('name').'</option>
+    </select>
+    </div> ';
+
+    } 
+
+    elseif($a==22 ){}
+    elseif($a==18 ){}
+    elseif($a==15 ){}
+    elseif($a==19 ){}
+    elseif($a==11 ){
+    $today = date('Y-m-d');
+    $dn_val = (!empty($dataf) && $dataf > $today && substr($dataf,0,4) > '2000') ? $dataf : '';
+    $left.=' 
+    <div class="input-group mb-1 input-group-sm">
+    <div class="input-group-prepend">
+    <span class="input-group-text">Date Needed</span></div>
+    <input type="date" class="form-control" id="'.$fld[$a].'" 
+    min="'.$today.'"
+    onchange="validateDateNeeded(this)" value="'.$dn_val.'" />
+    </div> ';
+    }
+
+    elseif($a==10) {
+
+    $error=explode(',','select none,Check, Cash, Telegraphic Transfer, Others');
+    $eopt='';
+    for($b=0;$b<count($error);$b++){
+    $sel='';if($b==$dataf){$sel='selected';}
+    $eopt.='<option value='.$b.' '.$sel.'>'.$error[$b].'</option>';
+    }
+
+    $pay_others = isset($datafld['payment_others']) ? $datafld['payment_others'] : '';
+
+    $disp = ($dataf == 4) ? '' : 'style="display:none;"';
+
+    $left.=' 
+    <div class="input-group mb-1 input-group-sm">
+    <div class="input-group-prepend">
+    <span class="input-group-text">'.$xcap.'</span></div>
+    <select class="form-control" id="'.$fld[$a].'" 
+    onchange="check_others(this.id)" >'.$eopt.'</select>
+    </div>
+
+    <div class="input-group mb-1 input-group-sm" id="payment_others_wrapper" '.$disp.'>
+    <div class="input-group-prepend">
+    <span class="input-group-text">Others</span></div>
+    <input type="text" class="form-control" id="payment_others" 
+    onchange="fsave(this.id)" value="'.$pay_others.'" placeholder="Specify Others" />
+    </div> 
+
+    <script>
+    function check_others(id) {
+    fsave(id); 
+    if($("#" + id).val() == "4") {
+    $("#payment_others_wrapper").show();
+    $("#payment_others").focus();
+    } else {
+    $("#payment_others_wrapper").hide();
+    $("#payment_others").val("");
+    fsave("payment_others"); 
+    }
+    }
+    </script>';
+    }
+
+    elseif($a==13 ){    
+
+    $left.=' 
+    <div class="input-group mb-1 input-group-sm">
+    <div class="input-group-prepend"> <span class="input-group-text">'.$xcap.'</span></div>
+    <select class="form-control" id="'.$fld[$a].'" onchange="fsave(this.id)">
+    <option value='.$dataf.'>'.$this->db->where('id',$dataf)->get('dvh')->row('code').'</option>
+    </select> </div> '; 
+
+    }  
+
+    elseif($a==15 or $a==16 or $a==18 or $a==21 ){    
+
+    $left.=' 
+    <div class="input-group mb-1 input-group-sm">
+    <div class="input-group-prepend"> <span class="input-group-text">'.$xcap.'</span></div>
+    <select class="form-control" id="'.$fld[$a].'" onchange="fsave(this.id)">
+    <option value='.$dataf.'>'.$this->db->where('id',$dataf)->get('users')->row('name').'</option>
+    </select> </div> '; 
+
+    }  
+
+    elseif($fld[$a] == 'photo'){
+    $photo_b64  = !empty($datafld['photo_b64'])  ? $datafld['photo_b64']  : '';
+    $photo_mime = !empty($datafld['photo_mime']) ? $datafld['photo_mime'] : 'image/jpeg';
+    $photo_name = !empty($datafld['photo'])      ? $datafld['photo']      : '';
+
+    if (!empty($photo_b64)) {
+        if ($photo_mime === 'application/pdf') {
+            $existing_preview = '<a href="data:application/pdf;base64,'.$photo_b64.'" target="_blank" download="'.htmlspecialchars($photo_name,ENT_QUOTES).'">
+                <span style="font-size:32px;">&#128196;</span><br><small>'.htmlspecialchars($photo_name,ENT_QUOTES).'</small></a>';
+        } else {
+            $existing_preview = '<a href="data:'.$photo_mime.';base64,'.$photo_b64.'" target="_blank">
+                <img src="data:'.$photo_mime.';base64,'.$photo_b64.'" width="100" height="75" style="object-fit:cover;"></a>';
+        }
+    } else {
+        $existing_preview = '<span class="text-muted" style="font-size:11px;">No file uploaded</span>';
+    }
+
+    $left.= '
+    <br />
+    <div class="input-group mb-1 input-group-sm"> 
+    <div class="input-group-prepend"><span class="input-group-text">Quotation</span></div>
+    <div id="imgview23" style="padding:4px;">'.$existing_preview.'</div>
+    <form method="post" id="upload_form23" align="center" enctype="multipart/form-data">
+    <input type="file" name="image_file23" id="image_file23" accept=".jpg,.jpeg,.png,.gif,.pdf"/> 
+    <input type="submit" name="upload" id="upload" value="Upload" class="btn btn-info btn-sm" />
+    </form>
+    </div>   
+
+    <script>
+    $(document).ready(function() {  
+    $("#upload_form23").on("submit", function(e){ e.preventDefault();
+    if($("#image_file23").val() == "") { 
+        alert("Please Select the File"); 
+    } else { 
+        $.ajax({url:"'.base_url('99/dashboard/upload/'.$id).'", 
+        method:"POST", dataType:"json", data:new FormData(this),
+        contentType:false, cache:false, processData:false,
+        success:function(data){ 
+            if(data.error){ alert("Upload failed: "+data.error); return; }
+            $("#imgview23").html(data.img);    
+        }
+        }); 
+    }
+    }); 
+    }); 
+    </script>
+    ';
+    }
+
+    else {
+    $safe_val = ($dataf === '0' || $dataf === 0) ? '' : htmlspecialchars($dataf, ENT_QUOTES);
+    $left.=' 
+    <div class="input-group mb-1 input-group-sm " id="'.$fld[$a].'x">
+    <div class="input-group-prepend">
+    <span class="input-group-text">'.$xcap.'</span></div>
+    <input type="text" class="form-control" id="'.$fld[$a].'" 
+    onchange="fsave(this.id)" value="'.$safe_val.'" />
+    </div> ';
+
+    }
+
+    }
+
+    else if($a==8){    
+    $top.=' 
+    </div><div class="col-sm-6"> 
+    <div class="input-group mb-1 input-group-sm ">
+    <div class="input-group-prepend">
+    <span class="input-group-text">'.$xcap.'</span></div>
+    <textarea onchange="fsave(this.id)"  
+    class="form-control" type="text" 
+    id="'.$fld[$a].'"  rows="3" cols="50">'.(($dataf === '0' || $dataf === 0) ? '' : htmlspecialchars($dataf, ENT_QUOTES)).'</textarea></div>
+
+    '; 
+    }  
+
+    else {
+    $safe_val = ($dataf === '0' || $dataf === 0) ? '' : htmlspecialchars($dataf, ENT_QUOTES);
+    $top.=' 
+    <div class="input-group mb-1 input-group-sm " id="'.$fld[$a].'x">
+    <div class="input-group-prepend">
+    <span class="input-group-text">'.$xcap.'</span></div>
+    <input type="text" class="form-control" id="'.$fld[$a].'" 
+    onchange="fsave(this.id)" value="'.$safe_val.'" />
+    </div> ';
+
+    }      
+
+    
+    if($a==4    ){
+        $top.=' </div><div class="col-sm-3">  ';
+    }
+    
+    
+    if($a==3 ){
+        $top.='
+            
+        ';
+    }
+    
+
+
+}   
+    
+if($fld[$a] == 'fin') {
+    $acc_val = isset($datafld['accounting']) ? $datafld['accounting'] : '';
+    $chk_val = isset($datafld['checked_by']) ? $datafld['checked_by'] : '';
+    $trs_val = isset($datafld['treasury']) ? $datafld['treasury'] : '';
+
+    $top.='
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend"> <span class="input-group-text">Accounting</span></div>
+         <input type="text" class="form-control" id="accounting" onchange="fsave(this.id)" value="'.$acc_val.'" />
+    </div>
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend"> <span class="input-group-text">Checked By</span></div>
+         <input type="text" class="form-control" id="checked_by" onchange="fsave(this.id)" value="'.$chk_val.'" />
+    </div>
+    <div class="input-group mb-1 input-group-sm">
+         <div class="input-group-prepend"> <span class="input-group-text">Treasury</span></div>
+         <input type="text" class="form-control" id="treasury" onchange="fsave(this.id)" value="'.$trs_val.'" />
+    </div>';
+}    
+    
+    $top.=' </div>  <div class="col-sm-3"> '.$left.'  ';
+    
+    $fin=$datafld['fin'];          
+    $appby=$appr;
+    $appby=$datafld['approved_by'];
+    $unappby=$datafld['unapprove_by'];
+    $ca=$datafld['ca'];
+
+    $top.='  <div class="input-group mb-1 input-group-sm " > ';
+    $app=$appr; 
+
+    if($fin>0) {
+
+    $uid=$_SESSION['user_id']; 
+    $ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights');     
+    $dat[0]=$appr=$this->db->where('userid',$uid)->get('dsr_approver')->row('rfp');    
+    $dat[1]=$appr5k=$this->db->where('userid',$uid)->get('dsr_approver')->row('rpf5k');    
+    $dat[2]=$appr10k=$this->db->where('userid',$uid)->get('dsr_approver')->row('rpf10k');   
+    //print_r($dat);
+
+    $rs=$this->db->where('id',$id)->get('ac_rfpd')->result();   
+    $sww=$amt=0;
+    foreach($rs as $rows){ $amt+=$rows->qty * $rows->cost; }
+
+    if($dat[2]==1){$sww=1;}
+    else{
+        if($amt<=500){if($dat[0]==1){$sww=1;}}    
+        if($amt<5000){if($dat[1]==1){$sww=1;}}    
+    }     
+    //$sww=1;    
+    if($unappby>0){$sww=0;}
+
+    if($appby>0){
+        $sww=0;
+        if($ca==1){    
+        $top.=' 
+        <input type="button" 
+        class="form-control btn btn-outline-dark btn-sm" 
+        value="print" onclick="print('.$id.')" id="printx" > ';
+    }              
+    } 
+
+    if($sww==1){    
+
+    $top.='  
+    <input type="button" 
+    class="form-control btn btn-outline-dark btn-sm" 
+    value="Unfinalize" onclick="unfin()" id="unfinx" > 
+
+    <input type="button" 
+    class="form-control btn btn-outline-dark btn-sm" 
+    value="Approve" onclick="app(1)" id="appx" > 
+
+    <input type="button" 
+    class="form-control btn btn-outline-dark btn-sm" 
+    value="Disapprove" onclick="app(2)" id="uappx" > 
+    
+    <input type="button" class="btn btn-outline-dark btn-sm" value="Print RFP Form" 
+onclick="window.open(\''.base_url("99/dashboard/print/").$id.'\')" />
+
+    ';
+    }
+
+    $top.='  
+
+    <script>
+
+    function print(id){ 
+        var xurl="'.base_url('99/dashboard/print/').'" + id ;
+        if(confirm("Print this record?")==true) { 
+            window.open(xurl); 
+        } 
+    }
+
+    </script>
+    ';
+    }   
+
+    else {
+        $top.='         
+        <input type="button" 
+        class="form-control btn btn-outline-dark btn-sm" 
+        value="finalize" onclick="fin()" id="finx" > ';
+    }
+        
+    $top.='  
+    <input type="button" class="form-control btn btn-outline-dark btn-sm mb-1" value="Print RFP Form" onclick="window.open(\''.base_url('99/dashboard/print/').$id.'\')">
+    <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Close" onclick="closef()"> 
+    </div>';
+
+    $dvid = $this->db->where('rfp', $id)->order_by('id', 'desc')->limit(1)->get('dvh')->row('id');
+    if (empty($dvid)) { $dvid = 0; }
+
+    $top.='
+    <script>
+    $("#printx").hide();
+    $("#reason").show(); 
+
+    if('.intval($dvid).'>0){ $("#printx").show(); } 
+
+    if('.intval($dvid).'>0){ $("#printx").show(); }
+
+    function app(sw){
+    var msg="Approved this record?";
+    if(sw==2){msg="Unapproved this record?";}
+    if(confirm(msg)==true){
+
+    $.ajax({url: "'.base_url("99/dashboard/app").'",
+    method: "POST",
+    data: {id:'.$id.',sw:sw}, success:function(data){
+    exits();
+    } }) 
+
+    } 
+
+    } 
+
+    </script>
+
+    ';
+
+    //$tloc=$this->db ->where('id',$id) ->get('ac_rfph')->row('location');        
+  
+    
+        $top.=' </div> 
+        <div class="col-sm-9">
+        
+        ';
+
+    $loc=$_SESSION['location'];    
+
+    //if($fin>0) 
+    $sm=explode(',',',RR,PO');
+    $top.='  
+    
+
+        <ul class="nav nav-tabs"> 
+            <li class="nav-item"><a class="nav-link active" data-toggle="tab" 
+            href="#rr_tab" onclick="info(1)" >'.$sm[1].'</a></li>  
+            
+            <li class="nav-item"><a class="nav-link " data-toggle="tab" 
+            href="#rr_tab" onclick="info(2)" >'.$sm[2].'</a></li>  
+
+        </ul> 
+
+    <div class="tab-content">
+
+        <div class="tab-pane container-fluid active" id="rr_tab"></div> 
+
+    </div>
+
+    </div>
+
+    <script>
+    
+    info(1);
+function validateDateNeeded(el) {
+    var today = new Date().toISOString().split("T")[0];
+    if (el.value && el.value <= today) {
+        alert("Date Needed must be a future date.");
+        el.value = "";
+        return;
+    }
+    fsave(el.id);
+}
+
+function closef() { list(); }
+
+function info(sw) { 
+var datas=[sw,'.$id.'];
+$.ajax({url: "'.base_url("99/dashboard/info").'", 
+method:"POST", data:{datas:datas},success:function(data) { 
+$("#rr_tab").html(data);  } }) 
+} 
+
+
+
+    $(".select2-dropdown").select2({ width: "100%", tags: true }).on("change", function() {
+if(this.id) { fsave(this.id); }
+});
+
+$(".select2-payee").select2({
+width: "100%",
+ajax: {
+    url: "'.base_url("99/dashboard/payee_list").'",
+    type: "POST",
+    dataType: "json",
+    delay: 250,
+    data: function(params) {
+        return { searchTerm: params.term || "" };
+    },
+    processResults: function(response) {
+        return { results: response };
+    },
+    cache: true
+}
+});
+
+    function save_all_left(callback) {
+var fields = [];
+$("input.form-control, select.form-control, textarea.form-control").each(function() {
+    var fld_id = $(this).attr("id");
+    if(fld_id && fld_id !== "ca" && fld_id !== "payment_others" && fld_id !== "rramt" && fld_id !== "prramt" && fld_id !== "brramt" && fld_id !== "damt" && fld_id !== "seq") {
+        fields.push(fld_id);
+    }
+});
+var idx = 0;
+function saveNext() {
+    if(idx >= fields.length) {
+        save_rr(function() {
+            if(typeof callback === "function") callback();
+            else alert("All entries saved");
+        });
+        return;
+    }
+    var fld_id = fields[idx++];
+    var val = $("#" + fld_id).val();
+    if(val === null || val === undefined) val = "";
+    if(Array.isArray(val)) val = val.join(",");
+    var datas = ['.$id.',fld_id,""];
+    $.ajax({
+        url: "'.base_url("99/dashboard/fsave").'",
+        method: "POST",
+        data: {datas: datas, val: val},
+        complete: saveNext
+    });
+}
+saveNext();
+}
+
+    $("#approved_by, #unapprove_by").select2({
+        ajax: {
+            url: "'.base_url("99/dashboard/names").'", 
+            type: "POST", 
+            dataType: "json",  
+            delay: 250,  
+            data: function (params) { 
+                return { searchTerm: params.term || "" };  
+            },
+            processResults: function (response) {  
+                return { results: response };  
+            },  
+            cache: true   
+        }
+    });
+
+    $("#accounting, #checked_by, #treasury, #approved_by").prop("disabled", true);
+
+    function fsave(fld){
+
+    var vsw=1;
+    //if($("#dfin").val() == 0) { vsw=1;}
+
+    if(vsw == 1) {
+
+    var val = $("#" + fld).val();
+    if(val === null || val === undefined) val = "";
+    if(Array.isArray(val)) { val = val.join(","); }
+
+    var datas=['.$id.',fld,""];
+    $.ajax({url: "'.base_url("99/dashboard/fsave").'",
+    method: "POST",
+    data: {datas:datas, val:val},
+    success:function(){ 
+
+    } }) 
+    } 
+
+    //else{ alert("Transaction Finalized"); }
+
+    }
+
+    function fin(){
+    save_all_left(function(){
+        $.ajax({
+            url: "'.base_url("99/dashboard/recalc_rr_amount").'",
+            method: "POST",
+            data: {id: '.$id.'},
+            success: function(){
+                $.ajax({
+                    url: "'.base_url("99/dashboard/fin").'",
+                    method: "POST",
+                    dataType: "json",
+                    data: {id: '.$id.'},
+                    success: function(data){
+                        if(data.sw==1){
+                            alert("Transaction has been finalized successfully.");
+                            exits();
+                        } else {
+                            alert(data.msg);
+                        }
+                    }
+                });
+            }
+        });
+    });
+}
+    function unfin(){
+
+    $.ajax({url: "'.base_url("99/dashboard/unfin").'",
+    method: "POST",
+    data: {id:'.$id.'}, success:function(data){
+    exits();
+    } }) 
+
+    } 
+
+    function fsavex(sw){
+
+    if($("#dfin").val() == 0) {
+
+    fsave(8); 
+    var tot=$("#total").val();
+    var t= $("#tender").val(); 
+    var c= t - tot ;
+    $("#change_").val(c);
+    $("#total").val(tot);
+    fsave(9);
+    slip();
+
+    } 
+
+    else{ alert("Transaction Finalized"); }
+
+    }
+
+    function getqrcode(sw){ 
+    }  
+
+
+    </script>
+    '; 
+
+
+    echo '<script>    
+
+    </script>' ; 
+
+    echo '  
+    <div class="container-fluid"> 
+        <div class="row">
+            <div id=" top"class="col-sm-12" >'.$top.' </div> 
+        </div>   
+    </div> ';
+
+
+
+    } 
+    
+}
+
+    ?>

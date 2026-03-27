@@ -2798,475 +2798,220 @@ $tmp = $this->input->post('datas');
 $sw=$tmp[0];
 $id=$tmp[1];
 
-if($sw==2) {
-    
-$tbl='ac_rfpd'; 
-$fld=$this->db->list_fields('ac_rfpd'); 
-$ds=$tmp[0]; $de=$tmp[1];
-    
-$fld=explode(',','seq,trn_id,amount')    ;
+$fld = explode(',','seq,trn_id,date_,balance,amount');
+$th  = '';
+foreach($fld as $f){ $th .= '<th>'.ucwords(str_replace('_',' ',$f)).'</th>'; }
 
-date_default_timezone_set("Asia/Manila");
-    
-$loc=$_SESSION['location']; 
+$rs = $this->db
+    ->where('id', $id)
+    ->where('sw', $sw)
+    ->order_by('id','desc')
+    ->get('ac_rfpd')->result_array();
 
-$uid=$_SESSION['user_id']; 
-    
-$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights'); 
-
-$mid=$this->db->where('userid',$uid)->get('manager')->row('id');
-    
-//$sw=0;    
-//if($ur==4 or $ur==8) {$sw=1;}
-//if($sw==0){ $this->db->where('created_by',$uid);    }    
-
-$rs=$this->db
-//->where('date_',$_SESSION['datex']) //->where('date_<=',$de)
- ->where('id',$id) 
- ->where('sw',$tmp[0]) 
-//->where('date_>=',$tmp[0]) ->where('date_<=',$tmp[1])
-->order_by('id','desc')
-->get('ac_rfpd')->result_array(); 
-    
-$fld=$this->db->list_fields($tbl);
-$fld=explode(',','id,code,payee,amount,payment_type,remarks')    ;
-
-$fld=explode(',','seq,trn_id,date_,balance,amount') ;
-    
-$td=''; $th=''; 
-for($a=0;$a<count($fld);$a++)  { 
-$fldnm=str_replace('_',' ',$fld[$a]); $th.='<th>'.ucwords($fldnm).'</th>';} 
-
-foreach($rs as $row) {    
-    $td.='<tr>' ;     
-        for($a=0;$a<count($fld);$a++) {  
-        $datafld=$row[$fld[$a]];
-            if($a==1){
-                $datafld='<option value='.$datafld.'>
-                '.$this->db->where('id',$datafld)->get('poh')->row('code').'</option>';
+$td = '';
+foreach($rs as $row){
+    $td .= '<tr>';
+    foreach($fld as $a => $f){
+        $datafld = $row[$f];
+        if($a == 1){
+            if($sw == 1){
+                $datafld = '<option value='.$datafld.'>'
+                    .$this->db->where('id',$datafld)->get('rrh')->row('code')
+                    .'</option>';
+            } else {
+                $datafld = '<option value='.$datafld.'>'
+                    .$this->db->where('id',$datafld)->get('poh')->row('code')
+                    .'</option>';
             }
-            if($a==2){
-                $datafld=$this->db->where('id',$row['trn_id'])->get('poh')->row('date_');
-            }
-            
-        $td.='<td>'.$datafld.'</td>';
-            
-        } 
-    $td.='</tr>' ;     
-}     
-    
-echo ' 
-<script>
-</script>
+        }
+        if($a == 2){
+            $tbl2 = ($sw == 1) ? 'rrh' : 'poh';
+            $datafld = $this->db->where('id',$row['trn_id'])->get($tbl2)->row('date_');
+        }
+        $td .= '<td>'.$datafld.'</td>';
+    }
+    $td .= '</tr>';
+}
 
-<div class="container-fluid">
-<br>
+if($sw == 1){
+    $select_label  = 'select RR#';
+    $amt_label     = 'RR Amount';
+    $mf_url        = base_url('99/dashboard/mf/rr');
+    $getamt_url    = base_url('99/dashboard/getrr');
+    $no_alert      = 'please select RR#';
+} else {
+    $select_label  = 'select PO#';
+    $amt_label     = 'PO Amount';
+    $mf_url        = base_url('99/dashboard/mf/po');
+    $getamt_url    = base_url('99/dashboard/getpo');
+    $no_alert      = 'please select PO#';
+}
 
+echo '
+<div class="container-fluid"><br>
 <div class="row">
     <div class="col-sm-3">
-    
-        <div class="input-group mb-1 input-group-sm"> 
-             <select class="form-control" id="rr" onchange="getrr(this.id)">
-             <option value="0">select PO#</option>
-             </select> </div>
-             
-         <div class="input-group mb-1 input-group-sm">
-            <div class="input-group-prepend">  <span class="input-group-text">PO Amount</span></div>
-            <input type="number" class="form-control" id="rramt" value=0 disabled/></div>
-             
-         <div class="input-group mb-1 input-group-sm">
-            <div class="input-group-prepend">  <span class="input-group-text">Paid Amount</span></div>
-            <input type="number" class="form-control" id="prramt" value=0 disabled/></div>
-             
-         <div class="input-group mb-1 input-group-sm">
-            <div class="input-group-prepend">  <span class="input-group-text">Balance Amount</span></div>
-            <input type="number" class="form-control" id="brramt" value=0 disabled/></div>
-             
-         <div class="input-group mb-1 input-group-sm">
-            <div class="input-group-prepend">  <span class="input-group-text">Amount</span></div>
-            <input type="number" class="form-control" id="damt" value=0 onchange="chkamt()"></div>
-            
-        <div class="input-group mb-1 input-group-sm ">          
-            <input type="button" class="form-control btn btn-outline-dark btn-sm" 
-                value="Save" onclick="dsave()" id="dsave">  
-            
-            <input type="hidden" id="seq" value=0 /> 
-            <input type="hidden" id="del_seq" value=0 />
-            
-            <input type="button" class="form-control btn btn-outline-dark btn-sm"
-                value="Clear" onclick="info(2)">
 
-            <input type="button" class="form-control btn btn-danger btn-sm"
-                value="Delete" onclick="deldtl_row(2)">
+        <div class="input-group mb-1 input-group-sm">
+            <select class="form-control" id="rr" onchange="getrr(this.id)">
+                <option value="0">'.$select_label.'</option>
+            </select>
         </div>
-    
+
+        <div class="input-group mb-1 input-group-sm">
+            <div class="input-group-prepend"><span class="input-group-text">'.$amt_label.'</span></div>
+            <input type="number" class="form-control" id="rramt" value=0 disabled/>
+        </div>
+
+        <div class="input-group mb-1 input-group-sm">
+            <div class="input-group-prepend"><span class="input-group-text">Paid Amount</span></div>
+            <input type="number" class="form-control" id="prramt" value=0 disabled/>
+        </div>
+
+        <div class="input-group mb-1 input-group-sm">
+            <div class="input-group-prepend"><span class="input-group-text">Balance Amount</span></div>
+            <input type="number" class="form-control" id="brramt" value=0 disabled/>
+        </div>
+
+        <div class="input-group mb-1 input-group-sm">
+            <div class="input-group-prepend"><span class="input-group-text">Amount</span></div>
+            <input type="number" class="form-control" id="damt" value=0 onchange="chkamt()"/>
+        </div>
+
+        <div class="input-group mb-1 input-group-sm">
+            <input type="button" class="form-control btn btn-outline-dark btn-sm"
+                value="Save" onclick="dsave()">
+            <input type="hidden" id="seq" value=0 />
+            <input type="hidden" id="del_seq" value=0 />
+            <input type="button" class="form-control btn btn-outline-dark btn-sm"
+                value="Clear" onclick="info('.$sw.')">
+            <input type="button" class="form-control btn btn-danger btn-sm"
+                value="Delete" onclick="deldtl_row('.$sw.')">
+        </div>
+
     </div>
-    
+
+    <div class="col-sm-9">
+        <table id="tbl_list'.$sw.'" class="display nowrap" style="width:100%">
+        <thead><tr>'.$th.'</tr></thead>
+        <tbody>'.$td.'</tbody>
+        </table>
+    </div>
+</div>
+</div>
+
 <script>
+(function(){
+
     $("#rr").select2({
-        placeholder: "Select active RR#",
+        placeholder: "'.$select_label.'",
         allowClear: true,
         ajax: {
-            url: "'.base_url("99/dashboard/mf/rr").'",
+            url: "'.$mf_url.'",
             type: "post",
             dataType: "json",
             delay: 250,
-            data: function(params) { return { searchTerm: params.term || "", id: '.$id.' }; },
-            processResults: function(response) { return { results: response }; },
+            data: function(params){ return { searchTerm: params.term || "", id: '.$id.' }; },
+            processResults: function(response){ return { results: response }; },
             cache: true
         }
     });
 
-    (function() {  
-        var table = $("#tbl_list'.$tmp[0].'").DataTable({"scrollX": true, "order": [[ 0, "desc" ]]});
-        $("#tbl_list'.$tmp[0].' tbody").on("click", "tr", function () { var data = table.row( this ).data(); edit_rec(data); });
-        function edit_rec(dat) {    
-            $("#brramt").val(dat[4]);
-            $("#damt").val(dat[3]);
-            $("#seq").val(dat[0]);
-            $("#rr").html(dat[1]);
-            $("#del_seq").val(dat[0]);
-        }
-    })();
-
-    function chkamt(){   
-            
-            var amt =parseFloat($("#brramt").val()) - parseFloat($("#damt").val());  
-            if(amt<0) {            
-            
-                alert("Invalid Amount");
-                $("#damt").val(0);
-                $("#damt").focus();
-                
-            } 
-        } 
-    
-    function getrr(fld){  
-
-        $.ajax({url:"'.base_url("99/dashboard/getpo").'"
-        , dataType:"json" 
-        , method:"POST" 
-        , data:{id:$("#" + fld).val()}
-        ,success:function(data) {  
-            var dat=data;
-            $("#rramt").val(dat.rramt);
-            $("#prramt").val(dat.prramt);
-            $("#brramt").val(dat.brramt);
-        } });  
-
-    }
-    function dsave(){
-    var datas=['.$id.',$("#seq").val(),2,$("#rr").val(),$("#damt").val(),$("#brramt").val()];        
-    if(datas[3]>0){
-        if(datas[4]>0){
-            $.ajax({url:"'.base_url("99/dashboard/dsave").'"
-            , method:"POST"        
-            , data:{datas:datas}
-            ,success:function(data) {
-                $.ajax({
-                    url:"'.base_url("99/dashboard/recalc_rr_amount").'",
-                    method:"POST",
-                    data:{id:'.$id.'},
-                    success:function(res){
-                        $("input[type=number][disabled]").each(function(){
-    var fid = $(this).attr("id");
-    if(fid && fid !== "rramt" && fid !== "prramt" && fid !== "brramt") {
-        $(this).val(res.amount);
-    }
-});
-                        info(2);
-                    }
-                });
-            } }); 
-        } else {alert("please enter amount");}
-} else {alert("please select PO#");} 
-}
-
-function deldtl_row(sw) {
-    var seq = $("#del_seq").val();
-    if(seq == 0) { alert("Please select a row to delete."); return; }
-    if(!confirm("Delete this entry?")) return;
-    $.ajax({
-        url: "'.base_url("99/dashboard/deldtl").'",
-        method: "POST",
-        dataType: "json",
-        data: { seq: seq, id: '.$id.' },
-        success: function(res) {
-            if(res.sw == 1) {
-                $("input[type=number][disabled]").each(function(){
-                    var fid = $(this).attr("id");
-                    if(fid && fid !== "rramt" && fid !== "prramt" && fid !== "brramt") {
-                        $(this).val(res.amount);
-                    }
-                });
-                info(sw);
-            } else { alert(res.msg); }
-        }
+    var table = $("#tbl_list'.$sw.'").DataTable({"scrollX": true, "order": [[0,"desc"]]});
+    $("#tbl_list'.$sw.' tbody").on("click", "tr", function(){
+        var data = table.row(this).data();
+        $("#brramt").val(data[4]);
+        $("#damt").val(data[3]);
+        $("#seq").val(data[0]);
+        $("#rr").html(data[1]);
+        $("#del_seq").val(data[0]);
     });
-}
-</script>
 
-<div class="col-sm-9"> 
-    <table id="tbl_list'.$tmp[0].'" class="display nowrap" style="width:100%" >
-    <thead> <tr>'.$th.'</tr> </thead>
-    <tbody>'.$td.'</tbody>
-    </table>
-</div>';
+    function chkamt(){
+        var amt = parseFloat($("#brramt").val()) - parseFloat($("#damt").val());
+        if(amt < 0){
+            alert("Invalid Amount");
+            $("#damt").val(0);
+            $("#damt").focus();
+        }
+    }
 
-}
-    
-else if($sw==1) {
-    
-$tbl='ac_rfpd'; 
-$fld=$this->db->list_fields('ac_rfpd'); 
-$ds=$tmp[0]; $de=$tmp[1];
-    
-$fld=explode(',','seq,trn_id,amount')    ;
-
-date_default_timezone_set("Asia/Manila");
-    
-$loc=$_SESSION['location']; 
-
-$uid=$_SESSION['user_id']; 
-    
-$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights'); 
-
-$mid=$this->db->where('userid',$uid)->get('manager')->row('id');
-    
-$sw=0;    
-if($ur==4 or $ur==8) {$sw=1;}
-if($sw==0){ $this->db->where('created_by',$uid);    }    
-
-$rs=$this->db
-//->where('date_',$_SESSION['datex']) //->where('date_<=',$de)
- ->where('id',$id) 
- ->where('sw',$tmp[0]) 
-//->where('date_>=',$tmp[0]) ->where('date_<=',$tmp[1])
-->order_by('id','desc')
-->get($tbl)->result_array();
-$fld=$this->db->list_fields($tbl);
-$fld=explode(',','id,code,payee,amount,payment_type,remarks')    ;
-
-$fld=explode(',','seq,trn_id,date_,balance,amount') ;
-    
-$td=''; $th=''; 
-for($a=0;$a<count($fld);$a++)  { 
-$fldnm=str_replace('_',' ',$fld[$a]); $th.='<th>'.ucwords($fldnm).'</th>';} 
-
-foreach($rs as $row) {    
-    $td.='<tr>' ;     
-        for($a=0;$a<count($fld);$a++) {  
-        $datafld=$row[$fld[$a]];
-            if($a==1){
-                $datafld='<option value='.$datafld.'>
-                '.$this->db->where('id',$datafld)->get('rrh')->row('code').'</option>';
-            }
-            if($a==2){
-                $datafld=$this->db->where('id',$row['trn_id'])->get('rrh')->row('date_');
-            }
-            
-        $td.='<td>'.$datafld.'</td>';
-            
-        } 
-    $td.='</tr>' ;     
-}     
-    
-echo ' 
-<script>
-
-$("#xsearch").hide();
-
-function refresh_page(){ $("#rrno").val() }
-
-function getsubsi() {
-var subsi=$("#subsi").val(); var st=$("#stype").val();
-
-$.ajax({url:"'.base_url("99/dashboard/getsubsi").'", method:"POST", dataType:"json", data:{id:subsi,st:st},success:function(data) 
-{  
-$("#phone").val(data.phone);
-saveh();
-} });  
-
-}
-
-(function() {  
-
-var table = $("#tbl_list'.$tmp[0].'").DataTable({"scrollX": true, "order": [[ 0, "desc" ]]});
-$("#tbl_list'.$tmp[0].' tbody").on("click", "tr", function () { var data = table.row( this ).data();  edit_rec(data); });
-
-function edit_rec(dat) {    
-
-    $("#brramt").val(dat[4]);
-    $("#damt").val(dat[3]);
-    $("#seq").val(dat[0]);
-    $("#rr").html(dat[1]);
-    $("#del_seq").val(dat[0]);
-
-}
-
-})();
-
-})();
-
-</script>
-
-<div class="container-fluid">
-<br>
-
-<div class="row">
-    <div class="col-sm-3">
-    
-        <div class="input-group mb-1 input-group-sm"> 
-             <select class="form-control" id="rr" onchange="getrr(this.id)">
-             <option value="0">select RR#</option>
-             </select> </div>
-             
-         <div class="input-group mb-1 input-group-sm">
-            <div class="input-group-prepend">  <span class="input-group-text">RR Amount</span></div>
-            <input type="number" class="form-control" id="rramt" value=0 disabled/></div>
-             
-         <div class="input-group mb-1 input-group-sm">
-            <div class="input-group-prepend">  <span class="input-group-text">Paid Amount</span></div>
-            <input type="number" class="form-control" id="prramt" value=0 disabled/></div>
-             
-         <div class="input-group mb-1 input-group-sm">
-            <div class="input-group-prepend">  <span class="input-group-text">Balance Amount</span></div>
-            <input type="number" class="form-control" id="brramt" value=0 disabled/></div>
-             
-         <div class="input-group mb-1 input-group-sm">
-            <div class="input-group-prepend">  <span class="input-group-text">Amount</span></div>
-            <input type="number" class="form-control" id="damt" value=0 onchange="chkamt()"></div>
-            
-        <div class="input-group mb-1 input-group-sm ">          
-            <input type="button" class="form-control btn btn-outline-dark btn-sm" 
-                value="Save" onclick="dsave()" id="dsave">  
-            
-            <input type="hidden" id="seq" value=0 /> 
-            <input type="hidden" id="del_seq" value=0 />
-            
-            <input type="button" class="form-control btn btn-outline-dark btn-sm"
-                value="Clear" onclick="info(2)">
-
-            <input type="button" class="form-control btn btn-danger btn-sm"
-                value="Delete" onclick="deldtl_row(2)">
-        </div>
-    
-    </div>
-    
-<script>
-    $("#rr").select2({
-        placeholder: "Select active PO#",
-        allowClear: true,
-        ajax: {
-            url: "'.base_url("99/dashboard/mf/po").'",
-            type: "post",
+    function getrr(fld){
+        $.ajax({
+            url: "'.$getamt_url.'",
             dataType: "json",
-            delay: 250,
-            data: function(params) { return { searchTerm: params.term || "", id: '.$id.' }; },
-            processResults: function(response) { return { results: response }; },
-            cache: true
-        }
-    });
-
-    (function() {  
-        var table = $("#tbl_list'.$tmp[0].'").DataTable({"scrollX": true, "order": [[ 0, "desc" ]]});
-        $("#tbl_list'.$tmp[0].' tbody").on("click", "tr", function () { var data = table.row( this ).data(); edit_rec(data); });
-        function edit_rec(dat) {    
-            $("#brramt").val(dat[4]);
-            $("#damt").val(dat[3]);
-            $("#seq").val(dat[0]);
-            $("#rr").html(dat[1]);
-            $("#del_seq").val(dat[0]);
-        }
-    })();
-
-    function chkamt(){   
-            
-            var amt =parseFloat($("#brramt").val()) - parseFloat($("#damt").val());  
-            if(amt<0) {            
-            
-                alert("Invalid Amount");
-                $("#damt").val(0);
-                $("#damt").focus();
-                
-            } 
-        } 
-    
-    function getrr(fld){    
-
-        $.ajax({url:"'.base_url("99/dashboard/getpo").'"
-        , dataType:"json" 
-        , method:"POST" 
-        , data:{id:$("#" + fld).val()}
-        ,success:function(data) {  
-            var dat=data;
-            $("#rramt").val(dat.rramt);
-            $("#prramt").val(dat.prramt);
-            $("#brramt").val(dat.brramt);
-        } });  
-
+            method: "POST",
+            data: { id: $("#" + fld).val() },
+            success: function(data){
+                $("#rramt").val(data.rramt);
+                $("#prramt").val(data.prramt);
+                $("#brramt").val(data.brramt);
+            }
+        });
     }
+
     function dsave(){
-    var datas=['.$id.',$("#seq").val(),'.$tmp[0].',$("#rr").val(),$("#damt").val(),$("#brramt").val()]; 
-    if(datas[3]>0){
-        if(datas[4]>0){
-            $.ajax({url:"'.base_url("99/dashboard/dsave").'"
-            , method:"POST"        
-            , data:{datas:datas}
-            ,success:function(data) {
+        var datas = ['.$id.',$("#seq").val(),'.$sw.',$("#rr").val(),$("#damt").val(),$("#brramt").val()];
+        if(datas[3] > 0){
+            if(datas[4] > 0){
                 $.ajax({
-                    url:"'.base_url("99/dashboard/recalc_rr_amount").'",
-                    method:"POST",
-                    data:{id:'.$id.'},
-                    success:function(res){
-                        $("input[type=number][disabled]").each(function(){
-    var fid = $(this).attr("id");
-    if(fid && fid !== "rramt" && fid !== "prramt" && fid !== "brramt") {
-        $(this).val(res.amount);
+                    url: "'.base_url("99/dashboard/dsave").'",
+                    method: "POST",
+                    data: { datas: datas },
+                    success: function(){
+                        $.ajax({
+                            url: "'.base_url("99/dashboard/recalc_rr_amount").'",
+                            method: "POST",
+                            data: { id: '.$id.' },
+                            success: function(res){
+                                $("input[type=number][disabled]").each(function(){
+                                    var fid = $(this).attr("id");
+                                    if(fid && fid !== "rramt" && fid !== "prramt" && fid !== "brramt"){
+                                        $(this).val(res.amount);
+                                    }
+                                });
+                                info('.$sw.');
+                            }
+                        });
+                    }
+                });
+            } else { alert("please enter amount"); }
+        } else { alert("'.$no_alert.'"); }
     }
-});
-                        info(1);
-                    }
-                });
-            } }); 
-        } else {alert("please enter amount");}
-} else {alert("please select RR#");} 
-}
 
-function deldtl_row(sw) {
-    var seq = $("#del_seq").val();
-    if(seq == 0) { alert("Please select a row to delete."); return; }
-    if(!confirm("Delete this entry?")) return;
-    $.ajax({
-        url: "'.base_url("99/dashboard/deldtl").'",
-        method: "POST",
-        dataType: "json",
-        data: { seq: seq, id: '.$id.' },
-        success: function(res) {
-            if(res.sw == 1) {
-                $("input[type=number][disabled]").each(function(){
-                    var fid = $(this).attr("id");
-                    if(fid && fid !== "rramt" && fid !== "prramt" && fid !== "brramt") {
-                        $(this).val(res.amount);
-                    }
-                });
-                info(sw);
-            } else { alert(res.msg); }
-        }
-    });
-}
+    function deldtl_row(sw){
+        var seq = $("#del_seq").val();
+        if(seq == 0){ alert("Please select a row to delete."); return; }
+        if(!confirm("Delete this entry?")) return;
+        $.ajax({
+            url: "'.base_url("99/dashboard/deldtl").'",
+            method: "POST",
+            dataType: "json",
+            data: { seq: seq, id: '.$id.' },
+            success: function(res){
+                if(res.sw == 1){
+                    $("input[type=number][disabled]").each(function(){
+                        var fid = $(this).attr("id");
+                        if(fid && fid !== "rramt" && fid !== "prramt" && fid !== "brramt"){
+                            $(this).val(res.amount);
+                        }
+                    });
+                    info(sw);
+                } else { alert(res.msg); }
+            }
+        });
+    }
+
+    window.getrr      = getrr;
+    window.dsave      = dsave;
+    window.chkamt     = chkamt;
+    window.deldtl_row = deldtl_row;
+
+})();
 </script>
+';
 
-<div class="col-sm-9"> 
-    <table id="tbl_list'.$tmp[0].'" class="display nowrap" style="width:100%" >
-    <thead> <tr>'.$th.'</tr> </thead>
-    <tbody>'.$td.'</tbody>
-    </table>
-</div>';
-
-}
-    
-}    
+} 
 
 function upload($id) {
     if (empty($_FILES['image_file23']['tmp_name'])) {
@@ -3351,84 +3096,69 @@ echo json_encode($data);
     
 if($sw=='po') {
 
-$id  = $this->input->post('id');    
-$xs=$this->input->post('searchTerm');  
-$rs = $this->db  
+    $id  = $this->input->post('id');    
+    $xs=$this->input->post('searchTerm');  
+    $rs = $this->db  
+        ->like('concat(code,date_)',$xs)    
+        ->order_by('code') 
+        ->limit(10)->get('poh')->result_array(); 
+    $xx=0;
 
-->like('concat(code,date_)',$xs)    
-
-//->where('CAST((amt_po) AS DECIMAL) >',10)    
-->order_by('code') 
-->limit(10)->get('poh')->result_array(); 
-$xx=0;
-
-foreach($rs as $row) {  
-    
-    $rs=$this->db
-        ->where('id',$id)
-        ->where('sw',2)
-        ->where('trn_id',$row['id'])
-        ->get('ac_rfpd')->result();
-        
-    //if(count($rs)==0)
-    {
-//        $dat['brramt']=$dat['rramt']=$row['amt_rr'];
-//        $dat['brramt']-=$dat['amt_ret']=$row['amt_ret'];
-//        $dat['brramt']-=$dat['prramt']=$row['amt_paid'];
-
-        //if($dat['brramt']>0)
+    foreach($rs as $row) {  
+        $rs2=$this->db
+            ->where('id',$id)
+            ->where('sw',2)
+            ->where('trn_id',$row['id'])
+            ->get('ac_rfpd')->result();
+            
         {
-
             $data[]=array("id"=>$row['id'], "text"=>$row['code']
             .' - '.$row['date_']
             .' Amt '.$row['amt_po']
             ); 
         }
-        
     }
+
+    echo json_encode($data); 
 }
-    
-}
+
+
 
 if($sw=='rr') {
 
-$id  = $this->input->post('id');   
-$xs=$this->input->post('searchTerm');  
-$rs = $this->db  
-
-->like('concat(code,date_)',$xs)    
-
-->where('CAST((amt_rr - amt_paid) AS DECIMAL) >',10)    
-->order_by('code') 
-->limit(10)->get('rrh')->result_array(); 
+    $id  = $this->input->post('id');   
+    $xs=$this->input->post('searchTerm');  
+    $rs = $this->db  
+        ->like('concat(code,date_)',$xs)    
+        ->where('CAST((amt_rr - amt_paid) AS DECIMAL) >',10)    
+        ->order_by('code') 
+        ->limit(10)->get('rrh')->result_array(); 
     $xx=0;
     
-foreach($rs as $row) {  
-    
-    $rs=$this->db
-        ->where('id',$id)
-        ->where('sw',1)
-        ->where('trn_id',$row['id'])
-        ->get('ac_rfpd')->result();
-        
-    if(count($rs)==0){
-        $dat['brramt']=$dat['rramt']=$row['amt_rr'];
-        $dat['brramt']-=$dat['amt_ret']=$row['amt_ret'];
-        $dat['brramt']-=$dat['prramt']=$row['amt_paid'];
+    foreach($rs as $row) {  
+        $rs2=$this->db
+            ->where('id',$id)
+            ->where('sw',1)
+            ->where('trn_id',$row['id'])
+            ->get('ac_rfpd')->result();
+            
+        if(count($rs2)==0){
+            $dat['brramt']=$dat['rramt']=$row['amt_rr'];
+            $dat['brramt']-=$dat['amt_ret']=$row['amt_ret'];
+            $dat['brramt']-=$dat['prramt']=$row['amt_paid'];
 
-        if($dat['brramt']>0){
-
-            $data[]=array("id"=>$row['id'], "text"=>$row['code']
-            .' - '.$row['date_']
-            .' Amt '.$row['amt_rr']
-            .' Ret '.$row['amt_ret']
-            .' Paid '.$row['amt_paid']
-            ); 
+            if($dat['brramt']>0){
+                $data[]=array("id"=>$row['id'], "text"=>$row['code']
+                .' - '.$row['date_']
+                .' Amt '.$row['amt_rr']
+                .' Ret '.$row['amt_ret']
+                .' Paid '.$row['amt_paid']
+                ); 
+            }
         }
-        
     }
-}
-    
+
+    echo json_encode($data);
 }
 
 if($sw=='branch') {

@@ -691,7 +691,7 @@ $rs = $this->db
 ->result_array();
 
 foreach($rs as $row) {
-$data[] = array("id" => $row['id'], "text" => $row['name']);
+$data[] = array("id" => $row['name'], "text" => $row['name']);
 }
 
 echo json_encode($data);
@@ -1181,1552 +1181,6 @@ if(!empty($remarks_text)) {
     </script>
     </body>
     </html>';
-}
-
-function edit_recx(){
-
-$id  = $this->input->post('id');
-
-$title=$this->db->where('id',99)->get('scm_settings')->row('caption'); 
-$uid=$_SESSION['user_id']; 
-$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights'); 
-
-$this->getamount($id);
-
-$rs2=$this->db->where('id',$id)->get('ac_rfph')->result_array();    
-
-$fld=$this->db->list_fields('ac_rfph');  
-$cap=$fld; $top=$left=$right=$btn=''; $rtop=$top=' ';  
-$appr=0;  
-
-foreach($rs2 as $row) { 
-    for($a=0;$a<count($fld);$a++) { 
-        $datafld[$fld[$a]]=$row[$fld[$a]]; 
-    } 
-    $appr=$row['approved_by'];
-}
-
-$fin = $datafld['fin']; 
-
-$flds=$id;
-$fldcap= $fld;
-
-$top.='
-<input type="hidden" id="ur" value='.$ur.' />
-<input type="hidden" id="id" value='.$id.' />
-<input type="hidden" id="dfin" value='.$datafld['fin'].'>   
-
-<div class="row">  
-<div class="col-sm-3">  ';
-
-for($a=1;$a<count($fldcap);$a++) {
-
-$flds.=',$("#'.$fld[$a].'").val()';
-    $xcap=ucwords(str_replace('_',' ',$fldcap[$a]));
-    //$xcap=$a.'-'.ucwords(str_replace('_',' ',$fldcap[$a]));
-$dataf=$datafld[$fld[$a]];    
-
-if($a==1 ){ 
-    $dataf2=$datafld[$fld[2]];   
-$top.=' 
-
-<div class="input-group mb-1 input-group-sm ">  
-     <p class="form-control"  ><b>'.$dataf.' [ '.$dataf2.']</b></p>     
-  </div>   ';
-
-}   
-
-elseif($a==2){ }  
-
-elseif($a==19 ){}
-
-elseif($fld[$a] == 'photo'){
-    $photo_val = !empty($datafld['photo']) ? $datafld['photo'] : 'empty.jpg';
-    $xlink = base_url('uploads/pix/'.$photo_val);
-
-$top.= '
-<br />
-
-<div class="input-group mb-1 input-group-sm"> 
-<div class="input-group-prepend">    <span class="input-group-text">Quotation</span></div>
-    <div id="imgview23">        
-        <a href="'.$xlink.'" target="_blank">
-        <img src="'.$xlink.'?t='.time().'" alt="Quotation" width="100" height="75"></a> </div> 
-
-    <form method="post" id="upload_form23" align="center" enctype="multipart/form-data">
-    <input type="file" name="image_file23" id="image_file23" /> 
-    <input type="submit" name="upload" id="upload" 
-    value="Upload" class="btn btn-info" /> </form>
-</div>   
-
-<script>
-$(document).ready(function() {  
-
-$("#upload_form23").on("submit", function(e){e.preventDefault();
-if($("#image_file23").val() == "") { 
-alert("Please Select the File"); 
-}
-else { 
-$.ajax({url:"'.base_url('99/dashboard/upload/'.$id).'", 
-method:"POST",
-dataType:"json",
-data:new FormData(this),
-contentType: false,cache: false,processData:false,
-success:function(data){ 
-    if(data.error) {
-        alert("Upload failed: " + data.error);
-        return;
-    }
-    $("#imgview23").html(data.img);    
-}
-}); 
-}
-
-}); 
-
-}); 
-
-</script>
-
-';
-
-}
-
-elseif($a==17 ){}
-
-elseif($a==3 ){
-    $ca=$datafld['ca']; $chk=''; if($ca==1){$chk='checked';}        
-    $top.=' 
-    <div class="custom-control custom-switch">
-    <input type="checkbox" onclick="ca();" class="custom-control-input" id="ca" value="'.$ca.'" '.$chk.' />
-    <label class="custom-control-label" for="ca">Cash Advance</label> </div>
-
-    <script>
-    function ca() {  
-        var x = document.getElementById("ca").checked;  
-        if(x) {$("#ca").val(1);} else {$("#ca").val(0);} 
-        fsave("ca");
-    }
-    </script>';
-
-    $disp_val = ($dataf == '0') ? '' : $dataf;
-
-    $top.=' 
-    <div class="input-group mb-1 input-group-sm " id="'.$fld[$a].'x">
-     <div class="input-group-prepend">
-        <span class="input-group-text">'.$xcap.'</span></div>
-     <input type="text" class="form-control" id="'.$fld[$a].'" 
-     onchange="fsave(this.id)" value="'.$disp_val.'" />
-    </div> ';
-}
-
-elseif($a==4){
-    $display_val = '';
-    if ($dataf != 0 && $dataf != '') {
-        $row_name = $this->db->where('id', $dataf)->get('dept')->row('name');
-        $display_val = !empty($row_name) ? $row_name : $dataf;
-    }
-    if(empty($display_val)) $display_val = $dataf;
-
-    $top.=' 
-    <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend">
-            <span class="input-group-text">'.$xcap.'</span></div>
-         <input type="text" class="form-control" id="'.$fld[$a].'" 
-         onchange="fsave(this.id)" value="'.htmlspecialchars($display_val, ENT_QUOTES).'" />
-    </div> ';
-}
-
-elseif($a==5){
-    $display_val = '';
-    if ($dataf != 0 && $dataf != '') {
-        $row_name = $this->db->where('id', $dataf)->get('branch')->row('Branch_Name');
-        $display_val = !empty($row_name) ? $row_name : $dataf;
-    }
-
-    $branch_rs = $this->db->order_by('Branch_Name')->get('branch')->result_array();
-    $select_opts = '<option value="0">Select Branch</option>';
-    $found = false;
-    foreach($branch_rs as $b) { 
-        $selected = ((string)$dataf === (string)$b['id']) ? 'selected' : '';
-        if($selected) { $found = true; }
-        $select_opts .= '<option value="'.$b['id'].'" '.$selected.'>'.$b['Branch_Name'].'</option>'; 
-    }
-    if (!$found && (string)$dataf !== '0' && (string)$dataf !== '') {
-        $select_opts .= '<option value="'.$dataf.'" selected>'.$dataf.'</option>';
-    }
-
-    $top.=' 
-    <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend">
-            <span class="input-group-text">'.$xcap.'</span></div>
-         <select class="form-control select2-dropdown" id="'.$fld[$a].'">
-            '.$select_opts.'
-         </select>
-    </div> ';
-}
-
-elseif($a==6){
-    $error=explode(',','select none,Merchandise, Raw Mat, Down Payment, Mobilization, Travel, Utilities, Professional Fee , Asset, Legal Fees, Repaired Maintenance, Trucking & Delivery, Supplies, Others');
-    $eopt='';
-    for($b=0;$b<count($error);$b++){
-        $sel='';if($b==$dataf){$sel='selected';}
-        $eopt.='<option value='.$b.' '.$sel.'>'.$error[$b].'</option>';
-    } 
-
-$top.=' 
-<div class="input-group mb-1 input-group-sm">
-     <div class="input-group-prepend">
-        <span class="input-group-text">'.$xcap.'</span></div>
-     <select class="form-control" id="'.$fld[$a].'" 
-     onchange="fsave(this.id)" >'.$eopt.'</select>
-  </div> ';
-
-}  
-
-elseif($a==7){
-    $payee_fld = $fld[$a];
-    $current_val = htmlspecialchars($dataf, ENT_QUOTES);
-    $init_opt = !empty($dataf) 
-        ? '<option value="'.$current_val.'" selected>'.$current_val.'</option>' 
-        : '';
-    $top .= '
-    <div class="input-group mb-1 input-group-sm">
-        <div class="input-group-prepend">
-            <span class="input-group-text">Payee</span>
-        </div>
-        <select class="form-control" id="'.$payee_fld.'" style="width:100%;">
-            '.$init_opt.'
-        </select>
-    </div>
-    <script>
-    $(document).ready(function() {
-        $("#'.$payee_fld.'").select2({
-            width: "100%",
-            placeholder: "Type to search or enter payee...",
-            allowClear: true,
-            tags: true,
-            minimumInputLength: 0,
-            ajax: {
-                url: "'.base_url("99/dashboard/payee_list").'",
-                type: "POST",
-                dataType: "json",
-                delay: 300,
-                data: function(params) {
-                    return { searchTerm: params.term || "" };
-                },
-                processResults: function(data) {
-                    return { results: data };
-                },
-                cache: true
-            },
-            createTag: function(params) {
-                var term = $.trim(params.term);
-                if(term === "") return null;
-                return { id: term, text: term, newTag: true };
-            }
-        }).on("select2:select", function(e) {
-            var val = e.params.data.text;
-            var datas = ['.$id.',"'.$payee_fld.'",""];
-            $.ajax({
-                url: "'.base_url("99/dashboard/fsave").'",
-                method: "POST",
-                data: { datas: datas, val: val },
-                success: function() {}
-            });
-        }).on("select2:clear", function() {
-            var datas = ['.$id.',"'.$payee_fld.'",""];
-            $.ajax({
-                url: "'.base_url("99/dashboard/fsave").'",
-                method: "POST",
-                data: { datas: datas, val: "" },
-                success: function() {}
-            });
-        });
-    });
-    </script>';
-}
-elseif($a==8){    
-$mtop=' 
-<div class="input-group mb-1 input-group-sm col-sm-9">
-     <div class="input-group-prepend">
-        <span class="input-group-text">'.$xcap.'</span></div>
-        <textarea onchange="fsave(this.id)"  
-        class="form-control" type="text" 
-         id="'.$fld[$a].'"  rows="1" cols="50">'.$dataf.'</textarea></div>'; 
-}  
-
-elseif($a==9){
-$amt_display = (floatval($dataf) > 0) ? number_format(floatval($dataf), 2, '.', '') : '';
-$top.=' 
-<div class="input-group mb-1 input-group-sm ">
-     <div class="input-group-prepend">
-        <span class="input-group-text">'.$xcap.'</span></div>
-     <input type="number" class="form-control" id="'.$fld[$a].'" 
-     value="'.$amt_display.'" disabled
-     style="background-color:#e9ecef;color:#6c757d;cursor:not-allowed;"/>
-  </div> ';
-}
-
-elseif($a==10){
-    $error=explode(',','select none,Check, Cash, Telegraphic Transfer, Others');
-    $eopt='';
-    for($b=0;$b<count($error);$b++){
-        $sel='';if($b==$dataf){$sel='selected';}
-        $eopt.='<option value='.$b.' '.$sel.'>'.$error[$b].'</option>';
-    }
-
-    $pay_others = isset($datafld['payment_others']) ? $datafld['payment_others'] : '';
-
-    $disp = ($dataf == 4) ? '' : 'style="display:none;"';
-
-    $top.=' 
-    <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend">
-            <span class="input-group-text">'.$xcap.'</span></div>
-         <select class="form-control" id="'.$fld[$a].'" 
-         onchange="check_others(this.id)" >'.$eopt.'</select>
-    </div>
-
-    <div class="input-group mb-1 input-group-sm" id="payment_others_wrapper" '.$disp.'>
-         <div class="input-group-prepend">
-            <span class="input-group-text">Others</span></div>
-         <input type="text" class="form-control" id="payment_others" 
-         onchange="fsave(this.id)" value="'.$pay_others.'" placeholder="Specify Others" />
-    </div> 
-
-    <script>
-    function check_others(id) {
-        fsave(id); 
-        if($("#" + id).val() == "4") {
-            $("#payment_others_wrapper").show();
-            $("#payment_others").focus();
-        } else {
-            $("#payment_others_wrapper").hide();
-            $("#payment_others").val("");
-            fsave("payment_others"); 
-        }
-    }
-    </script>';
-}
-
-elseif($a==11){    
-$top.=' 
-<div class="input-group mb-1 input-group-sm ">
- <div class="input-group-prepend">
-    <span class="input-group-text">Date Requested</span></div>
- <input type="date" class="form-control" id="'.$fld[$a].'" 
- onchange="fsave(this.id)" value="'.$dataf.'" />
-</div> '; 
-}
-
-elseif($a==12){
-$today = date('Y-m-d');
-$dn_val = (!empty($dataf) && $dataf > $today && substr($dataf,0,4) > '2000') ? $dataf : '';
-$top.=' 
-<div class="input-group mb-1 input-group-sm">
-<div class="input-group-prepend">
-<span class="input-group-text">Date Needed</span></div>
-<input type="date" class="form-control" id="'.$fld[$a].'" 
-min="'.$today.'"
-onchange="validateDateNeeded(this)" value="'.$dn_val.'" />
-</div> ';
-}
-
-elseif($a==13){ 
-    $top.=' 
-    <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend">
-            <span class="input-group-text">'.$xcap.'</span></div>
-         <input type="number" class="form-control" id="'.$fld[$a].'" 
-         onchange="fsave(this.id)" value="'.$dataf.'" />
-    </div> ';
-}
-
-
-//elseif($a==13 or $a==14 or $a==15 or $a==17  ){
-elseif($a==14){}
-elseif($a==15 or $a==16 or $a==18 or $a==21 ){    
-//if($a==13){    $dataf=$dvapp;    $dataf2=$dvprep;}    
-
-$topt='<option value='.$dataf.'>'.$this->db
-    ->where('id',$dataf)->get('users')->row('name').'</option>';
-
-//$topt2='<option value='.$dataf2.'>'.$this->db
-//    ->where('id',$dataf2)->get('users')->row('name').'</option>';
-{
-$rtop.=' 
-<div class="input-group mb-1 input-group-sm col-sm-3">
-     <div class="input-group-prepend"> <span class="input-group-text">'.$xcap.'</span></div>
-     <select class="form-control" id="'.$fld[$a].'" >'.$topt.'</select> </div> '; 
-
-}
-
-if($a==20)   
-{
-$rtop.=$mtop.$xrtop;
-
-}
-
-//    else {
-//$top.=' 
-//<div class="input-group mb-1 input-group-sm">
-//     <div class="input-group-prepend"> <span class="input-group-text">'.$a.'-'.$xcap.'</span></div>
-//     <select class="form-control" id="'.$fld[$a].'" >'.$topt.'</select> </div> '; 
-//        
-//    }
-
-//$top.=' 
-//<div class="input-group mb-1 input-group-sm">
-//     <div class="input-group-prepend"> <span class="input-group-text">DV Released</span></div>
-//     <select class="form-control" >'.$topt2.'</select> </div> '; 
-
-}
-elseif($fld[$a]=='accounting' or $fld[$a]=='checked_by' or $fld[$a]=='treasury'){ 
-}  
-
-else {
-$safe_val = ($dataf === '0' || $dataf === 0) ? '' : htmlspecialchars($dataf, ENT_QUOTES);
-$top.=' 
-<div class="input-group mb-1 input-group-sm " id="'.$fld[$a].'x">
-<div class="input-group-prepend">
-<span class="input-group-text">'.$xcap.'</span></div>
-<input type="text" class="form-control" id="'.$fld[$a].'" 
-onchange="fsave(this.id)" value="'.$safe_val.'" />
-</div> ';
-
-}
-if($fld[$a] == 'fin') {
-    $acc_val = isset($datafld['accounting']) ? $datafld['accounting'] : '';
-    $chk_val = isset($datafld['checked_by']) ? $datafld['checked_by'] : '';
-    $trs_val = isset($datafld['treasury']) ? $datafld['treasury'] : '';
-
-    $top.='
-    <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend"> <span class="input-group-text">Accounting</span></div>
-         <input type="text" class="form-control" id="accounting" onchange="fsave(this.id)" value="'.$acc_val.'" />
-    </div>
-    <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend"> <span class="input-group-text">Checked By</span></div>
-         <input type="text" class="form-control" id="checked_by" onchange="fsave(this.id)" value="'.$chk_val.'" />
-    </div>
-    <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend"> <span class="input-group-text">Treasury</span></div>
-         <input type="text" class="form-control" id="treasury" onchange="fsave(this.id)" value="'.$trs_val.'" />
-    </div>';
-}
-
-}
-
-$fin=$datafld['fin'];          
-$appby=$appr;
-$appby=$datafld['approved_by'];
-$unappby=$datafld['unapprove_by'];
-$ca=$datafld['ca'];
-
-$top.='  <div class="input-group mb-1 input-group-sm " > ';
-$app=$appr; 
-
-if($fin>0){
-
-$uid=$_SESSION['user_id']; 
-$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights');     
-$dat[0]=$appr=$this->db->where('userid',$uid)->get('dsr_approver')->row('rfp');    
-$dat[1]=$appr5k=$this->db->where('userid',$uid)->get('dsr_approver')->row('rpf5k');    
-$dat[2]=$appr10k=$this->db->where('userid',$uid)->get('dsr_approver')->row('rpf10k');   
-//print_r($dat);
-
-$rs=$this->db->where('id',$id)->get('ac_rfpd')->result();   
-$sww=$amt=0;
-foreach($rs as $rows){ $amt+=$rows->qty * $rows->cost; }
-
-if($dat[2]==1){$sww=1;}
-else{
-    if($amt<=500){if($dat[0]==1){$sww=1;}}    
-    if($amt<5000){if($dat[1]==1){$sww=1;}}    
-}     
-//$sww=1;    
-if($unappby>0){$sww=0;}
-
-if($appby>0){
-    $sww=0;
-    if($ca==1){    
-    $top.=' 
-    <input type="button" 
-    class="form-control btn btn-outline-dark btn-sm" 
-    value="print" onclick="print('.$id.')" id="printx" > ';
-}              
-} 
-
-if($sww==1){    
-
-$top.='  
-<input type="button" 
-class="form-control btn btn-outline-dark btn-sm" 
-value="Unfinalize" onclick="unfin()" id="unfinx" > 
-
-<input type="button" 
-class="form-control btn btn-outline-dark btn-sm" 
-value="Approve" onclick="app(1)" id="appx" > 
-
-<input type="button" 
-class="form-control btn btn-outline-dark btn-sm" 
-value="Disapprove" onclick="app(2)" id="uappx" >   ';
-}
-
-$top.='  
-
-<script>
-
-function print(id){ 
-    var xurl="'.base_url('99/dashboard/print/').'" + id ;
-    if(confirm("Print this record?")==true) { 
-        window.open(xurl); 
-    } 
-}
-
-</script>
-';
-}   
-
-else {
-$top.='         
-<input type="button" 
-class="form-control btn btn-outline-dark btn-sm" 
-value="finalize" onclick="fin()" id="finx" > ';
-}
-
-$top.='  
-<input type="button" class="form-control btn btn-success btn-sm mb-1" value="Save All" onclick="save_all_left()">
-<input type="button" class="form-control btn btn-warning btn-sm mb-1" value="Print RFP Form" onclick="window.open(\''.base_url('99/dashboard/print/').$id.'\')">
-<input type="button" class="form-control btn btn-outline-dark btn-sm" value="Close" onclick="closef()"> 
-</div>';
-
-$dvid = $this->db->where('rfp', $id)->order_by('id', 'desc')->limit(1)->get('dvh')->row('id');
-if (empty($dvid)) { $dvid = 0; }
-
-$top.='
-<script>
-$("#printx").hide();
-$("#reason").show(); 
-
-if('.intval($dvid).'>0){ $("#printx").show(); } 
-
-if('.intval($dvid).'>0){ $("#printx").show(); }
-
-function app(sw){
-var msg="Approved this record?";
-if(sw==2){msg="Unapproved this record?";}
-if(confirm(msg)==true){
-
-$.ajax({url: "'.base_url("99/dashboard/app").'",
-method: "POST",
-data: {id:'.$id.',sw:sw}, success:function(data){
-exits();
-} }) 
-
-} 
-
-} 
-
-</script>
-
-';
-
-//$tloc=$this->db ->where('id',$id) ->get('ac_rfph')->row('location');        
-
-
-$loc=$_SESSION['location'];    
-
-//if($fin>0) 
-
-$top.='  
-
-</div> 
-
-<div class="col-sm-9"> 
-<div class="row"> 
-
-'.$rtop.'
-</div>
-    <ul class="nav nav-tabs"> 
-
-<li class="nav-item"><a class="nav-link active" data-toggle="tab" 
-href="#rr_tab" onclick="load_rr()" >RR</a></li>  
-
-</ul> 
-
-<div class="tab-content">
-
-    <div class="tab-pane container-fluid active" id="rr_tab"></div> 
-
-</div>
-
-</div>
-
-<script>  
-
-function validateDateNeeded(el) {
-    var today = new Date().toISOString().split("T")[0];
-    if (el.value && el.value <= today) {
-        alert("Date Needed must be a future date.");
-        el.value = "";
-        return;
-    }
-    fsave(el.id);
-}
-
-function closef() { list(); }
-
-function load_rr() { 
-$.ajax({url: "'.base_url("99/dashboard/rr_tab").'", 
-method:"POST", data:{id:'.$id.'},success:function(data) { 
-$("#rr_tab").html(data);  } }) 
-} 
-
-
-
-$(".select2-dropdown").select2({ width: "100%", tags: true }).on("change", function() {
-if(this.id) { fsave(this.id); }
-});
-
-$(".select2-payee").select2({
-width: "100%",
-ajax: {
-    url: "'.base_url("99/dashboard/payee_list").'",
-    type: "POST",
-    dataType: "json",
-    delay: 250,
-    data: function(params) {
-        return { searchTerm: params.term || "" };
-    },
-    processResults: function(response) {
-        return { results: response };
-    },
-    cache: true
-}
-});
-
-function save_all_left(callback) {
-var fields = [];
-$("input.form-control, select.form-control, textarea.form-control").each(function() {
-    var fld_id = $(this).attr("id");
-    if(fld_id && fld_id !== "ca" && fld_id !== "payment_others" && fld_id !== "rramt" && fld_id !== "prramt" && fld_id !== "brramt" && fld_id !== "damt" && fld_id !== "seq") {
-        fields.push(fld_id);
-    }
-});
-var idx = 0;
-function saveNext() {
-    if(idx >= fields.length) {
-        save_rr(function() {
-            if(typeof callback === "function") callback();
-            else alert("All entries saved");
-        });
-        return;
-    }
-    var fld_id = fields[idx++];
-    var val = $("#" + fld_id).val();
-    if(val === null || val === undefined) val = "";
-    if(Array.isArray(val)) val = val.join(",");
-    var datas = ['.$id.',fld_id,""];
-    $.ajax({
-        url: "'.base_url("99/dashboard/fsave").'",
-        method: "POST",
-        data: {datas: datas, val: val},
-        complete: saveNext
-    });
-}
-saveNext();
-}
-
-$("#approved_by, #unapprove_by").select2({
-    ajax: {
-        url: "'.base_url("99/dashboard/names").'", 
-        type: "POST", 
-        dataType: "json",  
-        delay: 250,  
-        data: function (params) { 
-            return { searchTerm: params.term || "" };  
-        },
-        processResults: function (response) {  
-            return { results: response };  
-        },  
-        cache: true   
-    }
-});
-
-$("#accounting, #checked_by, #treasury, #approved_by").prop("disabled", true);
-
-function fsave(fld){
-
-var vsw=1;
-//if($("#dfin").val() == 0) { vsw=1;}
-
-if(vsw == 1) {
-
-var val = $("#" + fld).val();
-if(val === null || val === undefined) val = "";
-if(Array.isArray(val)) { val = val.join(","); }
-
-var datas=['.$id.',fld,""];
-$.ajax({url: "'.base_url("99/dashboard/fsave").'",
-method: "POST",
-data: {datas:datas, val:val},
-success:function(){ 
-
-} }) 
-} 
-
-//else{ alert("Transaction Finalized"); }
-
-}
-
-function fin(){
-var tamt=$("#tamt").val();
-var remarks=$("#remarks").val();
-
-if(tamt>0){
-if(remarks.length>0){
-    $.ajax({url: "'.base_url("99/dashboard/fin").'",
-    method: "POST",
-    dataType: "json",
-    data: {id:'.$id.'}, success:function(data){
-    if(data.sw==1){exits();}
-    else { alert(data.msg); }
-
-    } }); 
-
-} 
-else { 
-    alert("please enter remarks"); 
-}
-
-} 
-else { 
-alert("total amount cannot be zero"); 
-}
-
-}
-
-
-function unfin(){
-
-$.ajax({url: "'.base_url("99/dashboard/unfin").'",
-method: "POST",
-data: {id:'.$id.'}, success:function(data){
-exits();
-} }) 
-
-} 
-
-function fsavex(sw){
-
-if($("#dfin").val() == 0) {
-
-fsave(8); 
-var tot=$("#total").val();
-var t= $("#tender").val(); 
-var c= t - tot ;
-$("#change_").val(c);
-$("#total").val(tot);
-fsave(9);
-slip();
-
-} 
-
-else{ alert("Transaction Finalized"); }
-
-}
-
-function getqrcode(sw){ 
-}  
-
-
-</script>
-'; 
-
-
-echo '<script>    
-
-</script>' ; 
-
-echo '  
-<div class="container-fluid"> 
-    <div class="row">
-        <div id="top" class="col-sm-12" >'.$top.' </div> 
-    </div>   
-</div> ';
-
-
-
-} 
-
-function edit_rec2(){
-
-$id  = $this->input->post('id'); 
-
-$title=$this->db->where('id',99)->get('scm_settings')->row('caption'); 
-$uid=$_SESSION['user_id']; 
-$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights'); 
-
-$this->getamount($id);
-
-$rs2=$this->db->where('id',$id)->get('ac_rfph')->result_array();    
-
-$fld=$this->db->list_fields('ac_rfph');  
-$cap=$fld; $top=$left=$right=$btn=''; $top=' ';  
-$appr=0;  
-
-foreach($rs2 as $row) { 
-    for($a=0;$a<count($fld);$a++) { 
-        $datafld[$fld[$a]]=$row[$fld[$a]]; 
-    } 
-    $appr=$row['approved_by'];
-}
-
-$fin = $datafld['fin']; 
-
-$flds=$id;
-$fldcap= $fld;
-
-$top.='
-<input type="hidden" id="ur" value='.$ur.' />
-<input type="hidden" id="id" value='.$id.' />
-<input type="hidden" id="dfin" value='.$datafld['fin'].'>   
-
-<div class="row">  
-<div class="col-sm-3">  ';
-
-for($a=1;$a<count($fldcap);$a++) {
-
-$flds.=',$("#'.$fld[$a].'").val()';
-    //$xcap=ucwords(str_replace('_',' ',$fldcap[$a]));
-    $xcap=$a.'-'.ucwords(str_replace('_',' ',$fldcap[$a]));
-$dataf=$datafld[$fld[$a]];    
-
-if($a==1 ){ 
-    $dataf2=$datafld[$fld[2]];   
-$top.=' 
-
-<div class="input-group mb-1 input-group-sm ">  
-     <p class="form-control"  ><b>'.$dataf.' [ '.$dataf2.']</b></p>     
-  </div>   ';
-
-}   
-
-elseif($a==2){ }  
-
-elseif($a==19 ){}
-
-elseif($fld[$a] == 'photo'){
-    $photo_val = !empty($datafld['photo']) ? $datafld['photo'] : 'empty.jpg';
-    $xlink = base_url('uploads/pix/'.$photo_val);
-
-$top.= '
-<br />
-
-<div class="input-group mb-1 input-group-sm"> 
-<div class="input-group-prepend">    <span class="input-group-text">Quotation</span></div>
-    <div id="imgview23">        
-        <a href="'.$xlink.'" target="_blank">
-        <img src="'.$xlink.'?t='.time().'" alt="Quotation" width="100" height="75"></a> </div>
-
-    <form method="post" id="upload_form23" align="center" enctype="multipart/form-data">
-    <input type="file" name="image_file23" id="image_file23" /> 
-    <input type="submit" name="upload" id="upload" 
-    value="Upload" class="btn btn-info" /> </form>
-</div>   
-
-<script>
-$(document).ready(function() {  
-
-$("#upload_form23").on("submit", function(e){e.preventDefault();
-if($("#image_file23").val() == "") { 
-alert("Please Select the File"); 
-}
-else { 
-$.ajax({url:"'.base_url('99/dashboard/upload/'.$id).'", 
-method:"POST",
-dataType:"json",
-data:new FormData(this),
-contentType: false,cache: false,processData:false,
-success:function(data){ 
-    if(data.error) {
-        alert("Upload failed: " + data.error);
-        return;
-    }
-    $("#imgview23").html(data.img);    
-}
-}); 
-}
-
-}); 
-
-}); 
-
-</script>
-
-';
-
-}
-
-//elseif($a==17 ){
-//$top.=' 
-//<div class="input-group mb-1 input-group-sm " id="'.$fld[$a].'x">
-// <div class="input-group-prepend">    <span class="input-group-text">'.$xcap.'</span></div>';
-//    
-//if($appr==1){
-//    $top.='  
-// <input type="text" class="form-control" id="'.$fld[$a].'" 
-// onchange="fsave(this.id)" value="'.$dataf.'" />';
-//} 
-//    
-//else {
-//    $top.='
-// <p class="form-control">'.$dataf.'</p>';  
-//    
-//}
-//    $top.='  
-//</div> ';   
-//}
-
-elseif($a==3 ){
-    $ca=$datafld['ca']; $chk=''; if($ca==1){$chk='checked';}        
-    $top.=' 
-    <div class="custom-control custom-switch">
-    <input type="checkbox" onclick="ca();" class="custom-control-input" id="ca" value="'.$ca.'" '.$chk.' />
-    <label class="custom-control-label" for="ca">Cash Advance</label> </div>
-
-    <script>
-    function ca() {  
-        var x = document.getElementById("ca").checked;  
-        if(x) {$("#ca").val(1);} else {$("#ca").val(0);} 
-        fsave("ca");
-    }
-    </script>';
-
-    $disp_val = ($dataf == '0') ? '' : $dataf;
-
-    $top.=' 
-    <div class="input-group mb-1 input-group-sm " id="'.$fld[$a].'x">
-     <div class="input-group-prepend">
-        <span class="input-group-text">'.$xcap.'</span></div>
-     <input type="text" class="form-control" id="'.$fld[$a].'" 
-     onchange="fsave(this.id)" value="'.$disp_val.'" />
-    </div> ';
-}
-
-elseif($a==4){
-    $display_val = '';
-    if ($dataf != 0 && $dataf != '') {
-        $row_name = $this->db->where('id', $dataf)->get('dept')->row('name');
-        $display_val = !empty($row_name) ? $row_name : $dataf;
-    }
-    if(empty($display_val)) $display_val = $dataf;
-
-    $top.=' 
-    <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend">
-            <span class="input-group-text">'.$xcap.'</span></div>
-         <input type="text" class="form-control" id="'.$fld[$a].'" 
-         onchange="fsave(this.id)" value="'.htmlspecialchars($display_val, ENT_QUOTES).'" />
-    </div> ';
-}
-
-elseif($a==5){
-    $display_val = '';
-    if ($dataf != 0 && $dataf != '') {
-        $row_name = $this->db->where('id', $dataf)->get('branch')->row('Branch_Name');
-        $display_val = !empty($row_name) ? $row_name : $dataf;
-    }
-
-    $branch_rs = $this->db->order_by('Branch_Name')->get('branch')->result_array();
-    $select_opts = '<option value="0">Select Branch</option>';
-    $found = false;
-    foreach($branch_rs as $b) { 
-        $selected = ((string)$dataf === (string)$b['id']) ? 'selected' : '';
-        if($selected) { $found = true; }
-        $select_opts .= '<option value="'.$b['id'].'" '.$selected.'>'.$b['Branch_Name'].'</option>'; 
-    }
-    if (!$found && (string)$dataf !== '0' && (string)$dataf !== '') {
-        $select_opts .= '<option value="'.$dataf.'" selected>'.$dataf.'</option>';
-    }
-
-    $top.=' 
-    <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend">
-            <span class="input-group-text">'.$xcap.'</span></div>
-         <select class="form-control select2-dropdown" id="'.$fld[$a].'">
-            '.$select_opts.'
-         </select>
-    </div> ';
-}
-
-elseif($a==6){
-    $error=explode(',','select none,Merchandise, Raw Mat, Down Payment, Mobilization, Travel, Utilities, Professional Fee , Asset, Legal Fees, Repaired Maintenance, Trucking & Delivery, Supplies, Others');
-    $eopt='';
-    for($b=0;$b<count($error);$b++){
-        $sel='';if($b==$dataf){$sel='selected';}
-        $eopt.='<option value='.$b.' '.$sel.'>'.$error[$b].'</option>';
-    } 
-
-$top.=' 
-<div class="input-group mb-1 input-group-sm">
-     <div class="input-group-prepend">
-        <span class="input-group-text">'.$xcap.'</span></div>
-     <select class="form-control" id="'.$fld[$a].'" 
-     onchange="fsave(this.id)" >'.$eopt.'</select>
-  </div> ';
-
-}  
-elseif($a==7){
-    $payee_fld = $fld[$a];
-    $init_opt = '';
-    if(!empty($dataf)) {
-        $init_opt = '<option value="'.htmlspecialchars($dataf, ENT_QUOTES).'" selected>'
-                   .htmlspecialchars($dataf, ENT_QUOTES).'</option>';
-    }
-    $top .= '
-    <div class="input-group mb-1 input-group-sm">
-        <div class="input-group-prepend">
-            <span class="input-group-text">Payee</span>
-        </div>
-        <select class="form-control select2-payee-field" 
-                id="'.$payee_fld.'" 
-                style="width:100%;">
-            '.$init_opt.'
-        </select>
-    </div>
-    <script>
-    $(document).ready(function() {
-        $("#'.$payee_fld.'").select2({
-            width: "100%",
-            placeholder: "Type to search or enter payee name...",
-            allowClear: true,
-            tags: true,
-            minimumInputLength: 0,
-            ajax: {
-                url: "'.base_url("99/dashboard/payee_list").'",
-                type: "POST",
-                dataType: "json",
-                delay: 250,
-                data: function(params) {
-                    return { searchTerm: params.term || "" };
-                },
-                processResults: function(response) {
-                    return { results: response };
-                },
-                cache: true
-            },
-            createTag: function(params) {
-                var term = $.trim(params.term);
-                if(term === "") { return null; }
-                return { id: term, text: term, newTag: true };
-            }
-        }).on("change", function() {
-            var val = $(this).val();
-            if(val === null || val === undefined) { val = ""; }
-            var text = $(this).find("option:selected").text();
-            if(text && text !== "") { val = text; }
-            var datas=['.$id.',"'.$payee_fld.'",""];
-            $.ajax({
-                url: "'.base_url("99/dashboard/fsave").'",
-                method: "POST",
-                data: {datas: datas, val: val},
-                success: function() {}
-            });
-        });
-    });
-    </script>';
-}
-elseif($a==8){    
-$top.=' 
-<div class="input-group mb-1 input-group-sm ">
-     <div class="input-group-prepend">
-        <span class="input-group-text">'.$xcap.'</span></div>
-        <textarea onchange="fsave(this.id)"  
-        class="form-control" type="text" 
-         id="'.$fld[$a].'"  rows="3" cols="50">'.$dataf.'</textarea></div>'; 
-}  
-
-elseif($a==9){
-$amt_display = (floatval($dataf) > 0) ? number_format(floatval($dataf), 2, '.', '') : '';
-$top.=' 
-<div class="input-group mb-1 input-group-sm ">
-     <div class="input-group-prepend">
-        <span class="input-group-text">'.$xcap.'</span></div>
-     <input type="number" class="form-control" id="'.$fld[$a].'" 
-     value="'.$amt_display.'" disabled
-     style="background-color:#e9ecef;color:#6c757d;cursor:not-allowed;"/>
-  </div> ';
-}
-
-elseif($a==10){
-    $error=explode(',','select none,Check, Cash, Telegraphic Transfer, Others');
-    $eopt='';
-    for($b=0;$b<count($error);$b++){
-        $sel='';if($b==$dataf){$sel='selected';}
-        $eopt.='<option value='.$b.' '.$sel.'>'.$error[$b].'</option>';
-    }
-
-    $pay_others = isset($datafld['payment_others']) ? $datafld['payment_others'] : '';
-
-    $disp = ($dataf == 4) ? '' : 'style="display:none;"';
-
-    $top.=' 
-    <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend">
-            <span class="input-group-text">'.$xcap.'</span></div>
-         <select class="form-control" id="'.$fld[$a].'" 
-         onchange="check_others(this.id)" >'.$eopt.'</select>
-    </div>
-
-    <div class="input-group mb-1 input-group-sm" id="payment_others_wrapper" '.$disp.'>
-         <div class="input-group-prepend">
-            <span class="input-group-text">Others</span></div>
-         <input type="text" class="form-control" id="payment_others" 
-         onchange="fsave(this.id)" value="'.$pay_others.'" placeholder="Specify Others" />
-    </div> 
-
-    <script>
-    function check_others(id) {
-        fsave(id); 
-        if($("#" + id).val() == "4") {
-            $("#payment_others_wrapper").show();
-            $("#payment_others").focus();
-        } else {
-            $("#payment_others_wrapper").hide();
-            $("#payment_others").val("");
-            fsave("payment_others"); 
-        }
-    }
-    </script>';
-}
-
-elseif($a==11){    
-$top.=' 
-<div class="input-group mb-1 input-group-sm ">
- <div class="input-group-prepend">
-    <span class="input-group-text">Date Requested</span></div>
- <input type="date" class="form-control" id="'.$fld[$a].'" 
- onchange="fsave(this.id)" value="'.$dataf.'" />
-</div> '; 
-} 
-
-elseif($a==12){
-$today = date('Y-m-d');
-$dn_val = (!empty($dataf) && $dataf > $today && substr($dataf,0,4) > '2000') ? $dataf : '';
-$top.=' 
-<div class="input-group mb-1 input-group-sm">
-<div class="input-group-prepend">
-<span class="input-group-text">Date Needed</span></div>
-<input type="date" class="form-control" id="'.$fld[$a].'" 
-min="'.$today.'"
-onchange="validateDateNeeded(this)" value="'.$dn_val.'" />
-</div> ';
-}
-
-elseif($a==13){ 
-    $top.=' 
-    <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend">
-            <span class="input-group-text">'.$xcap.'</span></div>
-         <input type="number" class="form-control" id="'.$fld[$a].'" 
-         onchange="fsave(this.id)" value="'.$dataf.'" />
-    </div> ';
-}
-
-
-//elseif($a==13 or $a==14 or $a==15 or $a==17  ){
-elseif($a==14){}
-elseif($a==15 or $a==16 or $a==18 or $a==21  ){
-
-//if($a==13){    $dataf=$dvapp;    $dataf2=$dvprep;}    
-
-$topt='<option value='.$dataf.'>'.$this->db
-    ->where('id',$dataf)->get('users')->row('name').'</option>';
-
-//$topt2='<option value='.$dataf2.'>'.$this->db
-//    ->where('id',$dataf2)->get('users')->row('name').'</option>';
-
-$top.=' 
-<div class="input-group mb-1 input-group-sm">
-     <div class="input-group-prepend"> <span class="input-group-text">'.$xcap.'</span></div>
-     <select class="form-control" id="'.$fld[$a].'" >'.$topt.'</select> </div> '; 
-
-//$top.=' 
-//<div class="input-group mb-1 input-group-sm">
-//     <div class="input-group-prepend"> <span class="input-group-text">DV Released</span></div>
-//     <select class="form-control" >'.$topt2.'</select> </div> '; 
-
-}
-elseif($fld[$a]=='accounting' or $fld[$a]=='checked_by' or $fld[$a]=='treasury'){ 
-}  
-
-else {
-$safe_val = ($dataf === '0' || $dataf === 0) ? '' : htmlspecialchars($dataf, ENT_QUOTES);
-$top.=' 
-<div class="input-group mb-1 input-group-sm " id="'.$fld[$a].'x">
-<div class="input-group-prepend">
-<span class="input-group-text">'.$xcap.'</span></div>
-<input type="text" class="form-control" id="'.$fld[$a].'" 
-onchange="fsave(this.id)" value="'.$safe_val.'" />
-</div> ';
-
-}        
-
-if($fld[$a] == 'fin') {
-    $acc_val = isset($datafld['accounting']) ? $datafld['accounting'] : '';
-    $chk_val = isset($datafld['checked_by']) ? $datafld['checked_by'] : '';
-    $trs_val = isset($datafld['treasury']) ? $datafld['treasury'] : '';
-
-    $top.='
-    <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend"> <span class="input-group-text">Accounting</span></div>
-         <input type="text" class="form-control" id="accounting" onchange="fsave(this.id)" value="'.$acc_val.'" />
-    </div>
-    <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend"> <span class="input-group-text">Checked By</span></div>
-         <input type="text" class="form-control" id="checked_by" onchange="fsave(this.id)" value="'.$chk_val.'" />
-    </div>
-    <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend"> <span class="input-group-text">Treasury</span></div>
-         <input type="text" class="form-control" id="treasury" onchange="fsave(this.id)" value="'.$trs_val.'" />
-    </div>';
-}
-
-}
-
-$fin=$datafld['fin'];          
-$appby=$appr;
-$appby=$datafld['approved_by'];
-$unappby=$datafld['unapprove_by'];
-$ca=$datafld['ca'];
-
-$top.='  <div class="input-group mb-1 input-group-sm " > ';
-$app=$appr; 
-
-if($fin>0){
-
-$uid=$_SESSION['user_id']; 
-$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights');     
-$dat[0]=$appr=$this->db->where('userid',$uid)->get('dsr_approver')->row('rfp');    
-$dat[1]=$appr5k=$this->db->where('userid',$uid)->get('dsr_approver')->row('rpf5k');    
-$dat[2]=$appr10k=$this->db->where('userid',$uid)->get('dsr_approver')->row('rpf10k');   
-//print_r($dat);
-
-$rs=$this->db->where('id',$id)->get('ac_rfpd')->result();   
-$sww=$amt=0;
-foreach($rs as $rows){ $amt+=$rows->qty * $rows->cost; }
-
-if($dat[2]==1){$sww=1;}
-else{
-    if($amt<=500){if($dat[0]==1){$sww=1;}}    
-    if($amt<5000){if($dat[1]==1){$sww=1;}}    
-}     
-//$sww=1;    
-if($unappby>0){$sww=0;}
-
-if($appby>0){
-    $sww=0;
-    if($ca==1){    
-    $top.=' 
-    <input type="button" 
-    class="form-control btn btn-outline-dark btn-sm" 
-    value="print" onclick="print('.$id.')" id="printx" > ';
-}              
-} 
-
-if($sww==1){    
-
-$top.='  
-<input type="button" 
-class="form-control btn btn-outline-dark btn-sm" 
-value="Unfinalize" onclick="unfin()" id="unfinx" > 
-
-<input type="button" 
-class="form-control btn btn-outline-dark btn-sm" 
-value="Approve" onclick="app(1)" id="appx" > 
-
-<input type="button" 
-class="form-control btn btn-outline-dark btn-sm" 
-value="Disapprove" onclick="app(2)" id="uappx" >   ';
-}
-
-$top.='  
-
-<script>
-
-function print(id){ 
-    var xurl="'.base_url('99/dashboard/print/').'" + id ;
-    if(confirm("Print this record?")==true) { 
-        window.open(xurl); 
-    } 
-}
-
-</script>
-';
-}   
-
-else {
-$top.='         
-<input type="button" 
-class="form-control btn btn-outline-dark btn-sm" 
-value="finalize" onclick="fin()" id="finx" > ';
-}
-
-$top.='  
-<input type="button" class="form-control btn btn-success btn-sm mb-1" value="Save All" onclick="save_all_left()">
-<input type="button" class="form-control btn btn-warning btn-sm mb-1" value="Print RFP Form" onclick="window.open(\''.base_url('99/dashboard/print/').$id.'\')">
-<input type="button" class="form-control btn btn-outline-dark btn-sm" value="Close" onclick="closef()"> 
-</div>';
-$dvid = $this->db->where('rfp', $id)->order_by('id', 'desc')->limit(1)->get('dvh')->row('id');
-if (empty($dvid)) { $dvid = 0; }
-
-$top.='
-<script>
-$("#printx").hide();
-$("#reason").show(); 
-
-if('.intval($dvid).'>0){ $("#printx").show(); } 
-
-if('.intval($dvid).'>0){ $("#printx").show(); }
-
-function app(sw){
-var msg="Approved this record?";
-if(sw==2){msg="Unapproved this record?";}
-if(confirm(msg)==true){
-
-$.ajax({url: "'.base_url("99/dashboard/app").'",
-method: "POST",
-data: {id:'.$id.',sw:sw}, success:function(data){
-exits();
-} }) 
-
-} 
-
-} 
-
-</script>
-
-';
-
-//$tloc=$this->db ->where('id',$id) ->get('ac_rfph')->row('location');        
-
-
-$loc=$_SESSION['location'];    
-
-//if($fin>0) 
-
-$top.='  
-
-</div> 
-
-<div class="col-sm-9"> 
-
-    <ul class="nav nav-tabs"> 
-
-<li class="nav-item"><a class="nav-link active" data-toggle="tab" 
-href="#rr_tab" onclick="load_rr()" >RR</a></li>  
-
-</ul> 
-
-<div class="tab-content">
-
-    <div class="tab-pane container-fluid active" id="rr_tab"></div> 
-
-</div>
-
-</div>
-
-<script>  
-
-function validateDateNeeded(el) {
-    var today = new Date().toISOString().split("T")[0];
-    if (el.value && el.value <= today) {
-        alert("Date Needed must be a future date.");
-        el.value = "";
-        return;
-    }
-    fsave(el.id);
-}
-
-function closef() { list(); }
-
-function load_rr() { 
-$.ajax({url: "'.base_url("99/dashboard/rr_tab").'", 
-method:"POST", data:{id:'.$id.'},success:function(data) { 
-$("#rr_tab").html(data);  } }) 
-} 
-
-
-
-$(".select2-dropdown").select2({ width: "100%", tags: true }).on("change", function() {
-if(this.id) { fsave(this.id); }
-});
-
-$(".select2-payee").select2({
-width: "100%",
-ajax: {
-    url: "'.base_url("99/dashboard/payee_list").'",
-    type: "POST",
-    dataType: "json",
-    delay: 250,
-    data: function(params) {
-        return { searchTerm: params.term || "" };
-    },
-    processResults: function(response) {
-        return { results: response };
-    },
-    cache: true
-}
-});
-
-function save_all_left(callback) {
-var fields = [];
-$("input.form-control, select.form-control, textarea.form-control").each(function() {
-    var fld_id = $(this).attr("id");
-    if(fld_id && fld_id !== "ca" && fld_id !== "payment_others" && fld_id !== "rramt" && fld_id !== "prramt" && fld_id !== "brramt" && fld_id !== "damt" && fld_id !== "seq") {
-        fields.push(fld_id);
-    }
-});
-var idx = 0;
-function saveNext() {
-    if(idx >= fields.length) {
-        save_rr(function() {
-            if(typeof callback === "function") callback();
-            else alert("All entries saved");
-        });
-        return;
-    }
-    var fld_id = fields[idx++];
-    var val = $("#" + fld_id).val();
-    if(val === null || val === undefined) val = "";
-    if(Array.isArray(val)) val = val.join(",");
-    var datas = ['.$id.',fld_id,""];
-    $.ajax({
-        url: "'.base_url("99/dashboard/fsave").'",
-        method: "POST",
-        data: {datas: datas, val: val},
-        complete: saveNext
-    });
-}
-saveNext();
-}
-
-$("#approved_by, #unapprove_by").select2({
-    ajax: { 
-        url: "'.base_url("99/dashboard/names").'", 
-        type: "POST", 
-        dataType: "json",  
-        delay: 250,  
-        data: function (params) { 
-            return { searchTerm: params.term || "" };  
-        },
-        processResults: function (response) {  
-            return { results: response };  
-        },  
-        cache: true   
-    }
-});
-
-$("#accounting, #checked_by, #treasury, #approved_by").prop("disabled", true);
-
-function fsave(fld){
-
-var vsw=1;
-//if($("#dfin").val() == 0) { vsw=1;}
-
-if(vsw == 1) {
-
-var val = $("#" + fld).val();
-if(val === null || val === undefined) val = "";
-if(Array.isArray(val)) { val = val.join(","); }
-
-var datas=['.$id.',fld,""];
-$.ajax({url: "'.base_url("99/dashboard/fsave").'",
-method: "POST",
-data: {datas:datas, val:val},
-success:function(){ 
-
-} }) 
-} 
-
-//else{ alert("Transaction Finalized"); }
-
-}
-
-function fin(){
-var tamt=$("#tamt").val();
-
-if(tamt>0){
-$.ajax({url: "'.base_url("99/dashboard/fin").'",
-method: "POST",
-dataType: "json",
-data: {id:'.$id.'}, success:function(data){
-if(data.sw==1){exits();}
-
-else {
-    alert(data.msg);
-}
-
-} }) 
-
-} 
-
-} 
-
-
-function unfin(){
-
-$.ajax({url: "'.base_url("99/dashboard/unfin").'",
-method: "POST",
-data: {id:'.$id.'}, success:function(data){
-exits();
-} }) 
-
-} 
-
-function fsavex(sw){
-
-if($("#dfin").val() == 0) {
-
-fsave(8); 
-var tot=$("#total").val();
-var t= $("#tender").val(); 
-var c= t - tot ;
-$("#change_").val(c);
-$("#total").val(tot);
-fsave(9);
-slip();
-
-} 
-
-else{ alert("Transaction Finalized"); }
-
-}
-
-function getqrcode(sw){ 
-}  
-
-
-</script>
-'; 
-
-
-echo '<script>    
-
-</script>' ; 
-
-echo '  
-<div class="container-fluid"> 
-    <div class="row">
-        <div id=" top"class="col-sm-12" >'.$top.' </div> 
-    </div>   
-</div> ';
-
-
-
 } 
 
 function getpo() {
@@ -3011,46 +1465,7 @@ echo '
 </script>
 ';
 
-} 
-
-function upload($id) {
-    if (empty($_FILES['image_file23']['tmp_name'])) {
-        echo json_encode(['error' => 'No file received.']);
-        return;
-    }
-
-    $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
-    $mime = mime_content_type($_FILES['image_file23']['tmp_name']);
-
-    if (!in_array($mime, $allowed_types)) {
-        echo json_encode(['error' => 'Invalid file type. Allowed: jpg, png, gif, pdf.']);
-        return;
-    }
-
-    if ($_FILES['image_file23']['size'] > 5 * 1024 * 1024) {
-        echo json_encode(['error' => 'File exceeds 5MB limit.']);
-        return;
-    }
-
-    $b64      = base64_encode(file_get_contents($_FILES['image_file23']['tmp_name']));
-    $orig_name = basename($_FILES['image_file23']['name']);
-
-    $this->db->where('id', $id)->update('ac_rfph', [
-        'photo'      => $orig_name,
-        'photo_b64'  => $b64,
-        'photo_mime' => $mime,
-    ]);
-
-    if ($mime === 'application/pdf') {
-        $img_tag = '<a href="data:application/pdf;base64,'.$b64.'" target="_blank" download="'.htmlspecialchars($orig_name,ENT_QUOTES).'">
-                    <span style="font-size:32px;">&#128196;</span><br><small>'.htmlspecialchars($orig_name,ENT_QUOTES).'</small></a>';
-    } else {
-        $img_tag = '<a href="data:'.$mime.';base64,'.$b64.'" target="_blank">
-                    <img src="data:'.$mime.';base64,'.$b64.'" width="100" height="75" style="object-fit:cover;"></a>';
-    }
-
-    echo json_encode(['img' => $img_tag, 'filename' => $orig_name]);
-}
+}  
 
 function mf($sw) { 
     
@@ -3288,55 +1703,56 @@ $top.='
 
 elseif($a==2){ }  
 
-elseif($a==19 ){}
+elseif($a==19 ){} 
 
-elseif($fld[$a] == 'photo'){
-    $photo_val = !empty($datafld['photo']) ? $datafld['photo'] : 'empty.jpg';
-    $xlink = base_url('uploads/pix/'.$photo_val);
+elseif($fld[$a] == 'photox'){ 
+    
+    $img = !empty($datafld['photo']) ? 
+        '<img src="'.base_url('uploads/rfp/'.$datafld['photo']).'" width="100" height="75" class="img-thumbnail">' : '';
 
 $top.= '
 <br />
+        
+        <div class="input-group mb-1 input-group-sm ">    
 
-<div class="input-group mb-1 input-group-sm"> 
-<div class="input-group-prepend">    <span class="input-group-text">Quotation</span></div>
-    <div id="imgview23">        
-        <a href="'.$xlink.'" target="_blank">
-        <img src="'.$xlink.'?t='.time().'" alt="Quotation" width="100" height="75"></a> </div> 
+                <div id="imgview"> '.$img.'</div>
 
-    <form method="post" id="upload_form23" align="center" enctype="multipart/form-data">
-    <input type="file" name="image_file23" id="image_file23" /> 
-    <input type="submit" name="upload" id="upload" 
-    value="Upload" class="btn btn-info" /> </form>
-</div>   
+                <form method="post" id="upload_form" align="center" enctype="multipart/form-data">
+                <input type="file" name="image_file" id="image_file"   /> 
+                <input type="hidden" id="Receipt"  value="" />
+                <input type="hidden" id="photo"  value="" />
+                <input type="submit" name="upload" id="upload" value="Upload" class="btn btn-info" /> </form>  
 
-<script>
-$(document).ready(function() {  
+                <script> 
 
-$("#upload_form23").on("submit", function(e){e.preventDefault();
-if($("#image_file23").val() == "") { 
-alert("Please Select the File"); 
-}
-else { 
-$.ajax({url:"'.base_url('99/dashboard/upload/'.$id).'", 
-method:"POST",
-dataType:"json",
-data:new FormData(this),
-contentType: false,cache: false,processData:false,
-success:function(data){ 
-    if(data.error) {
-        alert("Upload failed: " + data.error);
-        return;
-    }
-    $("#imgview23").html(data.img);    
-}
-}); 
-}
+                $(document).ready(function() {
 
-}); 
+                $("#photoup").show();
 
-}); 
-
-</script>
+                $("#upload_form").on("submit", function(e){
+                e.preventDefault();
+                if($("#image_file").val() == "") { 
+                alert("Please Select the File"); 
+                }
+                else { 
+                $.ajax({url:"'.base_url('99/dashboard/up_photofile/'.$id).'", 
+                method:"POST",
+                dataType:"json",
+                data:new FormData(this),
+                contentType: false,
+                cache: false,
+                processData:false, 
+                success:function(data){  
+                $("#imgview").html(data.img);  
+                $("#photo").val(data.fnm); 
+                fsave(`photo`);
+                },
+                }); 
+                }
+                })
+                })
+                </script>            
+        </div>  
 
 ';
 
@@ -3371,24 +1787,7 @@ elseif($a==3 ){
     </div> 
     ';
     
-}
-
-elseif($a==44){
-    $display_val = '';
-    if ($dataf != 0 && $dataf != '') {
-        $row_name = $this->db->where('id', $dataf)->get('dept')->row('name');
-        $display_val = !empty($row_name) ? $row_name : $dataf;
-    }
-    if(empty($display_val)) $display_val = $dataf;
-
-    $top.=' 
-    <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend">
-            <span class="input-group-text">'.$xcap.'</span></div>
-         <input type="text" class="form-control" id="'.$fld[$a].'" 
-         onchange="fsave(this.id)" value="'.htmlspecialchars($display_val, ENT_QUOTES).'" />
-    </div> ';
-}
+} 
 
 elseif($a==4){ 
 
@@ -3429,66 +1828,56 @@ $top.='
     
 elseif($a==7){
     $payee_fld = $fld[$a];
-    $current_payee = htmlspecialchars($dataf, ENT_QUOTES);
+    $init_opt = !empty($dataf)
+        ? '<option value="'.htmlspecialchars($dataf,ENT_QUOTES).'" selected>'.htmlspecialchars($dataf,ENT_QUOTES).'</option>'
+        : '';
+
     $top .= '
     <div class="input-group mb-1 input-group-sm">
         <div class="input-group-prepend">
             <span class="input-group-text">Payee</span>
         </div>
-        <input type="text" class="form-control" id="'.$payee_fld.'_text" 
-            placeholder="Type payee name..." 
-            value="'.$current_payee.'" 
-            autocomplete="off"
-            style="flex:1;" />
-        <select class="form-control" id="'.$payee_fld.'_drop" style="max-width:160px;">
-            <option value="">-- from list --</option>
+        <select class="form-control" id="'.$payee_fld.'" style="width:calc(100% - 57px);">
+            '.$init_opt.'
         </select>
     </div>
-    <input type="hidden" id="'.$payee_fld.'" value="'.$current_payee.'" />
 
     <script>
-    $(document).ready(function() {
-
-        $.ajax({
-            url: "'.base_url("99/dashboard/payee_list").'",
-            method: "POST",
-            dataType: "json",
-            data: { searchTerm: "" },
-            success: function(data) {
-                $.each(data, function(i, row) {
-                    $("#'.$payee_fld.'_drop").append(
-                        $("<option>").val(row.text).text(row.text)
-                    );
-                });
-                var cur = "'.$current_payee.'";
-                if(cur) { $("#'.$payee_fld.'_drop").val(cur); }
+    $(document).ready(function(){
+        $("#'.$payee_fld.'").select2({
+            width: "100%",
+            placeholder: "Type or select payee",
+            allowClear: true,
+            tags: true,
+            minimumInputLength: 0,
+            ajax: {
+                url: "'.base_url("99/dashboard/payee_list").'",
+                type: "POST",
+                dataType: "json",
+                delay: 250,
+                data: function(params){
+                    return { searchTerm: params.term || "" };
+                },
+                processResults: function(data){
+                    return { results: data };
+                },
+                cache: false
+            },
+            createTag: function(params){
+                var term = $.trim(params.term);
+                if(term === "") return null;
+                return { id: term, text: term, newTag: true };
             }
-        });
-
-        $("#'.$payee_fld.'_drop").on("change", function() {
+        }).on("change", function(){
             var val = $(this).val();
-            if(val) {
-                $("#'.$payee_fld.'_text").val(val);
-                $("#'.$payee_fld.'").val(val);
-                savePayee(val);
-            }
-        });
-
-        $("#'.$payee_fld.'_text").on("blur", function() {
-            var val = $(this).val().trim();
-            $("#'.$payee_fld.'").val(val);
-            savePayee(val);
-        });
-
-        function savePayee(val) {
-            var datas = ['.$id.',"'.$payee_fld.'",""];
+            if(val === null || val === undefined) val = "";
             $.ajax({
                 url: "'.base_url("99/dashboard/fsave").'",
                 method: "POST",
-                data: { datas: datas, val: val },
-                success: function() {}
+                data: { datas: ['.$id.',"'.$payee_fld.'",""], val: val },
+                success: function(){}
             });
-        }
+        });
     });
     </script>';
 }
@@ -3678,7 +2067,7 @@ for($a=1;$a<21;$a++) {
     elseif($a==3){
     $rt_val = isset($datafld['r_type']) ? intval($datafld['r_type']) : 0;
     $rt_options = [1=>'Cash Advance', 2=>'Reimburse', 3=>'Quotation', 4=>'Replenishment'];
-    $rt_opts = '<option value="0">-- Select RFP Type --</option>';
+    $rt_opts = '<option value="0"> Select RFP Type </option>';
     foreach($rt_options as $k=>$v){
         $sel = ($rt_val == $k) ? 'selected' : '';
         $rt_opts .= '<option value="'.$k.'" '.$sel.'>'.$v.'</option>';
@@ -3720,42 +2109,59 @@ for($a=1;$a<21;$a++) {
 
     else if($a==7){
     $payee_fld = $fld[$a];
-    $current_payee = htmlspecialchars($dataf, ENT_QUOTES);
-    $subsi_rs = $this->db->where('status',1)->order_by('name')->get('subsi')->result_array();
-    $subsi_opts = '<option value="">-- from list --</option>';
-    foreach($subsi_rs as $sr){
-        $sel = ($current_payee == htmlspecialchars($sr['name'],ENT_QUOTES)) ? 'selected' : '';
-        $subsi_opts .= '<option value="'.htmlspecialchars($sr['name'],ENT_QUOTES).'" '.$sel.'>'.htmlspecialchars($sr['name'],ENT_QUOTES).'</option>';
-    }
-    $top.='
+    $init_opt = !empty($dataf)
+        ? '<option value="'.htmlspecialchars($dataf, ENT_QUOTES).'" selected>'.htmlspecialchars($dataf, ENT_QUOTES).'</option>'
+        : '';
+
+    $top .= '
     <div class="input-group mb-1 input-group-sm">
-    <div class="input-group-prepend"><span class="input-group-text">Payee</span></div>
-    <input type="text" class="form-control" id="'.$payee_fld.'_text"
-        placeholder="Type or select payee..."
-        value="'.$current_payee.'"
-        autocomplete="off" style="flex:1;" />
-    <select class="form-control" id="'.$payee_fld.'_drop" style="max-width:170px;">
-        '.$subsi_opts.'
-    </select>
+        <div class="input-group-prepend">
+            <span class="input-group-text">Payee</span>
+        </div>
+        <select class="form-control" id="'.$payee_fld.'" style="width:calc(100% - 57px);">
+            '.$init_opt.'
+        </select>
     </div>
-    <input type="hidden" id="'.$payee_fld.'" value="'.$current_payee.'" />
+
     <script>
-    (function(){
-        $("#'.$payee_fld.'_drop").on("change", function(){
-            var val=$(this).val();
-            if(val){ $("#'.$payee_fld.'_text").val(val); $("#'.$payee_fld.'").val(val); savePayee(val); }
+    $(document).ready(function(){
+        $("#'.$payee_fld.'").select2({
+            width: "100%",
+            placeholder: "Type or select payee",
+            allowClear: true,
+            tags: true,
+            minimumInputLength: 0,
+            ajax: {
+                url: "'.base_url("99/dashboard/payee_list").'",
+                type: "POST",
+                dataType: "json",
+                delay: 250,
+                data: function(params){
+                    return { searchTerm: params.term || "" };
+                },
+                processResults: function(data){
+                    return { results: data };
+                },
+                cache: false
+            },
+            createTag: function(params){
+                var term = $.trim(params.term);
+                if(term === "") return null;
+                return { id: term, text: term, newTag: true };
+            }
+        }).on("change", function(){
+            var val = $(this).val();
+            if(val === null || val === undefined) val = "";
+            $.ajax({
+                url: "'.base_url("99/dashboard/fsave").'",
+                method: "POST",
+                data: { datas: ['.$id.',"'.$payee_fld.'",""], val: val },
+                success: function(){}
+            });
         });
-        $("#'.$payee_fld.'_text").on("blur", function(){
-            var val=$(this).val().trim();
-            $("#'.$payee_fld.'").val(val); savePayee(val);
-        });
-        function savePayee(val){
-            $.ajax({ url:"'.base_url("99/dashboard/fsave").'", method:"POST",
-            data:{ datas:['.$id.',"'.$payee_fld.'",""], val:val }, success:function(){} });
-        }
-    })();
+    });
     </script>';
-    }
+}
 
     else if($a>8){
 
@@ -3772,8 +2178,8 @@ for($a=1;$a<21;$a++) {
     }
 
     elseif($a==12){
-    $time_options = ['8:00 AM','9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM'];
-    $topt = '<option value="">-- Select Time --</option>';
+    $time_options = ['11:00 AM','4:00 PM',];
+    $topt = '<option value=""> Select Time </option>';
     foreach($time_options as $t){
         $sel = ($dataf == $t) ? 'selected' : '';
         $topt .= '<option value="'.htmlspecialchars($t,ENT_QUOTES).'" '.$sel.'>'.htmlspecialchars($t,ENT_QUOTES).'</option>';
@@ -4063,7 +2469,7 @@ if($fld[$a] == 'fin') {
     class="form-control btn btn-outline-dark btn-sm" 
     value="Disapprove" onclick="app(2)" id="uappx" > 
     
-    <input type="button" class="btn btn-outline-dark btn-sm" value="Print RFP Form" 
+    <input type="button" class="btn btn-outline-dark btn-sm" value="Print" 
 onclick="window.open(\''.base_url("99/dashboard/print/").$id.'\')" />
 
     ';
@@ -4092,7 +2498,7 @@ onclick="window.open(\''.base_url("99/dashboard/print/").$id.'\')" />
     }
         
     $top.='  
-    <input type="button" class="form-control btn btn-outline-dark btn-sm mb-1" value="Print RFP Form" onclick="window.open(\''.base_url('99/dashboard/print/').$id.'\')">
+    <input type="button" class="form-control btn btn-outline-dark btn-sm mb-1" value="Print" onclick="window.open(\''.base_url('99/dashboard/print/').$id.'\')">
     <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Close" onclick="closef()"> 
     </div>';
 
@@ -4354,7 +2760,80 @@ saveNext();
 
 
     } 
-    
+
+function up_photofile($id) { 
+if(isset($_FILES["image_file"]["name"])) {
+$config['upload_path'] = '/home/ygrl91jgc8sg/public_html/office.futm.site/mirror/uploads/rfp';
+$config['allowed_types'] = 'jpg|jpeg|png|gif';
+$this->load->library('upload', $config);
+$this->upload->initialize($config);   
+
+$data['id']=$id;
+$tmp_name = $_FILES["image_file"]["tmp_name"];  
+$new_file_name = basename($_FILES["image_file"]["name"]); 
+
+if(!$this->upload->do_upload('image_file')) {
+    echo $this->upload->display_errors();
+}
+
+else{
+$data = $this->upload->data();
+$xdata['img']=  '<img src="'.base_url().'uploads/rfp/'.$data["file_name"].'" 
+width="100" height="75" class="img-thumbnail" />';
+$dat['sof_photo']=$xdata['fnm']=$data["file_name"];   
+
+echo json_encode($xdata);
+}
+} 
+
+}
+function upload($id) {
+    if(!isset($_FILES["image_file23"]["name"]) || empty($_FILES["image_file23"]["name"])) {
+        echo json_encode(['error' => 'No file received']);
+        return;
+    }
+
+    $upload_path = '/home/ygrl91jgc8sg/public_html/office.futm.site/mirror/uploads/rfp';
+    if(!is_dir($upload_path)) mkdir($upload_path, 0755, true);
+
+    $allowed = ['jpg','jpeg','png','gif','pdf'];
+    $ext = strtolower(pathinfo($_FILES["image_file23"]["name"], PATHINFO_EXTENSION));
+    if(!in_array($ext, $allowed)){
+        echo json_encode(['error' => 'File type not allowed: '.$ext]);
+        return;
+    }
+
+    $fname = time().'_'.preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($_FILES["image_file23"]["name"]));
+    $dest  = $upload_path.'/'.$fname;
+
+    if(!move_uploaded_file($_FILES["image_file23"]["tmp_name"], $dest)){
+        echo json_encode(['error' => 'Failed to move uploaded file. Check folder permissions (must be 755).']);
+        return;
+    }
+
+    $tmp  = $dest;
+    $mime = mime_content_type($tmp);
+    $b64  = base64_encode(file_get_contents($tmp));
+
+    $dat['photo']      = $fname;
+    $dat['photo_b64']  = $b64;
+    $dat['photo_mime'] = $mime;
+    $this->db->where('id', $id)->update('ac_rfph', $dat);
+
+    if($mime === 'application/pdf'){
+        $img_html = '<a href="data:application/pdf;base64,'.$b64.'" target="_blank" 
+            download="'.htmlspecialchars($fname, ENT_QUOTES).'">
+            <span style="font-size:32px;">&#128196;</span><br>
+            <small>'.htmlspecialchars($fname, ENT_QUOTES).'</small></a>';
+    } else {
+        $img_html = '<a href="'.base_url('uploads/rfp/'.$fname).'" target="_blank">
+            <img src="'.base_url('uploads/rfp/'.$fname).'" 
+            width="100" height="75" style="object-fit:cover;" 
+            onerror="this.src=\'data:'.$mime.';base64,'.$b64.'\'"></a>';
+    }
+
+    echo json_encode(['img' => $img_html, 'fname' => $fname]);
+} 
 }
 
     ?>

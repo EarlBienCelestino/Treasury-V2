@@ -1,0 +1,138 @@
+
+<?php 
+echo '
+<script src="'.base_url().'new/jquery.dataTables.min.js"></script>
+<link rel="stylesheet" href="'.base_url().'new/jquery.dataTables.min.css">
+
+<link href="'.base_url().'new/select2.min.css" rel="stylesheet">
+<script src="'.base_url().'new/select2.min.js"></script>';
+
+$title=$this->db->where('id',283)->get('scm_settings')->row('caption');   
+
+?>
+
+<title><?=$title?></title>
+<br />
+<script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.2/css/bootstrap.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap4.min.css" rel="stylesheet">    
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<div class="container-fluid">
+    
+    <ul class="nav nav-tabs">
+  <li class="nav-item">
+    <a class="nav-link active" data-toggle="tab" href="#entry"><?=$title?></a>
+  </li>
+  <li class="nav-item"> <a class="nav-link" data-toggle="tab" href="#report" onclick="info(2)" >Reports</a> </li> 
+        
+</ul>
+
+<!-- Tab panes -->
+<div class="tab-content">
+  <div class="tab-pane container-fluid active" id="entry">
+  <br />
+    <div id="xsearch" >
+        <div class="row"  >
+            <div class="input-group mb-1 input-group-sm col-sm-5"> 
+                <div class="input-group-prepend"> <span class="input-group-text"><?=$title?></span></div>
+                <input type="text" class="form-control " id="qs" onfocusout="qs()" > </div>
+            
+            <div class="input-group mb-1 input-group-sm col-sm-3"> 
+                <div class="input-group-prepend"> <span class="input-group-text">Start</span></div>
+                    <input type="date" class="form-control " id="ds" value="<?=date("Y-m-d")?>" /> </div>
+            
+            <div class="input-group mb-1 input-group-sm col-sm-3"> 
+                <div class="input-group-prepend"> <span class="input-group-text">End</span></div>
+                    <input type="date" class="form-control " id="de" value="<?=date("Y-m-d")?>" /> </div>
+            
+            <div class="input-group mb-1 input-group-sm col-sm-1"> 
+                <input type="button" class="form-control " value="Add" onclick="addrec()" > </div>  
+            
+            
+        </div>  
+    </div>  
+    <div class="row" id="forms"></div>
+    <div class="row" id="form_entry"></div>
+    
+    </div>
+  <div class="tab-pane container-fluid fade" id="report"></div>
+  
+</div>
+    
+  
+</div>
+
+<script> 
+   
+    
+$(document).ready(function(){     
+$('#trn_list').DataTable();
+
+
+function  list()
+{ var datas=[    $("#wh").val()];    
+$.ajax({url:"<?=base_url('283/dashboard/list')?>",method:"POST", data:{datas:datas},success:function(data) 
+{  
+    
+    $('#form_entry').empty();  
+    $("#forms").empty(); 
+    $("#forms").html(data); 
+    
+}  
+});
+
+}    
+
+list();     
+
+});    
+    
+function  info(sw) {
+    if(sw==2){
+        var datas=[sw];
+        $.ajax({url:"<?=base_url('283/dashboard/info')?>",
+        method:"POST",
+
+                data:{datas:datas},
+        success:function(data) {  $("#report").html(data);  } });         
+    }
+}
+    
+function  addrec() {
+    $.ajax({url:"<?=base_url('283/dashboard/addrec')?>",
+            method:"POST",dataType:"json",data:{},
+            success:function(data) { var id=data.id;$("#id").val(id); edit_rec(id)  } }); }     
+
+function  edit_rec(id) {
+    
+    
+$.ajax({url:"<?=base_url('283/dashboard/edit_rec')?>",method:"POST",data:{id:id},
+success:function(data) 
+{  
+$("#forms").empty(); $("#forms").html(data);    
+} 
+}); 
+}
+
+function  list() {var datas=[$("#wh").val()];    
+    
+$.ajax({url:"<?=base_url('283/dashboard/list')?>",method:"POST",data:{datas:datas},
+success:function(data) 
+{  
+$("#forms").empty(); $("#forms").html(data);    
+} 
+}); 
+}    
+    
+function  exits() {
+var datas=[ $("#br").val()];    
+$.ajax({url:"<?=base_url('283/dashboard/list')?>",method:"POST",data:{datas:datas},success:function(data) {  $("#forms").empty(); $("#forms").html(data);    $("#form_entry").hide(); } }); 
+}        
+
+</script>         
+

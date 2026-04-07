@@ -1014,7 +1014,8 @@ $dat['phone']=$tmp[7];
 $dat['cash']=$tmp[8];
 $dat['void']=$tmp[9];
 $dat['remarks']=$tmp[10];
-$dat['branch']=$tmp[11]; 
+$dat['branch']=$tmp[11];
+$dat['dv_amt']=$tmp[12];
 if($fin==0){
     $this->db->where('id',$id)->update('dvh',$dat);
 }
@@ -4780,7 +4781,7 @@ foreach($rows as $row){
 
     $grouped[$key]['items'][]=array(
         'detail'=>$detailLine,
-        'dr'=>$dr,
+        'dr'=>$dr,  
         'cr'=>$cr
     );
     if($detailLine!=''){
@@ -4788,11 +4789,15 @@ foreach($rows as $row){
     }
 }
 
-$renderLines=function($lines){
+$renderLines=function($lines, $bold=false){
     $out='';
     foreach($lines as $line){
         $val=($line==='') ? '&nbsp;' : $line;
-        $out.='<div class="cv-line">'.$val.'</div>';
+        if($bold){
+            $out.='<div class="cv-line"><strong>'.$val.'</strong></div>';
+        } else {
+            $out.='<div class="cv-line">'.$val.'</div>';
+        }
     }
     return $out;
 };
@@ -4803,7 +4808,7 @@ foreach($groupOrder as $key){
     $cnt=count($items);
 
     if($cnt===1){
-        $titleHtml=htmlspecialchars($grp['title'],ENT_QUOTES);
+        $titleHtml='<strong>'.htmlspecialchars($grp['title'],ENT_QUOTES).'</strong>';
         $detailLine=$items[0]['detail'];
         if($detailLine!=''){
             $titleHtml.='<div class="acct-sub">'.htmlspecialchars($detailLine,ENT_QUOTES).'</div>';
@@ -4811,7 +4816,7 @@ foreach($groupOrder as $key){
         $rowItems[]='
     <tr>
         <td class="acct">'.$titleHtml.'</td>
-        <td class="code">'.htmlspecialchars($grp['code'],ENT_QUOTES).'</td>
+        <td class="code"><strong>'.htmlspecialchars($grp['code'],ENT_QUOTES).'</strong></td>
         <td class="num">'.$items[0]['dr'].'</td>
         <td class="num">'.$items[0]['cr'].'</td>
     </tr>';
@@ -4825,7 +4830,7 @@ foreach($groupOrder as $key){
     $crLines=array();
 
     if($grp['has_detail']){
-        $acctLines[]='<div class="cv-line">'.htmlspecialchars($grp['title'],ENT_QUOTES).'</div>';
+        $acctLines[]='<div class="cv-line"><strong>'.htmlspecialchars($grp['title'],ENT_QUOTES).'</strong></div>';
         $codeLines[]=htmlspecialchars($grp['code'],ENT_QUOTES);
         $drLines[]='';
         $crLines[]='';
@@ -4841,7 +4846,7 @@ foreach($groupOrder as $key){
         $first=true;
         foreach($items as $it){
             if($first){
-                $acctLines[]='<div class="cv-line">'.htmlspecialchars($grp['title'],ENT_QUOTES).'</div>';
+                $acctLines[]='<div class="cv-line"><strong>'.htmlspecialchars($grp['title'],ENT_QUOTES).'</strong></div>';
                 $codeLines[]=htmlspecialchars($grp['code'],ENT_QUOTES);
                 $first=false;
             } else {
@@ -4856,7 +4861,7 @@ foreach($groupOrder as $key){
     $rowItems[]='
     <tr>
         <td class="acct">'.implode('',$acctLines).'</td>
-        <td class="code">'.$renderLines($codeLines).'</td>
+        <td class="code">'.$renderLines($codeLines, true).'</td>
         <td class="num">'.$renderLines($drLines).'</td>
         <td class="num">'.$renderLines($crLines).'</td>
     </tr>';
@@ -6701,6 +6706,7 @@ function edit_rec() {
 
     $payee = isset($dataf['payee']) ? $dataf['payee'] : '';
     $cash = isset($dataf['cash']) ? $dataf['cash'] : 0;
+    $dv_amt = isset($dataf['dv_amt']) ? $dataf['dv_amt'] : 0;
     $prepared_by_id = isset($dataf['prepared_by']) ? $dataf['prepared_by'] : 0;
     $prepared_by_name = '';
     if($prepared_by_id > 0){
@@ -6763,6 +6769,10 @@ function edit_rec() {
         <div class="input-group mb-1 input-group-sm col-sm-4">
             <div class="input-group-prepend"><span class="input-group-text">'.$cap[8].'</span></div>
             <input type="number" class="form-control" id="cash" onchange="saveh()" value="'.$cash.'" /></div> 
+
+        <div class="input-group mb-1 input-group-sm col-sm-4">
+            <div class="input-group-prepend"><span class="input-group-text">DV Amount</span></div>
+            <input type="number" class="form-control" id="dv_amt" onchange="saveh()" value="'.$dv_amt.'" /></div>
 
         <div class="input-group mb-1 input-group-sm col-sm-4">
         <div class="input-group-prepend"><span class="input-group-text">'.$cap[14].'</span></div>
@@ -7372,6 +7382,7 @@ function edit_rec() {
         ,$("#void").val()
         ,$("#remarks").val()
         ,$("#branch").val()
+        ,$("#dv_amt").val()
         ];
         $.ajax({url:"'.base_url("89/dashboard/saveh").'", method:"POST",   data:{datas:datas},success:function(data) 
         { getbalance(); }

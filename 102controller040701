@@ -1,0 +1,1137 @@
+<?php
+defined('BASEPATH') OR exit('No direct script access allowed');
+
+class Dashboard extends CI_Controller {
+
+public function __construct() {
+parent::__construct();$this->load->helper('form'); $this->load->helper('url', 'form');$this->load->model('user_model');
+if(!$this->session->userdata('user_id'))  { redirect('user/login');  }    
+
+$this->load->model('Recordset');
+if($this->Recordset->ac_chk(102)==0){ redirect('dashboard/index'); }
+
+
+}
+
+function index() { 
+$data['fld']=$this->db->list_fields('coa'); //if($this->user_model->chk_group($a)==true) 
+{ $this->load->view("header"); $this->load->view("102/view",$data); } // else { redirect(base_url()); }
+}   
+
+function edit_rec() {
+$fld=$this->db->list_fields('coa');
+$id=$_POST['id'];  $rs=$this->db->where('id',$id)->get('coa')->result_result();
+$dat['sw']=0;
+foreach($rs as $row) {
+    for($a=0;$a<coun($fld);$a++){$dat[$fld[$a]]=$dat[$row[$a]];}
+    $dat['sw']=1;
+
+    $xx=explode(',','Select Expense Type,Utilities , logistics , labor , supplies , marketing '); 
+     $etype='';
+
+    for($aa=0;$a<count($xx);$aa++){    
+        $sel='';
+        if($aa==$row['type_']){
+            $sel='selected';
+        }
+        $etype.='<option value='.$aa.' '.$sel.' >'.$xx[$aa].'</option>';    
+    }
+
+    $dat['etype_']=$etype;
+    
+}
+echo json_encode($dat);
+
+}   
+
+function brcoa($id) { 
+
+$rs=$this->db  
+->where('coa',$id)
+->get('location_coa') ->result_array();
+
+$fld=$this->db->list_fields('location_coa'); 
+$th=''; 
+
+
+//$fld=explode(',','#,C,O,D,E,Account Title');
+for($a=0;$a < count($fld) ;$a++) { 
+    if($a!=2){
+        $th.='<th>'.strtoupper($fld[$a]).'</th>'; 
+    }
+}
+
+$td=''; 
+foreach($rs as $row) {  
+
+$td.='<tr>' ;     
+for($a=0;$a<count($fld);$a++) {
+$datafld=$row[$fld[$a]];
+if($a==1) {
+    $datafld=$this->db
+        ->where('id',$datafld)->get('location')->row('name');
+}
+                                                   
+if($a!=2) {$td.='<td>'.$datafld.'</td>'; }
+
+}
+$td.='</tr>' ;
+} 
+
+echo '
+
+<script>
+
+$(document).ready(function() { 
+
+var table = $("#tbl_list2").DataTable({
+
+"columnDefs": [ { "targets": [ 0 ], "visible": false } ],
+
+"scrollX": true, 
+//"order": [[ 1, "desc" ]],
+//"paging":   false,        
+//"info":     false
+
+}
+);
+
+$("#tbl_list2 tbody").on("click", "tr", function () { var data = table.row( this ).data();  edit_rec(data); });
+
+function edit_rec(dat) { 
+    $("#id").val(dat[0]); 
+    $("#name").val(dat[5]);
+    getcat(dat); 
+    
+} 
+
+function getcat(dat) {
+var id=dat[0]; 
+
+$("#id").val(dat[0]);
+var code=[dat[1],  dat[2] , dat[3], dat[4] ];
+
+alert(dat[1]);
+$("#name").val(dat[5]);
+$("#code").val(dat[1]);
+
+$.ajax({url:"'.base_url('102/dashboard/getcoainfo').'",method:"POST", dataType:"json", data:{id:id,code:code},
+success:function(data) { 
+//$("#code").val(data.code); 
+$("#c1").html(data.c1); 
+$("#c2").html(data.c2); 
+$("#c3").html(data.c3); 
+$("#c4").html(data.c4); 
+$("#exp").html(data.exp); 
+$("#active").html(data.active); 
+
+} }); 
+
+}
+
+});
+
+</script>
+
+<table id="tbl_list2" class="display nowrap" style="width:100%" > <thead> <tr>'.$th.'</tr> </thead> <tbody>'.$td.'</tbody></table>';
+}    
+
+function Delete() {      
+
+$tmp=$_POST['datas']; 
+    
+$id=intval($tmp[0]);     
+    $this->db
+        ->where('id',$id)
+        ->delete('coa'); 
+    
+}
+
+function Save() {  
+    // Safely clean output to prevent crashes, and FORCE JSON format
+    if (ob_get_length()) ob_clean(); 
+    header('Content-Type: application/json');
+
+    $tmp=$_POST['datas']; 
+    $id=intval($tmp[0]);     
+    $data['cd_acct1']=$tmp[1]; 
+    $data['cd_acct2']=$tmp[2]; 
+    $data['cd_acct3']=$tmp[3]; 
+    $data['cd_acct4']=$tmp[4]; 
+    $data['cd_acct5']=$tmp[5]; 
+    $data['code']=$tmp[6]; 
+    $data['name']=$tmp[7]; 
+
+    // --- DUPLICATE CHECK ---
+    $this->db->where('code', $data['code']);
+    if ($id > 0) {
+        $this->db->where('id !=', $id); 
+    }
+    $query = $this->db->get('coa');
+
+    if ($query->num_rows() > 0) {
+        echo json_encode(array('status' => 'error', 'message' => 'Warning: The Account Code ' . $data['code'] . ' already exists!'));
+        exit; 
+    }
+
+    if($id>0) { 
+        $this->db->where('id',$id)->update('coa',$data); 
+    } else { 
+        $this->db->insert('coa',$data);
+    } 
+    
+    echo json_encode(array('status' => 'success'));
+    exit;
+}
+    
+function save_rec() {
+    if (ob_get_length()) ob_clean(); 
+    header('Content-Type: application/json');
+
+    $tmp = $_POST['datas']; 
+    $data['code']   = $tmp[0]; 
+    $data['name']   = $tmp[1]; 
+    $data['bcoa']   = $tmp[2];
+    $data['active'] = $tmp[3];
+    $id             = intval($tmp[4]); 
+    $data['budget'] = $tmp[5];
+    $data['etype']  = $tmp[6];
+    
+    $this->db->where('code', $data['code']);
+    if ($id > 0) {
+        $this->db->where('id !=', $id);
+    }
+    $query = $this->db->get('coa');
+
+    if ($query->num_rows() > 0) {
+        echo json_encode(['status' => 'error', 'message' => 'The Account Code ' . $data['code'] . ' already exists!']);
+        exit; 
+    }
+
+    if($id > 0) { 
+        $this->db->where('id', $id)->update('coa', $data); 
+    } else { 
+        $this->db->insert('coa', $data);
+    } 
+    
+    echo json_encode(['status' => 'success']);
+    exit;
+}
+function c1() {
+
+$xs=$this->input->post('searchTerm');  
+$xt='coa'; 
+$rs = $this->db 
+->where('code<',10)
+//->where('LENGTH(code)',7)
+//->like('code',$xs)  
+->like('name',$xs)  
+->order_by('name') ->limit(10) ->get($xt)->result_array(); 
+$data[]=array("id"=>0, "text"=>'select coa');
+
+foreach($rs as $row)  {
+    $data[]=array("id"=>$row['cd_acct1'], "text"=>$row['code'].'-'.$row['name'] );
+}
+    
+echo json_encode($data); 
+} 
+
+function c2() {
+$xs=$this->input->post('searchTerm');  
+$c1=$this->input->post('c1');  
+$xt='coa';  
+
+$rs = $this->db 
+->where('cd_acct1',$c1)
+->where('length(cd_acct2)>',0)
+->where('length(cd_acct3)',0)
+->like('concat(cd_acct2,code,name)',$xs)  
+->order_by('cd_acct2') 
+//->limit(10) 
+    ->get($xt)->result_array(); 
+$data[]=array("id"=>0, "text"=>'select coa');
+
+foreach($rs as $row) { $data[]=array("id"=>$row['cd_acct2'], "text"=>$row['cd_acct2'].'-'.$row['name'] ); }
+echo json_encode($data); 
+    
+} 
+
+function c3() {
+$xs=$this->input->post('searchTerm');  
+$c1=$this->input->post('c1');  
+$c2=$this->input->post('c2');  
+
+$xt='coa';  
+
+$rs = $this->db 
+->where('cd_acct1',$c1)
+->where('cd_acct2',$c2)
+->where('length(cd_acct3)>',0)
+->where('length(cd_acct4)',0)
+->like('concat(cd_acct3,code,name)',$xs)   
+->order_by('cd_acct3') 
+    //->limit(10)
+    ->get($xt)->result_array(); 
+$data[]=array("id"=>0, "text"=>'select coa');
+
+foreach($rs as $row) { $data[]=array("id"=>$row['cd_acct3'], "text"=>$row['cd_acct3'].'-'.$row['name'] ); }
+echo json_encode($data); 
+    
+}  
+
+function c4() {
+$xs=$this->input->post('searchTerm');  
+$c1=$this->input->post('c1');  
+$c2=$this->input->post('c2');  
+$c3=$this->input->post('c3');  
+
+$xt='coa';  
+
+$rs = $this->db 
+->where('cd_acct1',$c1)
+->where('cd_acct2',$c2)
+->where('cd_acct3',$c3)
+->where('length(cd_acct4)>',0)
+->where('length(cd_acct5)',0)
+->like('concat(cd_acct4,code,name)',$xs)  
+->order_by('cd_acct4') 
+    //->limit(10) 
+    ->get($xt)->result_array(); 
+$data[]=array("id"=>0, "text"=>'select coa');
+
+foreach($rs as $row) { $data[]=array("id"=>$row['cd_acct4'], "text"=>$row['cd_acct4'].'-'.$row['name'] ); }
+echo json_encode($data); 
+    
+} 
+
+function c5() {
+$xs=$this->input->post('searchTerm');  
+$c1=$this->input->post('c1');  
+$c2=$this->input->post('c2');  
+$c3=$this->input->post('c3');  
+$c4=$this->input->post('c4');  
+
+$xt='coa';  
+
+$rs = $this->db 
+->where('cd_acct1',$c1)
+->where('cd_acct2',$c2)
+->where('cd_acct3',$c3)
+->where('cd_acct4',$c4)
+->where('length(cd_acct5)>',0)
+->like('concat(cd_acct5,code,name)',$xs)  
+->order_by('cd_acct5') 
+    //->limit(10) 
+    ->get($xt)->result_array(); 
+$data[]=array("id"=>0, "text"=>'select coa');
+
+foreach($rs as $row) { $data[]=array("id"=>$row['cd_acct5'], "text"=>$row['cd_acct5'].'-'.$row['name'] ); }
+echo json_encode($data); 
+    
+}      
+
+function get_type($id) {
+    $xid=$this->db->where('id',$id)->get('coa')->row('etype');
+    $type=explode(',','Select Expense Type,Utilities , logistics , labor , supplies , marketing '); 
+    echo '
+    <option value='.$xid.' >'.$type[$xid].'</option>
+    ';
+}
+    
+function list_entry($id) {
+    $rs=$this->db
+        ->where('status',1)
+        ->limit(1)
+        ->get('location')->result();
+    
+    foreach($rs as $row){
+            
+    $rs=$this->db
+        ->where('location',$row->id)
+        ->where('id',$id)
+        ->get('coad')->result();
+        if(count($rs)==0){
+            $dat['id']=$id;
+            $dat['location']=$row->id;
+            $this->db->insert('coad',$dat);
+        }
+    }
+    
+    $rs=$this->db
+        ->where('id',$id)
+        ->get('coad')->result();
+    
+    $th=$td='';
+    $th='
+    <th>#</th>
+    <th>Location</th>
+    <th>Budget</th>
+    <th>Last Update</th>
+    <th>Update By</th>
+    ';
+    
+    foreach($rs as $row){
+        $td.='
+        <tr>
+        <td>'.$row->seq.'</td>
+        <td>'.$this->db->where('id',$row->location)->get('location')->row('name').'</td>
+        <td><input type="number" id="brcoa-'.$row->seq.'" value="'.$row->budget.'" onchange="dsave(this.id)" /></td>
+        <td>'.$row->date_update.'</td>
+        <td>'.$this->db->where('id',$row->update_by)->get('users')->row('name').'</td>
+        </tr>
+        ';
+    }
+    
+echo '
+<script>
+
+function dsave(fld) {
+var val=$("#" + fld).val();
+var dat=fld + "-" + val;
+
+$.ajax({url:"'.base_url('102/dashboard/dsave').'",method:"POST", data:{dat:dat},
+success:function(data) { } }); 
+
+}
+
+$(document).ready(function() { 
+
+$("#bblist").DataTable({
+
+"scrollX": true,  
+
+}
+);
+});
+
+</script>
+<table id="bblist" class="display nowrap" style="width:100%" > 
+<thead> <tr>'.$th.'</tr> </thead> 
+<tbody>'.$td.'</tbody></table>';
+    
+}
+    
+function list_entry2($id) {
+    
+$rs1=$this->db
+->select('b.branch,a.trncode as code,a.date_,b.amount')
+->from('dvh a')
+->join('dvd b','a.id=b.id')
+->where('b.coa',$id)
+->where('a.fin>',0)
+->get()->result();
+    
+$rs2=$this->db
+->select('a.branch,a.code,a.date_,b.amnt as amount')
+->from('dsr_exph a')
+->join('dsr_expd b','a.id=b.id')
+->where('b.coa',$id)
+->where('a.fin>',0)
+->get()->result();
+    
+$rs=array_merge($rs1,$rs2);
+    $td='';
+    foreach($rs as $row){
+        $br=$row->branch;
+        $td.='
+        <tr>
+        <td>'.$this->db->where('id',$br)->get('location')->row('name').'</td>
+        <td>'.$row->code.'</td>
+        <td>'.$row->date_.'</td>
+        <td>'.$row->amount.'</td>
+        </tr>
+        ';
+    }
+$th='
+<th>Branch</th>
+<th>Code</th>
+<th>Date</th>
+<th>amount</th>';
+    
+echo '
+<script>
+
+
+$(document).ready(function() { 
+
+$("#tbl_listx").DataTable({
+
+"scrollX": true,  
+
+}
+);
+});
+
+</script>
+<table id="tbl_listx" class="display nowrap" style="width:100%" > 
+<thead> <tr>'.$th.'</tr> </thead> 
+<tbody>'.$td.'</tbody></table>';
+    
+}
+    
+function getcoainfo() {
+    
+$id=$_POST['id'];
+$xcode=$_POST['code']; 
+$dat['code']=
+$dat['c2']=
+$dat['c3']=
+$dat['c4']=null;
+
+$code[0]=substr($xcode,0,1);
+$code[1]=substr($xcode,1,2);
+$code[2]=substr($xcode,3,2);
+$code[3]=substr($xcode,5,2);
+    
+
+    
+$c1=$this->db->where('code',$code[0])->get('coa')->row('id');
+$c2=$this->db->where('code',$code[1])->get('coa')->row('id');
+$c3=$this->db->where('code',$code[2])->get('coa')->row('id');
+$active=$this->db->where('id',$id)->get('coa')->row('active');
+$exp=$this->db->where('code',$code[2])->get('coa')->row('bcoa');
+    
+$dat['c1']='<option value="'.$c1.'">
+'.$this->db->where('code',$code[0])->get('coa')->row('name').'</option>';
+    
+$dat['c2']='<option value="'.$c2.'">
+'.$this->db->where('code',$code[1])->get('coa')->row('name').'</option>';
+    
+$dat['c3']='<option value="'.$c3.'">
+'.$this->db->where('code',$code[2])->get('coa')->row('name').'</option>';
+    
+$expl=explode(',','No,Yes');
+    
+$exp_opt=$active_opt='';
+    
+for($a=0;$a<2;$a++)    {
+    $sel='';if($active==$a){$sel='selected';}    
+    $active_opt.='<option value='.$a.' '.$sel.'>'.$expl[$a].'</option>'; 
+}
+ 
+
+$dat['code']=$code[0].$code[1].$code[2].$code[3];
+$dat['x']=$xcode;
+$dat['exp']=$exp_opt;
+$dat['active']=$active_opt;
+echo json_encode($dat);
+
+}
+
+function dsave(){
+    
+    $tmp=$_POST['datas'];
+    $sw=$tmp[0]; 
+    $sw2=$tmp[3]; 
+    
+    $code=$dat['code']=$tmp[1];
+    $dat['name']=$tmp[2];
+    
+    if($sw2==1){
+        //$this->db->where('id',$tmp[5])->update('coa',$dat);
+    }
+    
+    if($sw2==2){
+        
+        //chk dupli code
+        $id=0;
+        $id+=$this->db->where('code',$tmp[1])->get('coa')->row('id');
+        
+        if($id==0){ 
+             $rs=$this->db->where('id',$tmp[3])->get('coa')->result();
+             foreach($rs as $row){
+                $dat['cd_acct1']=$row->cd_acct1;
+                $dat['cd_acct2']=$row->cd_acct2;
+                $dat['cd_acct3']=$row->cd_acct3;
+                $dat['cd_acct4']=$row->cd_acct4;
+                $dat['cd_acct5']=$row->cd_acct5;
+                //$this->db->insert('coad',$dat);
+             }
+            //$this->db->insert('coad',$dat);
+            print_r($dat);
+         }
+        else {
+        echo '
+        <script>
+        msg();
+        function msg(){
+        alert("Duplicate COA code Found!!!");
+        }
+        }</script>';
+        }
+    }
+    
+//    if($sw>2){
+//        
+//        $lid=$tmp[5];
+//        $rs=$this->db->where('id',$lid)->get('coa')->result();
+//
+//            print_r($rs);
+//            foreach($rs as $row){
+//
+//            }
+//        
+//        if($id>0){ // edit
+//            //$this->db->where('seq',$tmp[1])->update('coad',$dat);
+//            print_r($dat);
+//        }
+//        
+//        else { // add
+//             
+//            $lid=0;
+//            $lcode=$tmp[4];
+//            $rs=$this->db->where('code',$lcode)->get('coa')->result();
+//
+//            print_r($rs);
+//            foreach($rs as $row){
+//
+//            }
+//
+//            //$this->db->insert('coad',$dat);
+//        }
+//        
+//    }
+    print_r($dat);
+}
+
+function getcoa2() { 
+$sw=$_POST['sw']; 
+
+//if(intval($str)>0) { $this->db->where('mid(code,1,1)',$str); }
+    
+if($sw==1) {   
+    
+    $this->db->where('cd_acct1<',10);
+    $this->db->where('length(cd_acct2)',0);       
+}
+
+$rs=$this->db ->order_by('code')->get('coa') ->result_array();
+
+$fld=$this->db->list_fields('coa'); 
+$th='';
+
+$fld=explode(',','#,COA,Account Title ');
+
+for($a=0;$a < count($fld) ;$a++) { $th.='<th>'.strtoupper($fld[$a]).'</th>'; }
+    
+$td=''; 
+$fld=$this->db->list_fields('coa');
+$fld=explode(',','id,code,name');
+
+foreach($rs as $row) {
+$code=intval($row['code']);
+
+$td.='<tr>' ; 
+    
+for($a=0;$a<count($fld);$a++) {
+$datafld=$row[$fld[$a]]; 
+
+$td.='<td>'.$datafld.'</td>'; 
+}
+    
+$td.='</tr>' ; 
+}
+$sw2=$sw+1;
+echo '
+
+<script> 
+
+$(document).ready(function() { 
+var table = $("#lstx'.$sw.'").DataTable({
+
+    "columnDefs" : [
+        
+        { "visible": false, "targets": [0,1] }
+    ],bFilter: false, bInfo: false,
+     info: false,
+    ordering: false,
+    paging: false
+    
+}
+);
+
+    $("#lstx'.$sw.' tbody").on("click", "tr", function () { 
+    var data'.$sw.' = table.row( this ).data();  edit_recx'.$sw.'(data'.$sw.'); 
+    
+}); 
+
+function edit_recx'.$sw.'(dat'.$sw.') {
+$("#lst2").empty();
+$("#lst3").empty();
+$("#lst4").empty();
+$("#lst5").empty();
+var sw='.$sw.';
+sw=sw+1
+$.ajax({url:"'.base_url('102/dashboard/getcoax').'" ,
+method:"POST", 
+data:{id:dat'.$sw.'[0],sw:'.$sw2.'},
+success:function(data) { 
+$("#lst'.$sw2.'").html(data); 
+} }); 
+}   
+
+}); 
+
+</script>
+<table id="lstx'.$sw.'" class="display nowrap" style="width:100%" > 
+<thead> <tr>'.$th.'</tr> </thead> 
+<tbody>'.$td.'</tbody></table> 
+';
+    
+}  
+
+function getcoa() { 
+$sw=$_POST['sw']; 
+
+//if(intval($str)>0) { $this->db->where('mid(code,1,1)',$str); }
+    
+if($sw==1) {   
+    
+    //$this->db->where('cd_acct1<',10);
+    //$this->db->where('length(cd_acct2)',0);       
+}
+
+$rs=$this->db ->order_by('code')->get('coa') ->result_array();
+
+$fld=$this->db->list_fields('coa'); 
+$th='';
+
+$fld=explode(',','#,Acnt 1,Acnt 2,Acnt 3,Acnt 4,Acnt 5,COA,Account Title ');
+
+for($a=0;$a < count($fld) ;$a++) { $th.='<th>'.strtoupper($fld[$a]).'</th>'; }
+    
+$td=''; 
+$fld=$this->db->list_fields('coa');
+$fld=explode(',','id,cd_acct1,cd_acct2,cd_acct3,cd_acct4,cd_acct5,code,name');
+
+foreach($rs as $row) {
+$code=intval($row['code']);
+
+$td.='<tr>' ; 
+    
+for($a=0;$a<count($fld);$a++) {
+$datafld=$row[$fld[$a]]; 
+
+$td.='<td>'.$datafld.'</td>'; 
+}
+    
+$td.='</tr>' ; 
+}
+$sw2=$sw+1;
+    //,bFilter: false, bInfo: false,     info: false,    ordering: false,    paging: false
+echo '
+
+<script> 
+
+function gocode() {
+ 
+ var code= $("#ac1").val()  + $("#ac2").val() + $("#ac3").val() + $("#ac4").val() + $("#ac5").val();  
+
+$("#code").val(code);  
+
+} 
+
+function Delete() {  
+
+
+var datas=[
+$("#id").val()
+,$("#ac1").val()
+,$("#ac2").val()
+,$("#ac3").val()
+,$("#ac4").val()
+,$("#ac5").val()
+,$("#code").val()
+,$("#name").val()
+];   
+
+if(confirm("Delete coa " + datas[6] + " ?")){
+
+$.ajax({url:"'.base_url('102/dashboard/Delete/').'" + datas[0]
+,method:"POST"
+,data:{datas:datas}
+,success:function(data) { 
+   location.reload(); 
+} 
+
+}); 
+
+}
+
+}
+
+function Save() {
+
+var datas=[
+$("#id").val()
+,$("#ac1").val()
+,$("#ac2").val()
+,$("#ac3").val()
+,$("#ac4").val()
+,$("#ac5").val()
+,$("#code").val()
+,$("#name").val()
+];   
+
+if(confirm("save coa " + datas[6] + " ?")){
+$.ajax({url:"'.base_url('102/dashboard/Save/').'"
+,method:"POST"
+,dataType:"json"
+,data:{datas:datas}
+,success:function(data) { 
+    if(data && data.status === "error") {
+        alert(" DUPLICATE: " + data.message);
+    } else {
+        location.reload(); 
+    }
+} 
+
+}); 
+
+}
+
+}
+
+function ecode() {
+
+var code=$("#code").val();  
+
+var len=code.length;
+ var ac1=code.substring(0, 1);
+ var ac2=code.substring(1, 3);
+ var ac3=code.substring(3, 5);
+ var ac4=code.substring(5, 7);
+ var ac5=code.substring(7, 10);
+
+} 
+
+$(document).ready(function() { 
+var table = $("#lstx'.$sw.'").DataTable({
+order: [[0, "desc"]]
+    
+}
+);
+
+    $("#lstx'.$sw.' tbody").on("click", "tr", function () { 
+        
+        table.$("tr.selected").removeClass("selected");
+        
+        $(this).addClass("selected");
+
+        var data = table.row( this ).data();  edit(data); 
+    
+});
+
+function edit(dat) {
+
+$("#id").val(dat[0]);  
+$("#ac1").val(dat[1]);  
+$("#ac2").val(dat[2]);  
+$("#ac3").val(dat[3]);  
+$("#ac4").val(dat[4]);  
+$("#ac5").val(dat[5]);  
+$("#code").val(dat[6]);  
+$("#name").val(dat[7]);  
+
+}   
+
+}); 
+
+</script>
+
+<div class="row">
+    <div class="col-sm-4">
+    
+        <div class="input-group mb-1 input-group-sm " >
+            <div class="input-group-prepend"> <span class="input-group-text">id</span></div>
+                <input type="number" class="form-control" id="id" value="0" disabled></div>
+    
+        <div class="input-group mb-1 input-group-sm " >
+            <div class="input-group-prepend"> <span class="input-group-text">Accnt1</span></div>
+                <input type="number" class="form-control" id="ac1" value="" onchange="gocode()"></div>
+                
+        <div class="input-group mb-1 input-group-sm " >
+            <div class="input-group-prepend"> <span class="input-group-text">Accnt2</span></div>
+                <input type="text" class="form-control" id="ac2" value="" onchange="gocode()"></div>
+                
+        <div class="input-group mb-1 input-group-sm " >
+            <div class="input-group-prepend"> <span class="input-group-text">Accnt3</span></div>
+                <input type="text" class="form-control" id="ac3" value="" onchange="gocode()"></div>
+                
+        <div class="input-group mb-1 input-group-sm " >
+            <div class="input-group-prepend"> <span class="input-group-text">Accnt4</span></div>
+                <input type="text" class="form-control" id="ac4" value="" onchange="gocode()"></div>
+                
+        <div class="input-group mb-1 input-group-sm " >
+            <div class="input-group-prepend"> <span class="input-group-text">Accnt5</span></div>
+                <input type="text" class="form-control" id="ac5" value="" onchange="gocode()" ></div>
+                
+        <div class="input-group mb-1 input-group-sm " >
+            <div class="input-group-prepend"> <span class="input-group-text">Code</span></div>
+                <input type="text" class="form-control" id="code" value="" disabled></div>
+                
+        <div class="input-group mb-1 input-group-sm " >
+            <div class="input-group-prepend"> <span class="input-group-text">Name</span></div>
+                <input type="text" class="form-control" id="name" value=""></div>
+                
+        <div class="input-group mb-1 input-group-sm"> 
+            <input type="button" class="form-control " value="Save" onclick="Save()" >
+            <input type="button" class="form-control " value="Delete" onclick="Delete()" >
+            <input type="button" class="form-control " value="Clear" onclick="location.reload()" >
+            </div>
+
+    </div>
+    <div class="col-sm-8">
+    <table id="lstx'.$sw.'" class="display nowrap" style="width:100%" > 
+    <thead> <tr>'.$th.'</tr> </thead> 
+    <tbody>'.$td.'</tbody></table> 
+</div> 
+';
+    
+}   
+
+function getcoax() { 
+    
+$id=$_POST['id']; 
+$sw=$_POST['sw']; 
+
+//if(intval($str)>0) { $this->db->where('mid(code,1,1)',$str); }
+     
+    $scode=$this->db ->where('id',$id)->get('coa') ->row('code');
+    $snm=$this->db ->where('id',$id)->get('coa') ->row('name');
+     
+    $code=$this->db ->where('id',$id)->get('coa') ->row('code');
+    $nm=$this->db ->where('id',$id)->get('coa') ->row('name');
+    
+if($sw==2) {   
+    
+    //$this->db->where('cd_acct1<',10);
+    //$this->db->where('length(cd_acct2)',0);       
+    $code=$this->db ->where('id',$id)->get('coa') ->row('code');
+    $nm=$this->db ->where('id',$id)->get('coa') ->row('name');
+    if(strlen($code)==1){
+        $this->db->where('id!=',$id);
+        $this->db->where('cd_acct1',$code);
+        $this->db->where('length(cd_acct3)',0);     
+    }
+}
+    
+else if($sw==3) {   
+    
+    //$this->db->where('cd_acct1<',10);
+    //$this->db->where('length(cd_acct2)',0);      
+    if(strlen($code)==3){
+        $c1=substr($code,0,1);
+        $c2=substr($code,1);
+        $this->db->where('id!=',$id);
+        $this->db->where('cd_acct1',$c1);
+        $this->db->where('cd_acct2',$c2);
+        $this->db->where('length(cd_acct4)',0);     
+    }
+}
+    
+else if($sw==4) {   
+    
+    //$this->db->where('cd_acct1<',10);
+    //$this->db->where('length(cd_acct2)',0);      
+    if(strlen($code)==5){
+        $c1=substr($code,0,1);
+        $c2=substr($code,1,2);
+        $c3=substr($code,3,2);
+        $this->db->where('id!=',$id);
+        $this->db->where('cd_acct1',$c1);
+        $this->db->where('cd_acct2',$c2);
+        $this->db->where('cd_acct3',$c3);
+        $this->db->where('length(cd_acct5)',0);     
+    }
+}
+    
+else if($sw==5) {   
+    
+    //$this->db->where('cd_acct1<',10);
+    //$this->db->where('length(cd_acct2)',0);       
+    if(strlen($code)==7){
+        $c1=substr($code,0,1);
+        $c2=substr($code,1,2);
+        $c3=substr($code,3,2);
+        $c4=substr($code,5,2);
+        $this->db->where('id!=',$id);
+        $this->db->where('cd_acct1',$c1);
+        $this->db->where('cd_acct2',$c2);
+        $this->db->where('cd_acct3',$c3);
+        $this->db->where('cd_acct4',$c4);
+        //$this->db->where('length(cd_acct5)',0);     
+    }
+}
+
+$rs=$this->db ->order_by('code')->get('coa') ->result_array();
+    
+if($sw==6){$rs=[];$code=$nm=''; exit;}
+$fld=$this->db->list_fields('coa'); 
+$th='';
+
+$fld=explode(',','#,COA,Account Title ');
+
+for($a=0;$a < count($fld) ;$a++) { $th.='<th>'.strtoupper($fld[$a]).'</th>'; }
+    
+$td=''; 
+$fld=$this->db->list_fields('coa');
+$fld=explode(',','id,code,name');
+$nid=0;
+foreach($rs as $row) {
+$code=intval($row['code']);
+
+$td.='<tr>' ; 
+    
+for($a=0;$a<count($fld);$a++) {
+$datafld=$row[$fld[$a]]; 
+
+    $td.='<td>'.$datafld.'</td>'; 
+}
+    
+$td.='</tr>' ; 
+$nid=$row['id'];
+}
+    
+$sw2=$sw+1;
+echo '
+
+<script> 
+
+$(document).ready(function() { 
+
+    var table = $("#lstx'.$sw.'").DataTable({
+    "columnDefs": [ { "targets": [ 0 ], "visible": false } ]
+    ,"scrollX": true
+    ,bFilter: false,';
+    
+    if($sw!=5){
+    echo '    
+     bInfo: false
+    ,info: false
+    ,ordering: false
+    ,paging: false,';
+    }
+    
+    echo '    
+    }
+    );
+
+        $("#lstx'.$sw.' tbody").on("click", "tr", function () { 
+        var data = table.row( this ).data();  edit_recx'.$sw.'(data); 
+
+    });
+
+    function edit_recx'.$sw.'(dat'.$sw.') {
+    var sw='.$sw.';
+
+    if(sw==2){
+    $("#lst3").empty();
+    $("#lst4").empty();
+    $("#lst5").empty();
+    }
+
+    if(sw==3){
+    $("#lst4").empty();
+    $("#lst5").empty();
+    }
+
+    if(sw==4){
+    $("#lst5").empty();
+    }
+
+    sw=sw+1
+    $.ajax({url:"'.base_url('102/dashboard/getcoax').'" ,
+    method:"POST", 
+    data:{id:dat'.$sw.'[0],sw:'.$sw2.'},
+    success:function(data) { 
+    $("#lst'.$sw2.'").html(data); 
+    } }); 
+    } 
+    
+});
+</script>
+
+<div class="container-fluid">
+    <div class="row"> ';
+    
+    if($sw>2) {
+        
+    echo '
+    
+        <div class="input-group mb-1 input-group-sm col-sm-12"> 
+            <div class="input-group-prepend"> <span class="input-group-text">Code</span></div>
+                <input type="text" class="form-control " id="scode'.$sw.'" value="'.$scode.'" > </div>
+            
+        <div class="input-group mb-1 input-group-sm col-sm-12"> 
+            <div class="input-group-prepend"> <span class="input-group-text"> Name</span></div>
+                <input type="text" class="form-control " id="sname'.$sw.'" value="'.$snm.'" > </div>                
+                
+        <div class="input-group mb-1 input-group-sm col-sm-12">             
+            <input type="hidden"  id="gid'.$sw.'" value= '.$id.'>
+            <input type="button" class="form-control " value="Update" onclick="sdsave'.$sw.'()" /> </div>   
+            
+                <script>  
+                    function sdsave'.$sw.'() {
+
+                        var datas=['.$sw.',$("#scode'.$sw.'").val(),$("#sname'.$sw.'").val(),1,'.$id.'];
+
+                        $.ajax({url:"'.base_url('102/dashboard/dsave').'"
+                        ,method:"POST"
+                        , data:{datas:datas}
+                        ,success:function(data) { } }); 
+                    } 
+                </script>
+                
+        <div class="input-group mb-1 input-group-sm col-sm-12"> 
+            <div class="input-group-prepend"> <span class="input-group-text">Last Code</span></div>
+                <input type="text" class="form-control " id="code'.$sw.'" value="'.$code.'" > </div>
+            
+        <div class="input-group mb-1 input-group-sm col-sm-12"> 
+            <div class="input-group-prepend"> <span class="input-group-text">Name</span></div>
+                <input type="text" class="form-control " id="name'.$sw.'" value="'.$nm.'" > </div>                
+                
+        <div class="input-group mb-1 input-group-sm col-sm-12">                 
+            <input type="hidden"  id="nid'.$sw.'" value= '.$nid.' >     
+            <input type="button" class="form-control " value="Add New" onclick="dsave'.$sw.'()" />  
+            
+
+                <script>   
+
+                function dsave'.$sw.'() {
+
+                    var datas=['.$sw.',$("#code'.$sw.'").val(),$("#name'.$sw.'").val(),2,$("#scode'.$sw.'").val(),'.$id.'];
+
+                    $.ajax({url:"'.base_url('102/dashboard/dsave').'"
+                    ,method:"POST"
+                    , data:{datas:datas}
+                    ,success:function(data) {
+                        edit_recx'.$sw.'(dat'.$sw.');
+                    } }); 
+                }
+
+                </script>
+
+            </div>
+            ';
+    }
+    
+    echo '
+            
+    </div>
+</div>
+<table id="lstx'.$sw.'" class="display nowrap" style="width:100%" > 
+<thead> 
+<tr>
+<th colspan=2>'.$code.'</th>
+<th>'.$nm.'</th>
+</tr> 
+<tr>'.$th.'</tr> 
+</thead> 
+<tbody>'.$td.'</tbody></table>';
+    
+}  
+
+}
+
+?>

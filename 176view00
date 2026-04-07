@@ -6,6 +6,141 @@
 <link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
 
+<style>
+  /* Make subsidiary entry rows clickable and interactive */
+  #tbl_subs_temp tbody tr.subs-entry-row {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  
+  #tbl_subs_temp tbody tr.subs-entry-row:hover {
+    background-color: #f0f0f0;
+  }
+  
+  #tbl_subs_temp tbody tr.subs-entry-row:active {
+    background-color: #e0e0e0;
+  }
+
+  /* JV entry layout fixes */
+  #form_entry .jv-top {
+    row-gap: 10px;
+  }
+
+  #form_entry .jv-col-left,
+  #form_entry .jv-col-right {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  #form_entry .jv-panels {
+    margin-top: 8px;
+  }
+
+  #form_entry .jv-panel {
+    min-width: 0;
+    margin-bottom: 12px;
+  }
+
+  #form_entry #btnx,
+  #form_entry #details-btns,
+  #form_entry #subs-btns,
+  #form_entry #subsi-btns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 6px;
+  }
+
+  #form_entry #btnx .form-control,
+  #form_entry #details-btns .form-control,
+  #form_entry #subs-btns .form-control,
+  #form_entry #subsi-btns .form-control {
+    width: 100%;
+  }
+
+  #form_entry #subsi-section {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    align-items: start;
+  }
+
+  #form_entry #subsi-section > .mb-1 {
+    grid-column: 1 / -1;
+  }
+
+  #form_entry #subsi-section > .input-group {
+    margin-bottom: 0;
+  }
+
+  #form_entry #subsi-btns {
+    grid-column: 1 / -1;
+  }
+
+  #form_entry #subsi-code,
+  #form_entry #subsi-section .select2-container {
+    width: 100% !important;
+    min-width: 260px;
+  }
+
+  #form_entry #subs .select2-container {
+    width: 100% !important;
+  }
+
+  #form_entry .dataTables_wrapper,
+  #form_entry div.dt-container {
+    width: 100% !important;
+  }
+
+  #form_entry .dataTables_scrollBody {
+    overflow-x: auto;
+  }
+
+  #list .dataTables_scrollBody {
+    overflow-x: auto;
+  }
+
+  @media (max-width: 1199px) {
+    #form_entry .jv-panels {
+      flex-direction: column;
+    }
+
+    #form_entry .jv-panels > .jv-panel {
+      max-width: 100%;
+      flex: 0 0 100%;
+    }
+  }
+
+  @media (max-width: 991px) {
+    #form_entry #subsi-section {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  #form_entry .jv-section {
+    border: 2px solid #000;
+    padding: 8px;
+    border-radius: 2px;
+  }
+
+  #form_entry table.jv-table {
+    border: 2px solid #1e73be;
+    border-collapse: collapse;
+  }
+
+  #form_entry table.jv-table thead th,
+  #form_entry table.jv-table tbody td {
+    border-bottom: 1px solid #b5b5b5;
+  }
+
+  #form_entry .jv-detail-row {
+    cursor: pointer;
+  }
+
+  #form_entry .jv-detail-row.jv-selected-row {
+    background-color: #e6f1ff;
+  }
+</style>
+
 <?php  
 $title=$this->db->where('id',176)->get('scm_settings')->row('caption');    
 
@@ -51,14 +186,6 @@ $title=$this->db->where('id',176)->get('scm_settings')->row('caption');
                             <div class="input-group mb-1 input-group-sm">
                                 <div class="input-group-prepend"><span class="input-group-text">Particulars</span></div>
                                 <textarea class="form-control" id="add_particulars" rows="4" required></textarea>
-                            </div>
-                            <div class="input-group mb-1 input-group-sm">
-                                <div class="input-group-prepend"><span class="input-group-text">DR Amount</span></div>
-                                <input type="number" class="form-control" id="add_am_dr" step="0.01" required>
-                            </div>
-                            <div class="input-group mb-1 input-group-sm">
-                                <div class="input-group-prepend"><span class="input-group-text">CR Amount</span></div>
-                                <input type="number" class="form-control" id="add_am_cr" step="0.01" required>
                             </div>
                             <div class="input-group mb-1 input-group-sm">
                                 <div class="input-group-prepend"><span class="input-group-text">Voucher No</span></div>
@@ -141,8 +268,6 @@ function showAddForm() {
 
 function resetAddForm() {
     $("#add_particulars").val("");
-    $("#add_am_dr").val("");
-    $("#add_am_cr").val("");
     $("#add_no_ref").val("");
     $("#add_dt_refdoc").val("");
     $("#add_no_refdoc").val("");
@@ -156,15 +281,15 @@ function closeAddForm() {
 
 function finalizeAdd() {
     var particulars = $("#add_particulars").val().trim();
-    var amDr = $("#add_am_dr").val().trim();
-    var amCr = $("#add_am_cr").val().trim();
     var noRef = $("#add_no_ref").val().trim();
     var dtRef = $("#add_dt_refdoc").val().trim();
     var noRefDoc = $("#add_no_refdoc").val().trim();
 
-    if(particulars === "" || amDr === "" || amCr === "" || noRef === "" || dtRef === "" || noRefDoc === "" 
-        || isNaN(parseFloat(amDr)) || isNaN(parseFloat(amCr))){
+    if(particulars === "" || noRef === "" || dtRef === "" || noRefDoc === ""){
         alert("complete all the fields first");
+        return;
+    }
+    if(!confirm("are you sure to finalize?")){
         return;
     }
     $.ajax({
@@ -173,8 +298,6 @@ function finalizeAdd() {
         method:"POST",
         data:{
             particulars: particulars,
-            am_dr: amDr,
-            am_cr: amCr,
             no_ref: noRef,
             dt_refdoc: dtRef,
             no_refdoc: noRefDoc
@@ -289,5 +412,690 @@ function save() {
         });             
     } 
 }  
+
+var jvTempRows = [];
+var jvDeleteMode = false;
+var jvCurrentHdrId = 0;
+var subsiRows = [];
+var subsiEditingIndex = -1;  // Track which row is being edited
+var jvEditingSeq = 0;
+
+function closeRecordEntry(){
+    $("#form_entry").empty();
+    $("#xsearch").show();
+    $("#forms").hide();
+    $("#add_form").hide();
+    list();
+}
+
+function showSubsidiarySection(){
+    jvClearDetailEdit();
+    jvSyncHeaderId();
+    if(typeof info === "function"){
+        info(2);
+    }
+    var el = document.getElementById("subs");
+    if(el){
+        el.scrollIntoView({behavior:"smooth", block:"start"});
+    }
+}
+
+function jvSyncHeaderId(){
+    var idVal = 0;
+    var $id = $("#id");
+    if($id.length){
+        idVal = parseInt($id.last().val(),10) || 0;
+    }
+    if($("#subs-hdr-id").length){
+        idVal = parseInt($("#subs-hsdr-id").val(),10) || idVal;
+    }
+    if(jvCurrentHdrId !== idVal){
+        jvTempRows = [];
+        jvDeleteMode = false;
+        subsiRows = [];
+        jvEditingSeq = 0;
+        subsiEditingIndex = -1;
+        $("#tbl_listd1 tbody tr").removeClass("jv-selected-row");
+        jvCurrentHdrId = idVal;
+        if(typeof jvRenderSubsiRows === "function"){ jvRenderSubsiRows(); }
+    }
+}
+
+function jvEsc(val){
+    return String(val).replace(/[&<>"']/g, function(ch){
+        switch(ch){
+            case "&": return "&amp;";
+            case "<": return "&lt;";
+            case ">": return "&gt;";
+            case "\"": return "&quot;";
+            case "'": return "&#39;";
+            default: return ch;
+        }
+    });
+}
+
+function jvFormatNum(val){
+    var num = parseFloat(val);
+    if(isNaN(num)){ num = 0; }
+    return num.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function jvGetSelectedText($el){
+    if(!$el || !$el.length){ return ""; }
+    try {
+        var data = $el.select2("data");
+        if(data && data.length){ return data[0].text || ""; }
+    } catch(e){}
+    return $el.find("option:selected").text() || "";
+}
+
+function jvSetSelect2Value($el, value, text){
+    if(!$el || !$el.length){ return; }
+    var valStr = (value === null || value === undefined) ? "0" : String(value);
+    if(valStr === "" || valStr === "0"){
+        $el.val(0).trigger("change");
+        return;
+    }
+    if($el.find("option[value='" + valStr + "']").length === 0){
+        var label = text || valStr;
+        var opt = new Option(label, valStr, true, true);
+        $el.append(opt);
+    }
+    $el.val(valStr).trigger("change");
+}
+
+function jvClearDetailEdit(){
+    jvEditingSeq = 0;
+    $("#tbl_listd1 tbody tr").removeClass("jv-selected-row");
+    subsiUpdateButtons();
+}
+
+function jvEditDetailRow(rowEl){
+    var $tr = $(rowEl);
+    if(!$tr.length){ return; }
+    var seq = parseInt($tr.data("seq"),10) || 0;
+    if(!seq){ return; }
+
+    if(!$("#sub-branch").length){
+        if(typeof info === "function"){ info(2); }
+        setTimeout(function(){ jvEditDetailRow(rowEl); }, 300);
+        return;
+    }
+
+    jvSyncHeaderId();
+    jvEditingSeq = seq;
+    subsiEditingIndex = -1;
+    jvDeleteMode = false;
+
+    var branchId = parseInt($tr.data("branch"),10) || 0;
+    var coaId = parseInt($tr.data("coa"),10) || 0;
+    var particulars = ($tr.data("particulars") || "").toString();
+    var amount = parseFloat($tr.data("amount"));
+    if(isNaN(amount)){ amount = 0; }
+    var branchText = ($tr.data("branch-text") || "").toString();
+    var coaText = ($tr.data("coa-text") || "").toString();
+
+    jvSetSelect2Value($("#sub-branch"), branchId, branchText);
+    jvSetSelect2Value($("#sub-coa"), coaId, coaText);
+
+    if($("#subsi-code").length){ $("#subsi-code").val(0).trigger("change"); }
+    if($("#subsi-remarks").length){ $("#subsi-remarks").val(particulars); }
+    if($("#subsi-amount").length){ $("#subsi-amount").val(amount); }
+
+    subsiManualClosed = false;
+    if(typeof subsiToggleSection === "function"){ subsiToggleSection(true); }
+    $("#subsi-section").show();
+
+    $("#tbl_listd1 tbody tr").removeClass("jv-selected-row");
+    $tr.addClass("jv-selected-row");
+
+    subsiUpdateButtons();
+
+    var el = document.getElementById("subsi-section");
+    if(el){ el.scrollIntoView({ behavior: "smooth", block: "start" }); }
+}
+
+function jvParseSubsiValue(raw){
+    var val = (raw || "").toString().trim();
+    if(val === "" || val === "0"){ return { type: "", id: 0, value: "0" }; }
+    var m = val.match(/^([a-z]+)[:\-](\d+)$/i);
+    if(m){
+        var type = m[1].toLowerCase();
+        var id = parseInt(m[2],10) || 0;
+        if(type === "emp" || type === "e"){ type = "emp"; }
+        else { type = "sub"; }
+        return { type: type, id: id, value: val };
+    }
+    var idNum = parseInt(val,10) || 0;
+    return { type: "sub", id: idNum, value: val };
+}
+
+function jvLockSubsAmount(){
+    var $amt = $("#sub-amount");
+    if($amt.length){ $amt.prop("disabled", true); }
+}
+
+function jvClearSubsFields(){
+    if($("#sub-branch").length){ $("#sub-branch").val(0).trigger("change"); }
+    if($("#sub-coa").length){ $("#sub-coa").val(0).trigger("change"); }
+    if($("#subsi-code").length){ $("#subsi-code").val(0).trigger("change"); }
+    if($("#subsi-remarks").length){ $("#subsi-remarks").val(""); }
+    if($("#subsi-amount").length){ $("#subsi-amount").val("0"); }
+    if(typeof subsiToggleSection === "function"){ subsiToggleSection(); }
+    jvLockSubsAmount();
+    subsiEditingIndex = -1;
+    jvClearDetailEdit();
+    subsiResetButtons();
+}
+
+function jvAddTempRow(){
+    jvSyncHeaderId();
+    if(!$("#sub-particulars").length || !$("#sub-amount").length){ return; }
+    var branchId = parseInt($("#sub-branch").val(),10) || 0;
+    var coaId = parseInt($("#sub-coa").val(),10) || 0;
+    var particulars = ($("#sub-particulars").val() || "").trim();
+    var amt = parseFloat($("#sub-amount").val());
+
+    if(!branchId || !coaId || particulars === "" || isNaN(amt) || amt === 0){
+        alert("complete all the fields first");
+        return;
+    }
+
+    if(jvDeleteMode){ jvDeleteMode = false; }
+
+    jvTempRows.push({
+        branch_id: branchId,
+        branch_text: jvGetSelectedText($("#sub-branch")),
+        coa_id: coaId,
+        coa_text: jvGetSelectedText($("#sub-coa")),
+        particulars: particulars,
+        amount: amt
+    });
+
+    jvClearSubsFields();
+    jvRenderTempRows();
+}
+
+function jvToggleDeleteMode(){
+    jvSyncHeaderId();
+    if(!jvDeleteMode){
+        jvDeleteMode = true;
+        jvRenderTempRows();
+        return;
+    }
+
+    var idxs = [];
+    $("#subs-temp-body input.subs-del:checked").each(function(){
+        var idx = parseInt($(this).attr("data-idx"),10);
+        if(!isNaN(idx)){ idxs.push(idx); }
+    });
+
+    if(idxs.length === 0){
+        jvDeleteMode = false;
+        jvRenderTempRows();
+        return;
+    }
+
+    jvTempRows = jvTempRows.filter(function(row, idx){
+        return idxs.indexOf(idx) === -1;
+    });
+
+    jvDeleteMode = false;
+    jvRenderTempRows();
+}
+
+function jvCalcBalance(){
+    var total = 0;
+    for(var i=0; i<jvTempRows.length; i++){
+        total += parseFloat(jvTempRows[i].amount) || 0;
+    }
+    return total;
+}
+
+function jvRenderTempRows(){
+    jvSyncHeaderId();
+    var $tbody = $("#subs-temp-body");
+    if(!$tbody.length){ return; }
+
+    $tbody.empty();
+    var balance = 0;
+
+    for(var i=0; i<jvTempRows.length; i++){
+        var row = jvTempRows[i];
+        var amt = parseFloat(row.amount) || 0;
+        balance += amt;
+
+        var idxLabel = (i+1);
+        if(jvDeleteMode){
+            idxLabel = '<input type="checkbox" class="subs-del" data-idx="'+i+'"> ' + (i+1);
+        }
+
+        var tr = '<tr class="subs-entry-row" data-idx="'+i+'" style="cursor: pointer;" title="Click to edit">'
+            + '<td>'+idxLabel+'</td>'
+            + '<td>'+jvEsc(row.branch_text)+'</td>'
+            + '<td>'+jvEsc(row.coa_text)+'</td>'
+            + '<td>'+jvEsc(row.particulars)+'</td>'
+            + '<td>'+jvFormatNum(amt)+'</td>'
+            + '</tr>';
+        $tbody.append(tr);
+    }
+
+    $("#subs-balance").text(jvFormatNum(balance));
+    var canSave = true;
+    var $saveBtn = $("#subs-save");
+    if($saveBtn.length && String($saveBtn.data("readonly")) !== "1"){
+        $saveBtn.prop("disabled", !canSave);
+    }
+    var $delBtn = $("#subs-delete");
+    if($delBtn.length){
+        $delBtn.val(jvDeleteMode ? "Delete Selected" : "Delete");
+    }
+
+    // Attach click handlers to rows
+    $("#subs-temp-body").off("click", ".subs-entry-row").on("click", ".subs-entry-row", function(){
+        var idx = parseInt($(this).data("idx"), 10);
+        if(!isNaN(idx) && idx >= 0 && idx < jvTempRows.length){
+            subsiEditRow(idx);
+        }
+    });
+}
+
+function jvRenderSubsiRows(){
+    var $tbody = $("#subsi-list-body");
+    if(!$tbody.length){ return; }
+
+    $tbody.empty();
+    for(var s=0; s<subsiRows.length; s++){
+        var srow = subsiRows[s] || {};
+        var samt = parseFloat(srow.amount) || 0;
+        var tr2 = '<tr>'
+            + '<td>'+(s+1)+'</td>'
+            + '<td>'+jvEsc(srow.branch || "")+'</td>'
+            + '<td>'+jvEsc(srow.coa || "")+'</td>'
+            + '<td>'+jvEsc(srow.particulars || "")+'</td>'
+            + '<td>'+jvFormatNum(samt)+'</td>'
+            + '</tr>';
+        $tbody.append(tr2);
+    }
+}
+
+function jvLoadSubsiRows(){
+    jvSyncHeaderId();
+    var hdrId = parseInt($("#subs-hdr-id").val(),10) || parseInt($("#id").last().val(),10) || 0;
+    if(!hdrId){
+        subsiRows = [];
+        jvRenderTempRows();
+        jvRenderSubsiRows();
+        return;
+    }
+    var coaId = parseInt($("#sub-coa").val(),10) || 0;
+
+    $.ajax({
+        url:"<?=base_url('176/dashboard/subsi_list')?>",
+        dataType:"json",
+        method:"POST",
+        data:{ id: hdrId, coa: coaId },
+        success:function(resp){
+            if(resp && resp.ok){
+                subsiRows = resp.rows || [];
+                jvRenderTempRows();
+                jvRenderSubsiRows();
+                var total = parseFloat(resp.total);
+                if(isNaN(total)){ total = 0; }
+                if($("#sub-amount").length){
+                    if(coaId > 0){
+                        $("#sub-amount").val(total.toFixed(2));
+                    } else {
+                        $("#sub-amount").val("0");
+                    }
+                }
+                jvLockSubsAmount();
+            } else {
+                subsiRows = [];
+                jvRenderTempRows();
+                jvRenderSubsiRows();
+                jvLockSubsAmount();
+            }
+        }
+    });
+}
+
+function jvSaveTempRows(){
+    jvSyncHeaderId();
+    if(jvTempRows.length === 0){
+        alert("no entries to save");
+        return;
+    }
+    var balance = jvCalcBalance();
+    if(Math.abs(balance) > 0.0001){
+        alert("balance must be 0");
+        return;
+    }
+    if(!confirm("are you sure to save entries?")){
+        return;
+    }
+
+    var hdrId = parseInt($("#subs-hdr-id").val(),10) || parseInt($("#id").last().val(),10) || 0;
+    if(!hdrId){
+        alert("record not found");
+        return;
+    }
+
+    $.ajax({
+        url:"<?=base_url('176/dashboard/save_batch')?>",
+        dataType:"json",
+        method:"POST",
+        data:{ id: hdrId, rows: JSON.stringify(jvTempRows) },
+        success:function(resp){
+            if(resp && resp.ok){
+                jvTempRows = [];
+                jvDeleteMode = false;
+                jvRenderTempRows();
+                if(typeof info === "function"){ info(1); }
+                alert("record saved...");
+            } else {
+                alert((resp && resp.msg) ? resp.msg : "unable to save");
+            }
+        }
+    });
+}
+
+var subsiManualClosed = false;
+
+function subsiToggleSection(forceOpen){
+    var $section = $("#subsi-section");
+    if(!$section.length){ return; }
+    var branchOk = parseInt($("#sub-branch").val(),10) > 0;
+    var coaOk = parseInt($("#sub-coa").val(),10) > 0;
+    var shouldShow = branchOk && coaOk;
+    if(!shouldShow){
+        subsiManualClosed = false;
+        $section.hide();
+        return;
+    }
+    if(subsiManualClosed && !forceOpen){ return; }
+    $section.show();
+}
+
+function initSubsiSection(){
+    var $sel = $("#subsi-code");
+    if(!$sel.length){ return; }
+    subsiManualClosed = false;
+
+    $sel.select2({ajax: {   
+        url: "<?=base_url('176/dashboard/mf/subsi')?>",
+        type: "post", dataType: "json",  delay: 250,  data: function (params) { return { searchTerm: params.term  };  },
+        processResults: function (response) {  return { results: response  };  },  cache: true   }});
+
+    $("#sub-branch").on("change", function(){
+        subsiManualClosed = false;
+        subsiToggleSection(false);
+    });
+    $("#sub-coa").on("change", function(){
+        subsiManualClosed = false;
+        subsiToggleSection(false);
+    });
+
+    subsiToggleSection(false);
+    jvLockSubsAmount();
+}
+
+function subsiClose(){
+    $("#subsi-section").hide();
+    subsiManualClosed = true;
+    subsiEditingIndex = -1;
+    jvClearDetailEdit();
+    subsiResetForm();
+    subsiResetButtons();
+}
+
+function subsiResetForm(){
+    // Clear all subsidiary fields
+    if($("#subsi-code").length){
+        $("#subsi-code").val(0).trigger("change");
+    }
+    if($("#subsi-remarks").length){
+        $("#subsi-remarks").val("");
+    }
+    if($("#subsi-amount").length){
+        $("#subsi-amount").val("0");
+    }
+}
+
+function subsiEditRow(idx){
+    if(idx < 0 || idx >= jvTempRows.length){ return; }
+    jvEditingSeq = 0;
+    $("#tbl_listd1 tbody tr").removeClass("jv-selected-row");
+
+    var row = jvTempRows[idx];
+    subsiEditingIndex = idx;
+    
+    // Clear form first
+    subsiResetForm();
+    
+    // Populate form fields with row data
+    $("#sub-branch").val(row.branch_id).trigger("change");
+    $("#sub-coa").val(row.coa_id).trigger("change");
+    
+    // Populate remarks - prefer the stored remarks field, fallback to parsing particulars
+    var remarks = row.remarks || "";
+    if(!remarks && row.particulars){
+        var particulars = row.particulars || "";
+        var subsiText = row.subsi_text || "";
+        remarks = particulars;
+        if(subsiText && particulars.indexOf(subsiText) === 0){
+            remarks = particulars.substring(subsiText.length).trim();
+        }
+    }
+    
+    $("#subsi-remarks").val(remarks);
+    $("#subsi-amount").val(row.amount || 0);
+    
+    // Show the subsidiary section and update buttons
+    $("#subsi-section").show();
+    subsiUpdateButtons();
+    
+    // Restore subsidiary selection
+    var subsiCodeField = $("#subsi-code");
+    var subsiValue = row.subsi_value || "";
+    if(!subsiValue && row.subsi_id){
+        var sType = (row.subsi_type || "").toLowerCase();
+        subsiValue = (sType === "emp" || sType === "e") ? ("emp:" + row.subsi_id) : ("sub:" + row.subsi_id);
+    }
+    if(subsiCodeField.length && subsiValue && row.subsi_text){
+        setTimeout(function(){
+            try {
+                subsiCodeField.find("option[value='" + subsiValue + "']").remove();
+                var newOption = new Option(row.subsi_text, subsiValue, true, true);
+                subsiCodeField.append(newOption).trigger("change");
+            } catch(e){
+                console.error("Error restoring subsidiary:", e);
+            }
+        }, 100);
+    } else if(subsiCodeField.length){
+        subsiCodeField.val(0).trigger("change");
+    }
+    
+    // Scroll to form
+    var el = document.getElementById("subsi-section");
+    if(el){ el.scrollIntoView({ behavior: "smooth", block: "start" }); }
+}
+
+function subsiUpdateButtons(){
+    var isEditing = (subsiEditingIndex >= 0) || (jvEditingSeq > 0);
+    var $saveBtn = $("#subsi-save");
+    var $closeBtn = $("#subsi-close");
+    var $deleteBtn = $("#subsi-delete");
+    
+    if($saveBtn.length){
+        $saveBtn.val(isEditing ? "Update" : "Save");
+    }
+    if($closeBtn.length){
+        $closeBtn.val(isEditing ? "Cancel" : "Close");
+    }
+    
+    // Show delete button only when editing
+    if($deleteBtn.length){
+        $deleteBtn.css("display", isEditing ? "inline-block" : "none");
+    }
+}
+
+function subsiResetButtons(){
+    var $saveBtn = $("#subsi-save");
+    var $deleteBtn = $("#subsi-delete");
+    var $closeBtn = $("#subsi-close");
+    
+    if($saveBtn.length){
+        $saveBtn.val("Save");
+    }
+    if($deleteBtn.length){
+        $deleteBtn.css("display", "none");
+    }
+    if($closeBtn.length){
+        $closeBtn.val("Close");
+    }
+}
+
+function subsiDeleteRow(){
+    if(jvEditingSeq > 0){
+        var hdrId = parseInt($("#subs-hdr-id").val(),10) || parseInt($("#id").last().val(),10) || 0;
+        if(!hdrId){
+            alert("record not found");
+            return;
+        }
+        if(!confirm("are you sure you want to delete this record?")){
+            return;
+        }
+        $.ajax({
+            url:"<?=base_url('176/dashboard/ddelrec_batch')?>",
+            dataType:"json",
+            method:"POST",
+            data:{ id: hdrId, seqs: JSON.stringify([jvEditingSeq]) },
+            success:function(resp){
+                if(resp && resp.ok){
+                    alert("record deleted...");
+                    jvEditingSeq = 0;
+                    subsiResetForm();
+                    subsiResetButtons();
+                    $("#tbl_listd1 tbody tr").removeClass("jv-selected-row");
+                    if(typeof info === "function"){ info(1); }
+                } else {
+                    alert((resp && resp.msg) ? resp.msg : "delete failed");
+                }
+            }
+        });
+        return;
+    }
+
+    if(subsiEditingIndex < 0 || subsiEditingIndex >= jvTempRows.length){
+        alert("No row selected for deletion");
+        return;
+    }
+    
+    if(!confirm("Are you sure you want to delete this record?")){
+        return;
+    }
+    
+    jvTempRows.splice(subsiEditingIndex, 1);
+    subsiEditingIndex = -1;
+    
+    jvRenderTempRows();
+    subsiClose();
+}
+
+function subsiSave(){
+    var hdrId = parseInt($("#subs-hdr-id").val(),10) || parseInt($("#id").last().val(),10) || 0;
+    var branchId = parseInt($("#sub-branch").val(),10) || 0;
+    var coaId = parseInt($("#sub-coa").val(),10) || 0;
+    var subsiValue = $("#subsi-code").val();
+    var subsiInfo = jvParseSubsiValue(subsiValue);
+    var subsiId = subsiInfo.id || 0;
+    var remarks = ($("#subsi-remarks").val() || "").trim();
+    remarks = remarks.toUpperCase();
+    $("#subsi-remarks").val(remarks);
+    var amt = parseFloat($("#subsi-amount").val());
+
+    if(!hdrId){
+        alert("record not found");
+        return;
+    }
+
+    var subsiText = jvGetSelectedText($("#subsi-code")).trim();
+    if(subsiText && (subsiText.toLowerCase() === "select subsi" || subsiText.toLowerCase() === "select subsi/employee")){
+        subsiText = "";
+    }
+    var particulars = (subsiText + " " + remarks).trim();
+    if(particulars === ""){ particulars = remarks; }
+
+    if(jvEditingSeq > 0){
+        if(!branchId || !coaId || remarks === "" || isNaN(amt) || amt === 0){
+            alert("complete all the fields first");
+            return;
+        }
+        $.ajax({
+            url:"<?=base_url('176/dashboard/update_detail')?>",
+            dataType:"json",
+            method:"POST",
+            data:{
+                id: hdrId,
+                seq: jvEditingSeq,
+                branch: branchId,
+                coa: coaId,
+                particulars: particulars,
+                amount: amt
+            },
+            success:function(resp){
+                if(resp && resp.ok){
+                    alert("record updated...");
+                    jvEditingSeq = 0;
+                    // keep remarks displayed after update
+                    $("#subsi-remarks").val(remarks);
+                    $("#subsi-amount").val(amt);
+                    subsiUpdateButtons();
+                    $("#tbl_listd1 tbody tr").removeClass("jv-selected-row");
+                    if(typeof info === "function"){ info(1); }
+                } else {
+                    alert((resp && resp.msg) ? resp.msg : "update failed");
+                }
+            }
+        });
+        return;
+    }
+
+    if(!branchId || !coaId || !subsiId || remarks === "" || isNaN(amt) || amt === 0){
+        alert("complete all the fields first");
+        return;
+    }
+
+    if(jvDeleteMode){ jvDeleteMode = false; }
+
+    var newRow = {
+        branch_id: branchId,
+        branch_text: jvGetSelectedText($("#sub-branch")),
+        coa_id: coaId,
+        coa_text: jvGetSelectedText($("#sub-coa")),
+        subsi_id: subsiId,
+        subsi_type: subsiInfo.type || "sub",
+        subsi_value: subsiInfo.value || "",
+        subsi_text: subsiText,
+        remarks: remarks,
+        particulars: particulars,
+        amount: amt
+    };
+
+    // Check if we're editing an existing row
+    if(subsiEditingIndex >= 0 && subsiEditingIndex < jvTempRows.length){
+        jvTempRows[subsiEditingIndex] = newRow;
+        subsiEditingIndex = -1;  // Reset edit mode
+    } else {
+        jvTempRows.push(newRow);
+    }
+
+    jvRenderTempRows();
+    // keep remark text after saving, do not clear to let user continue editing
+    $("#subsi-remarks").val(remarks);
+    $("#subsi-amount").val(amt);
+    subsiUpdateButtons();
+}
 
 </script>         

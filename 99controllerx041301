@@ -1117,15 +1117,30 @@ function liq_tab() {
 }
 
 function app() { 
-$id  = $this->input->post('id');
-$sw=$_POST['sw'];    
-if($sw==2){
-    $dat['unapprove_by']=$_SESSION['user_id']; 
-}
-    else { $dat['approved_by']=$_SESSION['user_id']; }
+    $id = intval($this->input->post('id'));
+    $sw = intval($this->input->post('sw'));
+    $dat = array();
 
-$this->db->where('id', $id)->update('ac_rfph', $dat);
-    echo json_encode($dat);
+    if($id <= 0){
+        echo json_encode(array('sw'=>0, 'msg'=>'Invalid record'));
+        return;
+    }
+
+    if($sw == 2){
+        $dat['approved_by']  = 0;
+        $dat['unapprove_by'] = $_SESSION['user_id'];
+    } else {
+        $dat['approved_by']  = $_SESSION['user_id'];
+        $dat['unapprove_by'] = 0;
+    }
+
+    $this->db->where('id', $id)->update('ac_rfph', $dat);
+
+    echo json_encode(array(
+        'sw'          => 1,
+        'approved_by' => $dat['approved_by'],
+        'unapprove_by'=> $dat['unapprove_by']
+    ));
 } 
 
 function print($id) {

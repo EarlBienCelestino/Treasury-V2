@@ -1,0 +1,432 @@
+
+
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css">
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
+
+<style>
+.txn-card,
+.pr-add-card {
+    background: #f8f9fa;
+    border: 1px solid #d7dce1;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.txn-card .row > div,
+.pr-add-card .row > div {
+    margin-bottom: 8px;
+}
+
+.txn-inline-group,
+.pr-inline-group {
+    margin-bottom: 0;
+    flex-wrap: nowrap;
+}
+
+.txn-inline-group .input-group-text,
+.pr-inline-group .input-group-text {
+    min-width: 108px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #495057;
+    background: #e9ecef;
+}
+
+.txn-inline-group .form-control,
+.txn-inline-group textarea.form-control {
+    min-height: 31px;
+}
+
+.txn-inline-group textarea.form-control {
+    resize: vertical;
+}
+
+.pr-inline-group .form-control[readonly],
+.pr-inline-group .form-control[disabled] {
+    background: #ffffff;
+    color: #495057;
+}
+
+.txn-inline-group .form-control[readonly],
+.txn-inline-group .form-control[disabled] {
+    background: #ffffff;
+    color: #495057;
+}
+
+.txn-inline-group .select2-container,
+.pr-inline-group .select2-container {
+    flex: 1 1 auto;
+    width: 1% !important;
+}
+
+.txn-inline-group .select2-selection,
+.pr-inline-group .select2-selection {
+    min-height: 31px;
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+}
+
+.txn-inline-group .select2-container .select2-selection--single,
+.txn-inline-group .select2-container .select2-selection--multiple {
+    min-height: 31px;
+}
+
+.txn-inline-group .select2-container .select2-selection__rendered {
+    line-height: 29px !important;
+}
+
+.txn-inline-group .select2-container .select2-selection__arrow {
+    height: 29px !important;
+}
+
+.txn-inline-group .select2-container.select2-invalid .select2-selection,
+.pr-inline-group .select2-container.select2-invalid .select2-selection,
+.pr-add-card .is-invalid {
+    border-color: #dc3545 !important;
+    box-shadow: none !important;
+}
+
+.txn-type-box,
+.pr-type-box {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 31px;
+    padding: 6px 10px;
+    background: #ffffff;
+    border: 1px solid #ced4da;
+    border-radius: .2rem;
+    flex-wrap: wrap;
+}
+
+.txn-type-box label,
+.pr-type-box label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.txn-inline-box,
+.pr-inline-box {
+    flex: 1 1 auto;
+    width: 1%;
+    min-width: 0;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+.txn-help-text,
+.pr-remarks-preview {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: #6c757d;
+}
+
+#pr_account_wrap {
+    display: none;
+}
+
+.txn-req,
+.pr-req {
+    color: #dc3545;
+}
+
+.txn-action-row .form-control,
+.txn-action-group .form-control,
+.pr-action-row .form-control {
+    min-width: 0;
+}
+
+.pr-action-group .form-control {
+    min-width: 0;
+}
+
+.dashboard423-form-note {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.dashboard423-form-note .text-muted {
+    margin-bottom: 0;
+}
+
+.dashboard423-inline-link {
+    padding: 0;
+    font-size: 12px;
+    line-height: 1.2;
+    vertical-align: baseline;
+}
+
+.dashboard423-action-row > div,
+.pr-action-row > div {
+    margin-bottom: 8px;
+}
+
+.dashboard423-action-row .form-control,
+.pr-action-row .form-control {
+    width: 100%;
+}
+
+.dashboard423-action-row-right,
+.dashboard423-detail-action-row {
+    justify-content: flex-end;
+}
+
+.dashboard423-action-row-right > div {
+    flex: 0 0 110px;
+    max-width: 110px;
+}
+
+.dashboard423-detail-action-row > div {
+    flex: 0 0 108px;
+    max-width: 108px;
+}
+
+.dashboard423-remarks-textarea {
+    min-height: 58px !important;
+}
+
+.dashboard423-checklist-form-card .row > div {
+    margin-bottom: 8px;
+}
+
+.dashboard423-checklist-form-card .txn-inline-group .input-group-text {
+    min-width: 92px;
+}
+
+.deposit-add-card,
+.deposit-detail-card,
+.deposit-check-card,
+.outcheck-add-card,
+.outcheck-detail-card,
+.outcheck-check-card {
+    background: #f8f9fa;
+    border: 1px solid #d7dce1;
+}
+
+.deposit-add-card label,
+.deposit-detail-card label,
+.deposit-check-card label,
+.outcheck-add-card label,
+.outcheck-detail-card label,
+.outcheck-check-card label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #495057;
+}
+
+.deposit-add-card .form-control[readonly],
+.deposit-detail-card .form-control[readonly],
+.outcheck-detail-card .form-control[readonly] {
+    background: #ffffff;
+    color: #495057;
+}
+
+.deposit-type-box {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 31px;
+    padding: 6px 10px;
+    background: #ffffff;
+    border: 1px solid #ced4da;
+    border-radius: .2rem;
+    flex-wrap: wrap;
+}
+
+.deposit-type-box label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.outcheck-type-box {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 31px;
+    padding: 6px 10px;
+    background: #ffffff;
+    border: 1px solid #ced4da;
+    border-radius: .2rem;
+    flex-wrap: wrap;
+}
+
+.outcheck-type-box label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.deposit-add-card .select2-container,
+.deposit-detail-card .select2-container,
+.deposit-check-card .select2-container,
+.outcheck-add-card .select2-container,
+.outcheck-detail-card .select2-container,
+.outcheck-check-card .select2-container {
+    width: 100% !important;
+}
+
+.deposit-action-group .form-control {
+    min-width: 0;
+}
+
+.outcheck-action-group .form-control {
+    min-width: 0;
+}
+
+.legacy-check-card {
+    background: #f8f9fa;
+    border: 1px solid #d7dce1;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.legacy-check-toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.legacy-check-title {
+    font-weight: 700;
+    color: #22313f;
+}
+
+.legacy-check-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.legacy-check-grid > div {
+    margin-bottom: 10px;
+}
+
+.legacy-check-value[readonly] {
+    background: #ffffff;
+    color: #495057;
+}
+
+.legacy-check-card .select2-container {
+    width: 100% !important;
+}
+
+.legacy-check-card .txn-inline-group .input-group-text {
+    min-width: 92px;
+}
+
+.legacy-check-detail-table thead th {
+    white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+    .txn-inline-group .input-group-text,
+    .pr-inline-group .input-group-text {
+        min-width: 92px;
+    }
+
+    .txn-card .row > div,
+    .deposit-add-card .row > div,
+    .deposit-detail-card .row > div,
+    .deposit-check-card .row > div,
+    .outcheck-add-card .row > div,
+    .outcheck-detail-card .row > div,
+    .outcheck-check-card .row > div,
+    .legacy-check-grid > div {
+        margin-bottom: 8px;
+    }
+
+    .dashboard423-action-row-right > div,
+    .dashboard423-detail-action-row > div {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+
+    .dashboard423-form-note {
+        align-items: flex-start;
+    }
+}
+</style>
+
+<?php  
+$title=$this->db->where('id',423)->get('scm_settings')->row('caption');    
+$mod=array(
+    'Provisional Receipt',
+    'Deposit',
+    'Out-checks',
+    'Bounced',
+    'Nullified',
+    'Pull-outs',
+    'Cleared',
+    'Check Register'
+);
+
+$opt=''; for($a=0;$a<count($mod);$a++){ $opt.='<option value='.$a.'>'.$mod[$a].'</option>'; }
+
+?>
+
+<title><?=$title?></title>
+<br />
+
+
+<div class="container-fluid">
+    
+    <div class="row">        
+        <div class="col-sm-3">                                                      
+            <div class="input-group mb-1 input-group-sm "> 
+                <select class="form-control " id="qs" onchange="qs()" ><?=$opt?></select> </div>                 
+        </div> 
+     </div> 
+ 
+    <div id="list"  ></div>
+    <div id="form_entry"  ></div>
+    
+</div> 
+
+<script>  
+qs(); 
+
+window.dashboard423OpenPrint = function(sw, id) {
+    sw = parseInt(sw || 0, 10);
+    id = parseInt(id || 0, 10);
+
+    if(!(id > 0)) {
+        alert("Please select a valid transaction to print.");
+        return;
+    }
+
+    window.open("<?=site_url('423/dashboard/print_view')?>/" + sw + "/" + id, "_blank");
+};
+
+function  qs() {
+    
+    $.ajax({url:"<?=base_url('423/dashboard/list')?>"
+    ,method:"POST",data:{ qs:$("#qs").val() }
+    ,success:function(data) { $("#form_entry").empty(); $("#list").html(data); } }); 
+}   
+
+</script>         

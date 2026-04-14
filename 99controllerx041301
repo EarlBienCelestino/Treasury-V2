@@ -595,21 +595,30 @@ foreach($liq_lines as $line){
     if($liq_h) $total += floatval($liq_h);
 }
 
+$gl_lines = $this->db->where('id', $id)->where('sw', 5)->get('ac_rfpd')->result_array();
+foreach($gl_lines as $line){
+    if(isset($line['trn']) && in_array(intval($line['trn']), array(32,42))) continue;
+    $total += floatval($line['amount']);
+}
+
 $printed_exp_ids = array();
 
-$exp_rows = $this->db
-    ->where('rfp', $id)
-    ->where('fin >', 0)
-    ->where('approved_by >', 0)
-    ->get('dsr_exph')
+$exp_lines = $this->db
+    ->where('id', $id)
+    ->where('sw', 42)
+    ->get('ac_rfpd')
     ->result_array();
 
-foreach($exp_rows as $row){
-    $exp_id = intval($row['id']);
+foreach($exp_lines as $line){
+    $exp_id = intval($line['trn_id']);
     if($exp_id <= 0) continue;
     if(in_array($exp_id, $printed_exp_ids)) continue;
 
-    $total += floatval($row['tamt']);
+    $exp_amt = $this->db->where('id', $exp_id)->get('dsr_exph')->row('tamt');
+    if($exp_amt){
+        $total += floatval($exp_amt);
+    }
+
     $printed_exp_ids[] = $exp_id;
 }
 
@@ -683,7 +692,94 @@ if($sw==1) { $this->db->where('id', $tmp[0])->update('ac_rfph',$dat); }
 echo json_encode($dat);
 
 }  
+function close_save() {
+    $id   = intval($this->input->post('id'));
+    $vals = $this->input->post('vals');
 
+    $uid = $_SESSION['user_id'];
+    $ur  = $this->db->where('userid',$uid)->get('scm_user')->row('User_rights');
+
+    if($id <= 0){
+        echo json_encode(array('sw'=>0, 'msg'=>'Invalid record'));
+        return;
+    }
+
+    $fin = $this->db->where('id',$id)->get('ac_rfph')->row('fin');
+
+    $allow = 0;
+    if($fin==0) { $allow=1; }
+    if($ur==4 or $ur==8) { $allow=1; }
+
+    if($allow==0){
+        echo json_encode(array('sw'=>0, 'msg'=>'Record already finalized'));
+        return;
+    }
+
+    if(!is_array($vals)){
+        echo json_encode(array('sw'=>0, 'msg'=>'No data received'));
+        return;
+    }
+
+    $flds = $this->db->list_fields('ac_rfph');
+    $skip = array('ca','rramt','prramt','brramt','damt','seq','del_seq');
+
+    $dat = array();
+    foreach($vals as $k => $v){
+        if(in_array($k, $skip)) { continue; }
+        if(!in_array($k, $flds)) { continue; }
+
+        if(is_array($v)){
+            $v = implode(',', $v);
+        }
+
+        $dat[$k] = $v;
+    }
+
+    if(count($dat) > 0){
+        $this->db->where('id',$id)->update('ac_rfph', $dat);
+    }
+
+    echo json_encode(array('sw'=>1));
+}
+function close_save_header() {
+    $id = intval($this->input->post('id'));
+    $uid = $_SESSION['user_id'];
+    $ur  = $this->db->where('userid',$uid)->get('scm_user')->row('User_rights');
+    $fin = $this->db->where('id',$id)->get('ac_rfph')->row('fin');
+
+    if($id <= 0){
+        echo json_encode(array('sw'=>0, 'msg'=>'Invalid record'));
+        return;
+    }
+
+    $allow = 0;
+    if($fin==0) { $allow=1; }
+    if($ur==4 or $ur==8) { $allow=1; }
+
+    if($allow==0){
+        echo json_encode(array('sw'=>0, 'msg'=>'Record finalized'));
+        return;
+    }
+
+    $dat = array();
+
+    if(isset($_POST['payee']))         { $dat['payee']         = $_POST['payee']; }
+    if(isset($_POST['dept']))          { $dat['dept']          = $_POST['dept']; }
+    if(isset($_POST['purpose']))       { $dat['purpose']       = $_POST['purpose']; }
+    if(isset($_POST['payment_type']))  { $dat['payment_type']  = $_POST['payment_type']; }
+    if(isset($_POST['time_release']))  { $dat['time_release']  = $_POST['time_release']; }
+    if(isset($_POST['date_needed']))   { $dat['date_needed']   = $_POST['date_needed']; }
+    if(isset($_POST['remarks']))       { $dat['remarks']       = $_POST['remarks']; }
+    if(isset($_POST['checked_by']))    { $dat['checked_by']    = $_POST['checked_by']; }
+    if(isset($_POST['approved_by']))   { $dat['approved_by']   = $_POST['approved_by']; }
+    if(isset($_POST['request_by']))    { $dat['request_by']    = $_POST['request_by']; }
+
+    if(count($dat) > 0){
+        $this->db->where('id',$id)->update('ac_rfph', $dat);
+    }
+
+    echo json_encode(array('sw'=>1));
+}
 function fsavexx() {
 $tmp = $this->input->post('datas');
 $sw = $_POST['sw'];
@@ -799,31 +895,40 @@ echo json_encode(['amount' => number_format($total, 2, '.', '')]);
 function dddel() { 
     
     $tmp = $this->input->post('datas');
-    $sw  = $tmp[0];
-    $id  = $tmp[1];
-    $seq = $tmp[2];   
+    $id  = intval($tmp[1]);
+    $seq = intval($tmp[2]);
 
-    $fin = $this->db->where('id',$id)->get('ac_rfph')->row('fin');       
-    $trn_id = $this->db->where('seq',$seq)->get('ac_rfpd')->row('trn_id');
+    $fin = $this->db->where('id',$id)->get('ac_rfph')->row('fin');
 
-    if($fin==0){    
-        $this->db->where('seq',$seq)->delete('ac_rfpd');
-        $ddat['rfp']=0;
-    $this->db
-        ->where('trn_id',$trn_id)
-        ->where('sw',5)
-        ->where('trn',42)
-        ->delete('ac_rfpd');
-        
-        $this->db->where('id',$trn_id)->update('dsr_exph',$ddat);    
+    $sel = $this->db
+        ->where('seq', $seq)
+        ->where('id', $id)
+        ->where('sw', 42)
+        ->get('ac_rfpd')
+        ->row_array();
+
+    if($fin == 0 && !empty($sel)){    
+        $exp_id = intval($sel['trn_id']);
+
+        $this->db->where('seq', $seq)->delete('ac_rfpd');
+
+        $this->db
+    ->where('id', $id)
+    ->where('sw', 5)
+    ->where('trn', 42)
+    ->delete('ac_rfpd');
+
+$this->db->set('rfp', 0)
+    ->where('id', $exp_id)
+    ->update('dsr_exph');
     }
 
     $total = $this->_calc_total($id);
-    $this->db->where('id',$id)->update('ac_rfph', ['amount' => $total]);
+    $this->db->where('id',$id)->update('ac_rfph', array('amount' => $total));
 
-    echo json_encode([
+    echo json_encode(array(
         'amount' => number_format($total, 2, '.', '')
-    ]);
+    ));
 }
     
 function ddel() { 
@@ -855,30 +960,35 @@ function deldtl() {
 function dsave() { 
 
 $tmp = $this->input->post('datas');           
-//var datas=['.$id.',$("#seq").val(),1,$("#rr").val(),$("#damt").val()];        
     
 $id=$tmp[0];
 $seq=$tmp[1];  
 $sw=$tmp[2];  
-$fin=$this->db->where('id',$id) 
-    ->get('ac_rfph')->row('fin');
+$fin=$this->db->where('id',$id)->get('ac_rfph')->row('fin');
 
 $dat['id']=$tmp[0];
 $dat['trn_type']=$sw;
 $dat['sw']=$sw;
 $dat['trn_id']=$tmp[3];
 $dat['amount']=$tmp[4];  
-$dat['balance']=$tmp[5];  
+$dat['balance']=$tmp[5];
+
+if(isset($_POST['description'])){
+    $dat['description'] = $_POST['description'];
+}
+
+if(intval($sw) == 5 && isset($_POST['coa']) && intval($_POST['coa']) > 0){
+    $dat['trn_id'] = intval($_POST['coa']);
+}
     
 if($fin==0){
     if($seq==0) { $this->db->insert('ac_rfpd',$dat); }   
-
     else { $this->db->where('seq',$seq)->update('ac_rfpd',$dat); } 
 }
 
 echo json_encode($dat);
 
-}      
+}
 
 function get_item($sw){}
 
@@ -1117,30 +1227,15 @@ function liq_tab() {
 }
 
 function app() { 
-    $id = intval($this->input->post('id'));
-    $sw = intval($this->input->post('sw'));
-    $dat = array();
+$id  = $this->input->post('id');
+$sw=$_POST['sw'];    
+if($sw==2){
+    $dat['unapprove_by']=$_SESSION['user_id']; 
+}
+    else { $dat['approved_by']=$_SESSION['user_id']; }
 
-    if($id <= 0){
-        echo json_encode(array('sw'=>0, 'msg'=>'Invalid record'));
-        return;
-    }
-
-    if($sw == 2){
-        $dat['approved_by']  = 0;
-        $dat['unapprove_by'] = $_SESSION['user_id'];
-    } else {
-        $dat['approved_by']  = $_SESSION['user_id'];
-        $dat['unapprove_by'] = 0;
-    }
-
-    $this->db->where('id', $id)->update('ac_rfph', $dat);
-
-    echo json_encode(array(
-        'sw'          => 1,
-        'approved_by' => $dat['approved_by'],
-        'unapprove_by'=> $dat['unapprove_by']
-    ));
+$this->db->where('id', $id)->update('ac_rfph', $dat);
+    echo json_encode($dat);
 } 
 
 function print($id) {
@@ -1168,15 +1263,12 @@ function print($id) {
     if(!$preparednm) $preparednm = $this->db->where('id',$dath['created_by'])->get('users')->row('name');
 
     $requesting_unit = '';
-    if(!empty($dath['dept']) && intval($dath['dept']) > 0){
-        $requesting_unit = $this->db->where('id',$dath['dept'])->get('location')->row('name');
-    }
-
-    $requesting_head = '';
     if(!empty($dath['request_by']) && intval($dath['request_by']) > 0) {
         $nm = $this->db->where('id',$dath['request_by'])->get('users')->row('name');
-        $requesting_head = !empty($nm) ? $nm : '';
+        $requesting_unit = !empty($nm) ? strtoupper($nm) : '';
     }
+
+    $requesting_head = $requesting_unit;
 
     $printed_by = $this->db->where('id',$dath['created_by'])->get('users')->row('name');
     $left_details = '';
@@ -1312,8 +1404,6 @@ $printed_exp_ids = array();
 
 $exp_rows = $this->db
     ->where('rfp', $id)
-    ->where('fin >', 0)
-    ->where('approved_by >', 0)
     ->order_by('id', 'asc')
     ->get('dsr_exph')
     ->result_array();
@@ -1338,7 +1428,26 @@ foreach($exp_rows as $exp){
 
     $printed_exp_ids[] = $exp_id;
 }
+$gl_lines = $this->db->where('id', $id)->where('sw', 5)
+    ->order_by('seq', 'asc')->get('ac_rfpd')->result_array();
+foreach ($gl_lines as $line) {
+    if(isset($line['trn']) && in_array(intval($line['trn']), array(32,42))) continue;
 
+    $coa = $this->db->where('id', $line['trn_id'])->get('coa')->row_array();
+    $gl_code = '';
+    if($coa){
+        $gl_code = $coa['code'].' - '.$coa['name'];
+    }
+
+    $amt = floatval($line['amount']);
+    $tamt += $amt;
+    $all_entries[] = array(
+        'type'   => 'GL',
+        'code'   => $gl_code,
+        'date'   => '',
+        'amount' => $amt
+    );
+}
 $this->db->where('id', $id)->update('ac_rfph', ['amount' => $tamt]);
 $details_right = '';
 foreach ($all_entries as $e) {
@@ -1362,9 +1471,11 @@ $left_details = '';
 $purpose_label = (isset($dath['purpose']) && intval($dath['purpose'])>0) ? strtoupper(trim($purpose[$dath['purpose']])) : '';
 if(!empty($purpose_label)) $left_details .= '<div style="font-weight:bold;margin-bottom:5px;">'.$purpose_label.'</div>';
 
-$rs_det2 = $this->db->where('id',$id)->get('ac_rfpd')->result();
+$rs_det2 = $this->db->where('id',$id)->where('sw !=',5)->get('ac_rfpd')->result();
 foreach($rs_det2 as $row) {
-    if(!empty(trim($row->description))) $left_details .= '<div style="margin-bottom:2px;">'.strtoupper($row->description).'</div>';
+    if(!empty(trim($row->description))) {
+        $left_details .= '<div style="margin-bottom:2px;">'.strtoupper($row->description).'</div>';
+    }
 }
 
 $remarks_text = isset($dath['remarks']) ? strtoupper(trim($dath['remarks'])) : '';
@@ -1381,6 +1492,11 @@ if(!empty($remarks_text)) {
 $box = function($checked = false){
     return '<span class="check-box">'.($checked ? '/' : '&nbsp;').'</span>';
 };
+
+$payment_others_print = '';
+if($pt == 4 && !empty($dath['payment_others'])){
+    $payment_others_print = strtoupper(trim($dath['payment_others']));
+}
 
 $payee = isset($dath['payee']) ? strtoupper($dath['payee']) : '';
 $amount_print = number_format($tamt,2);
@@ -1431,13 +1547,31 @@ $prepared_by_print = !empty($preparednm) ? strtoupper($preparednm) : '';
     }
     .sheet{
     width:1050px;
-    margin:0 auto 20px auto;
+    margin:20px auto;
     background:#fff;
     border:2px solid #000;
+    box-sizing:border-box;
+    overflow:hidden;
+    }
 
-    transform: scale(0.75);
-    transform-origin: top left;
-}
+    .attachment-page{
+        width:1050px;
+        min-height:1400px;
+        margin:20px auto;
+        background:#fff;
+        border:2px solid #000;
+        box-sizing:border-box;
+        padding:18px;
+        page-break-before:always;
+        break-before:page;
+    }
+
+    .attachment-title{
+        font-size:22px;
+        font-weight:700;
+        margin-bottom:12px;
+        text-align:left;
+    }
     .title{
         text-align:center;
         font-weight:700;
@@ -1489,26 +1623,31 @@ $prepared_by_print = !empty($preparednm) ? strtoupper($preparednm) : '';
     border-bottom:2px solid #000;
 }
 .mode-row{
-    display:flex;
+    display:grid;
+    grid-template-columns: 200px 220px 1fr;
+    column-gap:28px;
     align-items:center;
-    gap:28px;
     font-size:16px;
     margin-bottom:10px;
 }
 .mode-row2{
-    display:flex;
+    display:grid;
+    grid-template-columns: 200px 220px minmax(320px, 1fr);
+    column-gap:28px;
     align-items:center;
-    gap:34px;
     font-size:16px;
-    padding-left:228px;
 }
 .mode-label{
     min-width:200px;
+}
+.mode-spacer{
+    display:block;
 }
 .mode-item{
     display:inline-flex;
     align-items:center;
     white-space:nowrap;
+    min-width:200px; 
 }
 .mode-others{
     flex:1;
@@ -1525,6 +1664,8 @@ $prepared_by_print = !empty($preparednm) ? strtoupper($preparednm) : '';
     display:inline-block;
     width:36px;
     height:26px;
+    min-width:36px; 
+    flex-shrink:0;  
     line-height:24px;
     text-align:center;
     border:2px solid #000;
@@ -1609,18 +1750,39 @@ $prepared_by_print = !empty($preparednm) ? strtoupper($preparednm) : '';
         size: portrait;
         margin:0;
     }
-    body{
+
+    html, body{
+        margin:0;
+        padding:0;
         background:#fff;
     }
+
     .print-btn-container{
         display:none !important;
     }
-    .sheet{
-        width:1050px;
+
+    .sheet,
+    .attachment-page{
+        width:100%;
         margin:0;
         border:2px solid #000;
-        transform: scale(0.75);
-        transform-origin: top left;
+        box-sizing:border-box;
+        overflow:visible;
+        transform:none !important;
+        zoom:1 !important;
+    }
+
+    .attachment-page{
+        min-height:100vh;
+        page-break-before:always;
+        break-before:page;
+    }
+
+    .attachment-page iframe,
+    .attachment-page img{
+        display:block;
+        width:100%;
+        max-width:100%;
     }
 }
 </style>
@@ -1680,11 +1842,12 @@ $prepared_by_print = !empty($preparednm) ? strtoupper($preparednm) : '';
     </div>
 
     <div class="mode-row2">
+        <span class="mode-spacer"></span>
         <span class="mode-item">'.$box($pt==3).' TELEGRAPHIC TRANSFER</span>
         <span class="mode-item mode-others">
-            '.$box($pt==4).' OTHERS
-            <span class="others-line"></span>
-        </span>
+    '.$box($pt==4).' OTHERS
+    <span class="others-line">'.htmlspecialchars($payment_others_print, ENT_QUOTES).'</span>
+</span>
     </div>
 </div>
 
@@ -1692,7 +1855,7 @@ $prepared_by_print = !empty($preparednm) ? strtoupper($preparednm) : '';
     '.$remarks_print.'
 </div>
 
-<div class="details-title">DETAILS / SPECIAL INSTRUCTIONS :</div>
+<div class="details-title">DETAILS :</div>
 
 <div class="details-box">
     <div class="details-table-wrap">
@@ -1732,40 +1895,62 @@ $prepared_by_print = !empty($preparednm) ? strtoupper($preparednm) : '';
     </tr>
 </table>
 </div>';
-    $photo_mime_print = isset($dath['photo_mime']) ? $dath['photo_mime'] : 'image/jpeg';
-    $photo_name_print = isset($dath['photo'])      ? $dath['photo']      : '';
-    if (!empty($photo_b64_print)) {
-        if ($photo_mime_print === 'application/pdf') {
-            echo '
-            <div style="page-break-before:always;clear:both;padding-top:20px;"></div>
-            <div style="width:100%;max-width:900px;margin:0 auto;text-align:center;">
-                <h3 style="text-align:left;margin-bottom:10px;">ATTACHED FILE:</h3>
-                <iframe src="data:application/pdf;base64,'.$photo_b64_print.'" style="width:100%;height:900px;border:2px solid #000;"></iframe>
-            </div>';
-        } else {
-            echo '
-            <div style="page-break-before:always;clear:both;padding-top:20px;"></div>
-            <div style="width:100%;max-width:900px;margin:0 auto;text-align:center;">
-                <h3 style="text-align:left;margin-bottom:10px;">ATTACHED FILE:</h3>
-                <img id="attached_img" src="data:'.$photo_mime_print.';base64,'.$photo_b64_print.'" alt="Attachment" style="max-width:100%;max-height:900px;object-fit:contain;border:2px solid #000;padding:5px;" />
-            </div>';
-        }
+
+$photo_b64_print  = isset($dath['photo_b64'])  ? trim($dath['photo_b64'])  : '';
+$photo_mime_print = isset($dath['photo_mime']) ? trim($dath['photo_mime']) : 'image/jpeg';
+$photo_name_print = isset($dath['photo'])      ? trim($dath['photo'])      : '';
+
+if ($photo_b64_print !== '') {
+    if ($photo_mime_print === 'application/pdf') {
+        echo '
+        <div class="attachment-page pdf-attachment">
+            <div class="attachment-title"></div>
+            <iframe
+                id="attached_pdf"
+                src="data:application/pdf;base64,'.$photo_b64_print.'"
+                style="width:100%;height:1000px;border:1px solid #000;background:#fff;"
+            ></iframe>
+        </div>';
+    } else {
+        echo '
+        <div class="attachment-page image-attachment">
+            <div class="attachment-title"></div>
+            <img
+                id="attached_img"
+                src="data:'.$photo_mime_print.';base64,'.$photo_b64_print.'"
+                alt="'.htmlspecialchars($photo_name_print, ENT_QUOTES).'"
+                style="max-width:100%;max-height:1000px;object-fit:contain;border:1px solid #000;background:#fff;"
+            />
+        </div>';
     }
+}
 
     echo '
-    <script>
-        window.onload = function() {
-            var img = document.getElementById("attached_img");
-            if(img && !img.complete) {
-                img.onload  = function() { setTimeout(window.print, 200); };
-                img.onerror = function() { setTimeout(window.print, 200); };
-            } else {
-                setTimeout(window.print, 500);
-            }
-        };
-    </script>
-    </body>
-    </html>';
+<script>
+window.onload = function() {
+    var img = document.getElementById("attached_img");
+    var pdf = document.getElementById("attached_pdf");
+
+    if(img){
+        if(img.complete){
+            setTimeout(function(){ window.print(); }, 500);
+        }else{
+            img.onload = function(){ setTimeout(function(){ window.print(); }, 500); };
+            img.onerror = function(){ setTimeout(function(){ window.print(); }, 500); };
+        }
+        return;
+    }
+
+    if(pdf){
+        setTimeout(function(){ window.print(); }, 900);
+        return;
+    }
+
+    setTimeout(function(){ window.print(); }, 500);
+};
+</script>
+</body>
+</html>';
 } 
 
 function getpo() {
@@ -3249,8 +3434,36 @@ function validateDateNeeded(el) {
     fsave(el.id);
 }
 
-function closef() { list(); }
-
+function closef() {
+    $.ajax({
+        url: "'.base_url("99/dashboard/close_save_header").'",
+        method: "POST",
+        dataType: "json",
+        data: {
+            id: '.$id.',
+            payee: $("#payee").val(),
+            dept: $("#dept").val(),
+            purpose: $("#purpose").val(),
+            payment_type: $("#payment_type").val(),
+            time_release: $("#time_release").val(),
+            date_needed: $("#date_needed").val(),
+            remarks: $("#remarks").val(),
+            checked_by: $("#checked_by").val(),
+            approved_by: $("#approved_by").val(),
+            request_by: $("#request_by").val()
+        },
+        success: function(res){
+            if(res.sw == 1){
+                list();
+            } else {
+                alert(res.msg ? res.msg : "Save failed");
+            }
+        },
+        error: function(){
+            alert("Save failed");
+        }
+    });
+}
 function info(sw) { 
     var datas=[sw,'.$id.'];
     $.ajax({
@@ -3530,25 +3743,25 @@ function add_liq() {
     $this->db->insert('ac_rfpd',$dat);
     $ddat['rfp']=$tmp[1];
     $this->db->where('id',$tmp[2])->update('liqh',$ddat);
+
+    $rs = $this->db->where('id',$tmp[2])->get('liqd')->result();
     
-    $rs=$this->db->where('id',$tmp[2])->get('liqd')->result();
     foreach($rs as $row){
+        $ddata = array();
         $ddata['trn']=32;
         $ddata['sw']=5;
         $ddata['id']=$tmp[1];
-        $ddata['trn_id']=$tmp[2];
-        $ddata['particulars']=$row->particulars;
+        $ddata['trn_id']=$row->coa;
+        $ddata['description']=$row->particulars;
         $ddata['amount']=$row->amount;
-        $ddata['coa']=$row->coa;
         $this->db->insert('ac_rfpd',$ddata);        
     }
 
     $total = $this->_calc_total($tmp[1]);
     $this->db->where('id',$tmp[1])->update('ac_rfph', ['amount' => $total]);
-    echo json_encode(['amount' => number_format($total, 2, '.', ''),'rs' => $rs]);
+    echo json_encode(['amount' => number_format($total, 2, '.', '')]);
     
-}
-    
+}    
 function add_exp() {
     
     $tmp=$_POST['datas'];
@@ -3566,13 +3779,13 @@ function add_exp() {
     $rs=$this->db->where('id',$tmp[2])->get('dsr_expd')->result();
     
     foreach($rs as $row){
+        $ddata = array();
         $ddata['trn']=42;
         $ddata['sw']=5;
         $ddata['id']=$tmp[1];
-        $ddata['trn_id']=$tmp[2];
-        $ddata['particulars']=$row->detail;
+        $ddata['trn_id']=$row->coa;
+        $ddata['description']=$row->detail;
         $ddata['amount']=$row->amnt;
-        $ddata['coa']=$row->coa;
         $this->db->insert('ac_rfpd',$ddata);        
     }
     
@@ -3674,20 +3887,19 @@ if($sw<5){
 }
     
 if($sw==5) {
-    $fld = explode(',','seq,coa,particulars,amount');
     foreach($rs as $row){
         $td .= '<tr>';
-        foreach($fld as $a => $f){
-            $datafld = $row[$f];
-            if($f == 'coa'){ 
-                $datafld = '<option value='.$datafld.'>'
-                    .$this->db->where('id',$datafld)->get('coa')->row('code').' -  '.$this->db->where('id',$datafld)->get('coa')->row('name') .'</option>'; 
-            }  
-            $td .= '<td>'.$datafld.'</td>';
-        }
+
+        $coa_id = intval($row['trn_id']);
+        $coa_code = $this->db->where('id',$coa_id)->get('coa')->row('code');
+        $coa_name = $this->db->where('id',$coa_id)->get('coa')->row('name');
+
+        $td .= '<td>'.$row['seq'].'</td>';
+        $td .= '<td><option value='.$coa_id.'>'.$coa_code.' - '.$coa_name.'</option></td>';
+        $td .= '<td>'.$row['description'].'</td>';
+        $td .= '<td>'.$row['amount'].'</td>';
         $td .= '</tr>';
-    } 
-    
+    }
 }
     
 echo '<br>';    
@@ -3960,10 +4172,13 @@ echo '
     var table = $("#tbl_list'.$sw.'").DataTable({"scrollX": true, "order": [[0,"desc"]]});
     $("#tbl_list'.$sw.' tbody").on("click", "tr", function(){
     var data = table.row(this).data();
-    $("#brramt").val(data[3]);
     $("#seq").val(data[0]);
-    $("#rr").html(data[1]);
     $("#del_seq").val(data[0]);
+    $("#particulars").val(data[3]);
+    $("#amt").val(data[4]);
+
+    var coaText = $("<option selected></option>").val(data[1]).text(data[1] + " - " + data[2]);
+    $("#coa").html(coaText).trigger("change");
 });
 
     function chkamt(){
@@ -4018,29 +4233,37 @@ echo '
     }
 
     function dsave(){
-        var datas = ['.$id.',$("#seq").val(),'.$sw.',$("#rr").val(),$("#brramt").val(),$("#brramt").val()];
-        if(datas[3] > 0){
-            if(datas[4] > 0){
-                $.ajax({
-                    url: "'.base_url("99/dashboard/dsave").'",
-                    method: "POST",
-                    data: { datas: datas },
-                    success: function(){
-                        $.ajax({
-                            url: "'.base_url("99/dashboard/recalc_rr_amount").'",
-                            method: "POST",
-                            dataType: "json",
-                            data: { id: '.$id.' },
-                            success: function(res){
-                                update_main_amount(res.amount);
-                                info('.$sw.');
-                            }
-                        });
-                    }
-                });
-            } else { alert("please enter amount"); }
-        } else { alert("'.$no_alert.'"); }
-    }
+    var coa = $("#coa").val();
+    var amt = $("#amt").val();
+    var particulars = $("#particulars").val() || "";
+
+    var datas = ['.$id.',$("#seq").val(),'.$sw.',coa,amt,amt];
+    if(parseInt(coa) > 0){
+        if(parseFloat(amt) > 0){
+            $.ajax({
+                url: "'.base_url("99/dashboard/dsave").'",
+                method: "POST",
+                data: {
+                    datas: datas,
+                    coa: coa,
+                    description: particulars
+                },
+                success: function(){
+                    $.ajax({
+                        url: "'.base_url("99/dashboard/recalc_rr_amount").'",
+                        method: "POST",
+                        dataType: "json",
+                        data: { id: '.$id.' },
+                        success: function(res){
+                            update_main_amount(res.amount);
+                            info('.$sw.');
+                        }
+                    });
+                }
+            });
+        } else { alert("please enter amount"); }
+    } else { alert("please select COA"); }
+}
 
     function deldtl_row(sw){
         var seq = $("#del_seq").val();
@@ -4554,13 +4777,32 @@ $(document).ready(function() {
             
         $.ajax({
             url: "'.base_url("99/dashboard/dddel").'",
-            method: "POST",  
+            method: "POST",
+            dataType: "json",
             data: {datas: datas},
-            success: function() {  
+            success: function(data) {  
+                if(data && data.amount !== undefined){
+                    var $amt = $("#amount");
+                    if($amt.length){
+                        $amt.val(data.amount).stop(true,true)
+                            .addClass("rfp-amount-flash")
+                            .delay(350)
+                            .queue(function(next){
+                                $(this).removeClass("rfp-amount-flash");
+                                next();
+                            });
+                    }
+                    $("input[type=number][disabled]").each(function(){
+                        var fid = $(this).attr("id");
+                        if(fid && fid !== "rramt" && fid !== "prramt" && fid !== "brramt"){
+                            $(this).val(data.amount);
+                        }
+                    });
+                }
                 infod(41);
                 infod(42);
             }  
-        });  
+        });
             
         }
     }
@@ -4577,11 +4819,16 @@ $(document).ready(function() {
 else if($sw == 41) {
 
     $rs = $this->db
-    ->where('rfp', 0)
-    ->where('fin >', 0)
-    ->where('approved_by >', 0)
-    ->order_by('id','desc')
-    ->get('dsr_exph')->result();
+        ->where('rfp', 0)
+        ->order_by('id','desc')
+        ->get('dsr_exph')->result();
+
+    $th  = '<th colspan=4>Available Expenses</th></tr><tr>';
+    $th .= '<th>#</th>';
+    $th .= '<th>code</th>';
+    $th .= '<th>date</th>';
+    $th .= '<th>Amount</th>';
+
     $td = '';
     foreach($rs as $row){
 
@@ -4599,12 +4846,7 @@ else if($sw == 41) {
         </tr>
         ';
     }
-
-    $th  = '<th>#</th>';
-    $th .= '<th>code</th>';
-    $th .= '<th>date</th>';
-    $th .= '<th>Amount</th>';
-
+    
     echo '
 <script>
 $(document).ready(function() {  
@@ -4615,39 +4857,39 @@ $(document).ready(function() {
     });
 
     function edit_rec(dat) {
-    var datas=[42,'.$id.',dat[0]];
-    $.ajax({
-        url: "'.base_url("99/dashboard/add_exp").'", 
-        method: "POST",  
-        data: {datas: datas},
-        success: function(data) {                 
-    var res = {};
-    try { res = JSON.parse(data); } catch(e){}
+        var datas=[42,'.$id.',dat[0]];
+        $.ajax({
+            url: "'.base_url("99/dashboard/add_exp").'", 
+            method: "POST",  
+            data: {datas: datas},
+            success: function(data) {                 
+                var res = {};
+                try { res = JSON.parse(data); } catch(e){}
 
-    var $amt = $("#amount");
-    if($amt.length && res.amount !== undefined){
-        $amt.val(res.amount).stop(true,true)
-            .addClass("rfp-amount-flash")
-            .delay(350)
-            .queue(function(next){
-                $(this).removeClass("rfp-amount-flash");
-                next();
-            });
+                var $amt = $("#amount");
+                if($amt.length && res.amount !== undefined){
+                    $amt.val(res.amount).stop(true,true)
+                        .addClass("rfp-amount-flash")
+                        .delay(350)
+                        .queue(function(next){
+                            $(this).removeClass("rfp-amount-flash");
+                            next();
+                        });
+                }
+
+                if($("#rfp-amount-flash-style").length===0){
+                    $("head").append(
+                        "<style id=\"rfp-amount-flash-style\">"+
+                        "#amount.rfp-amount-flash{background:#fff3cd !important;transition:background-color .25s ease;}"+
+                        "</style>"
+                    );
+                }
+
+                infod(41);
+                infod(42);
+            }
+        });  
     }
-
-    if($("#rfp-amount-flash-style").length===0){
-        $("head").append(
-            "<style id=\"rfp-amount-flash-style\">"+
-            "#amount.rfp-amount-flash{background:#fff3cd !important;transition:background-color .25s ease;}"+
-            "</style>"
-        );
-    }
-
-    infod(41);
-    infod(42);
-}
-    });  
-}
 });
 </script>
 

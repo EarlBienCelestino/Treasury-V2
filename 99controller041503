@@ -1531,13 +1531,12 @@ $details_table_print = '<table class="details-table-print">
     <tbody>
         <tr>
             <td style="width:80%; text-align:left; font-weight:bold; padding:6px 6px 0 6px;">
-                TOTAL :
-                <span style="margin-left:6px;">'.number_format($tamt, 2).'</span>
+                <span class="label">TOTAL :</span>
+                <span style="margin-left:6px; color:#000 !important;">'.number_format($tamt, 2).'</span>
             </td>
         </tr>
     </tbody>
 </table>';
-
 $dept_head_approval = '';
 $checked_by_print = isset($dath['checked_by']) ? strtoupper($dath['checked_by']) : '';
 $approved_by_print = !empty($dvappbynm) ? strtoupper($dvappbynm) : '';
@@ -1601,6 +1600,7 @@ $prepared_by_print = !empty($preparednm) ? strtoupper($preparednm) : '';
     font-size:22px;
     letter-spacing:1px;
     padding:6px 0 2px 0;
+    color:#ff0000 !important;
 }
     .rowline{
         width:100%;
@@ -1616,9 +1616,10 @@ $prepared_by_print = !empty($preparednm) ? strtoupper($preparednm) : '';
         border-bottom:2px solid #000;
     }
     .label{
-        font-weight:700;
-        letter-spacing:.3px;
-    }
+    font-weight:700;
+    letter-spacing:.3px;
+    color:#0000ff !important;
+}
     .fill-line{
     display:inline-block;
     border-bottom:2px solid #000;
@@ -1716,6 +1717,7 @@ $prepared_by_print = !empty($preparednm) ? strtoupper($preparednm) : '';
     flex:1;
     border-bottom:2px solid #000;
     height:14px;
+    color:#000;
 }
 
     @media print{
@@ -1748,6 +1750,10 @@ $prepared_by_print = !empty($preparednm) ? strtoupper($preparednm) : '';
         transform:none !important;
         zoom:1 !important;
     }
+    {
+    -webkit-print-color-adjust: exact ;
+    print-color-adjust: exact ;
+}
 }
 
     .attachment-page{
@@ -1817,11 +1823,11 @@ $prepared_by_print = !empty($preparednm) ? strtoupper($preparednm) : '';
     <div class="mode-wrap">
     <div class="mode-row">
         <span class="label mode-label">MODE OF PAYMENT :</span>
-        <span class="mode-item" style="margin-left:2px;">'.$payment_mode_print.'</span>
+        <span class="mode-item" style="margin-left:2px; color:#000 !important;">'.$payment_mode_print.'</span>
     </div>
 </div>
 
-<div class="details-title">DETAILS : <span style="font-weight:400;">'.$remarks_print.'</span></div>
+<div class="details-title"><span class="label">DETAILS :</span> <span style="font-weight:400; color:#000 ;">'.$remarks_print.'</span></div>
 
 <div class="details-box">
     <div class="details-table-wrap">
@@ -2694,21 +2700,19 @@ elseif($a==3){
     <div class="input-group mb-1 input-group-sm">
         <div class="input-group-prepend"><span class="input-group-text">RFP Type</span></div>
         <select class="form-control" id="r_type" onchange="toggle_initial_disbursement(); fsave(this.id)">
-            '.$rt_opts.'
+            '.$opt.'
         </select>
     </div>
 
     <script>
-    
     function toggle_initial_disbursement(){
         var isReplenishment = parseInt($("#r_type").val() || 0) === 4;
         if(isReplenishment){
-            $("#initial_disbursement").prop("disabled", false).attr("style", "");
+            $("#initial_disbursement_wrap").show();
+            $("#initial_disbursement").prop("disabled", false);
         } else {
-            $("#initial_disbursement")
-                .val("")
-                .prop("disabled", true)
-                .attr("style","background-color:#e9ecef;color:#6c757d;cursor:not-allowed;");
+            $("#initial_disbursement_wrap").hide();
+            $("#initial_disbursement").val("").prop("disabled", true);
             $.ajax({
                 url: "'.base_url("99/dashboard/fsave").'",
                 method: "POST",
@@ -2716,9 +2720,7 @@ elseif($a==3){
             });
         }
     }
-    
     $(document).ready(function(){ toggle_initial_disbursement(); });
-    
     </script>';
 }
 
@@ -2930,12 +2932,11 @@ for($a=1;$a<21;$a++) {
     function toggle_initial_disbursement(){
         var isReplenishment = parseInt($("#r_type").val() || 0) === 4;
         if(isReplenishment){
-            $("#initial_disbursement").prop("disabled", false).attr("style", "");
+            $("#initial_disbursement_wrap").show();
+            $("#initial_disbursement").prop("disabled", false);
         } else {
-            $("#initial_disbursement")
-                .val("")
-                .prop("disabled", true)
-                .attr("style","background-color:#e9ecef;color:#6c757d;cursor:not-allowed;");
+            $("#initial_disbursement_wrap").hide();
+            $("#initial_disbursement").val("").prop("disabled", true);
             $.ajax({
                 url: "'.base_url("99/dashboard/fsave").'",
                 method: "POST",
@@ -2963,8 +2964,7 @@ if($liq_val > 0){
 $init_disb_val = isset($datafld['initial_disbursement']) ? floatval($datafld['initial_disbursement']) : 0;
 $init_disb_display = ($init_disb_val > 0) ? number_format($init_disb_val, 2, '.', '') : '';
 $r_type_val = isset($datafld['r_type']) ? intval($datafld['r_type']) : 0;
-$init_disb_disabled = ($r_type_val == 4) ? '' : 'disabled';
-$init_disb_style = ($r_type_val == 4) ? '' : 'style="background-color:#e9ecef;color:#6c757d;cursor:not-allowed;"';
+$init_disb_wrap = ($r_type_val == 4) ? '' : 'style="display:none"';
 
 $top.='
 <div class="input-group mb-1 input-group-sm" style="display:none">
@@ -2973,10 +2973,10 @@ $top.='
 '.$liq_opt.'
 </select></div>
 
-<div class="input-group mb-1 input-group-sm">
+<div class="input-group mb-1 input-group-sm" id="initial_disbursement_wrap" '.$init_disb_wrap.'>
 <div class="input-group-prepend"><span class="input-group-text">Initial Disbursement</span></div>
 <input type="number" class="form-control" id="initial_disbursement"
-value="'.$init_disb_display.'" '.$init_disb_disabled.' '.$init_disb_style.'
+value="'.$init_disb_display.'"
 onchange="fsave(this.id)" step="0.01" />
 </div>';
 }

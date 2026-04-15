@@ -2352,43 +2352,6 @@ $(document).ready(function() {
     ,processResults: function (response) { return { results: response }; }
     ,cache: true }}).on("change", function(){ fsave(this.id); });
 
-    $("#dv_no").select2({width:"100%",ajax: {  placeholder: "Select a dv_no#"
-,allowClear: true
-,url: "'.base_url("99/dashboard/mf/dv_no").'"
-,type: "post", dataType: "json"
-,delay: 250, data: function (params) { return { searchTerm: params.term , id:'.$id.' }; }
-,processResults: function (response) { return { results: response }; }
-,cache: true }}).on("change", function(){
-    fsave(this.id);
-    var dv_id = $(this).val();
-
-    if(parseInt(dv_id) > 0){
-        $.ajax({
-            url: "'.base_url("99/dashboard/getdv").'",
-            method: "POST",
-            dataType: "json",
-            data: { rfp_id: '.$id.', dv_id: dv_id },
-            success: function(res){
-                if(res.sw == 1){
-                    update_main_amount(res.amount);
-                    info(5);
-                }
-            }
-        });
-    } else {
-        $.ajax({
-            url: "'.base_url("99/dashboard/recalc_rr_amount").'",
-            method: "POST",
-            dataType: "json",
-            data: { id: '.$id.' },
-            success: function(res){
-                update_main_amount(res.amount);
-                info(5);
-            }
-        });
-    }
-});
-
     $("#purpose").select2({width:"100%",ajax: {  placeholder: "Select a purpose#"
     ,allowClear: true
     ,url: "'.base_url("99/dashboard/mf/purpose").'"
@@ -3168,7 +3131,7 @@ if($a==9){
 
     elseif($a==13 ){    
 
-$dv_opt = '<option value=""></option>';
+$dv_display = '';
 
 if(intval($dataf) > 0){
     $dv_row = $this->db->where('id', $dataf)->get('dvh')->row_array();
@@ -3188,20 +3151,17 @@ if(intval($dataf) > 0){
             $dv_date = date('Y-m-d', strtotime($dv_row['date_']));
         }
 
-        $dv_text = $dv_row['trncode'].' - '.$dv_date.' Amt '.number_format($dv_total, 2, '.', '');
-        $dv_opt = '<option value="'.$dataf.'" selected>'.$dv_text.'</option>';
+        $dv_display = $dv_row['trncode'].' - '.$dv_date.' Amt '.number_format($dv_total, 2, '.', '');
     }
 }
 
 $left.=' 
 <div class="input-group mb-1 input-group-sm">
 <div class="input-group-prepend"> <span class="input-group-text">'.$xcap.'</span></div>
-<select class="form-control" id="'.$fld[$a].'" onchange="fsave(this.id)">
-'.$dv_opt.'
-</select> </div> '; 
+<input type="text" class="form-control" id="'.$fld[$a].'" value="'.htmlspecialchars($dv_display, ENT_QUOTES).'" disabled style="background-color:#e9ecef;color:#6c757d;cursor:not-allowed;" />
+</div> '; 
 
 }
-
     elseif($a==15 or $a==16 or $a==18 or $a==21 ){    
 
     $left.=' 

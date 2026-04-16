@@ -360,51 +360,66 @@ $("#xsearch").hide();
 } 
 
 function list() {
-    $tmp = $this->input->post('datas');       
-    $tbl='ac_rfph'; 
-    $ds=$tmp[0];   
-    $de=$tmp[1];   
+    $tbl = 'ac_rfph';
+
+    $ds = trim((string)$this->input->post('ds'));
+    $de = trim((string)$this->input->post('de'));
+    $rt = intval($this->input->post('rt'));
 
     date_default_timezone_set("Asia/Manila");
-    $uid=$_SESSION['user_id']; 
-    $ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights'); 
 
-    $rt = isset($tmp[2]) ? intval($tmp[2]) : 0;
+    $this->db->from($tbl);
 
-    $this->db->where('DATE(date_)>=',$ds);
-    $this->db->where('DATE(date_)<=',$de);
-    if($rt > 0){ $this->db->where('r_type', $rt); }
+    if($ds !== '' && $de !== ''){
+        $this->db->where('date_ >=', $ds.' 00:00:00');
+        $this->db->where('date_ <=', $de.' 23:59:59');
+    }
 
-    $rs=$this->db
+    if($rt > 0){
+        $this->db->where('r_type', $rt);
+    }
+
+    $rs = $this->db
         ->order_by('id','desc')
-        ->get($tbl)->result_array();
+        ->get()
+        ->result_array();
 
     $fld=explode(',','id,code,payee,amount,payment_type,remarks');
     $td=''; $th=''; 
     for($a=0;$a<count($fld);$a++) { 
         $fldnm=str_replace('_',' ',$fld[$a]); 
-        if($a==1){$th.='<th>RFP Type</th>';}
+        if($a==1){ $th.='<th>RFP Type</th>'; }
         $th.='<th>'.ucwords($fldnm).'</th>';
     }
+
     $type=explode(',',',Cash Advance,Reimburse,Quotation,Replenishment');
+
     foreach($rs as $row) {   
         $td.='<tr>';     
         for($a=0;$a<count($fld);$a++) { 
-            $datafld=$row[$fld[$a]];   
+            $datafld = isset($row[$fld[$a]]) ? $row[$fld[$a]] : '';
+
             if($fld[$a]=='payment_type'){
                 $pt_arr=explode(',','select none,Check, Cash, Telegraphic Transfer, Others');
                 $datafld=(intval($datafld)>0 && isset($pt_arr[$datafld])) ? $pt_arr[$datafld] : '';
             }
+
             if($fld[$a]=='amount'){
                 $datafld=number_format(floatval($datafld),2);
             }
+
             if($datafld=='0') { $datafld=''; }
+
             if($fld[$a]=='remarks'){
                 $datafld='<div style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'.htmlspecialchars($datafld,ENT_QUOTES).'">'.$datafld.'</div>';
             }
+
             if($a==1){
-                $td.='<td>'.$type[$row['r_type']].'</td>';
+                $rtype_id = isset($row['r_type']) ? intval($row['r_type']) : 0;
+                $rtype_text = isset($type[$rtype_id]) ? $type[$rtype_id] : '';
+                $td.='<td>'.$rtype_text.'</td>';
             }
+
             $td.='<td>'.$datafld.'</td>';
         } 
         $td.='</tr>';     
@@ -427,7 +442,6 @@ $(document).ready(function() {
             success: function(data) { 
                 $("#rfp-row").hide();
                 $("#forms").empty();  
-                
                 $("#forms").html(data);    
             }  
         });  

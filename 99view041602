@@ -156,18 +156,25 @@ function addrec() {
 }
 
 function list() {
-    var datas = [
-        $("#ds").val(),
-        $("#de").val(),
-        $("#rt").val() || 0
-    ];
+    var ds = $("#ds").val();
+    var de = $("#de").val();
+    var rt = $("#rt").val() || 0;
+
+    if(ds === "" || de === ""){
+        alert("Please select Date Start and Date End.");
+        return;
+    }
 
     $.ajax({
         url: "<?=base_url('99/dashboard/list')?>",
         method: "POST",
-        data: { datas: datas },
+        data: {
+            ds: ds,
+            de: de,
+            rt: rt
+        },
         success: function(data) { 
-            $("#forms-col").empty().html(data);
+            $("#forms-col").html(data);
             $("#forms").empty();
             $("#rfp-row").show();
         },

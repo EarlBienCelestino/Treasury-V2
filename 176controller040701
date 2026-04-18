@@ -34,21 +34,59 @@ function index() {
     
 }    
 
-function list() { 
-    $ds=$this->input->post('ds');
-    $de=$this->input->post('de');
-    $ds=is_string($ds) ? trim($ds) : '';
-    $de=is_string($de) ? trim($de) : '';
-    $valid_ds=preg_match('/^\d{4}-\d{2}-\d{2}$/', $ds);
-    $valid_de=preg_match('/^\d{4}-\d{2}-\d{2}$/', $de);
-    
-    $this->db->where('ty_tran','03');
-    if($valid_ds){
-        $this->db->where('date_>=',$ds);
-        if($valid_de){ $this->db->where('date_<=',$de); }
+private function glh_detail_totals_map($ids) {
+    if(!$this->db->table_exists('gld')){ return array(); }
+
+    $clean=array();
+    foreach((array)$ids as $id){
+        $id=intval($id);
+        if($id>0){ $clean[$id]=$id; }
     }
 
-    $columns=array(
+    if(count($clean)===0){ return array(); }
+
+    $rows=$this->db
+        ->select('id, SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) AS am_dr, SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) AS am_cr', false)
+        ->where('sw',1)
+        ->where_in('id',array_values($clean))
+        ->group_by('id')
+        ->get('gld')
+        ->result_array();
+
+    $out=array();
+    foreach($rows as $row){
+        $rid=intval(isset($row['id']) ? $row['id'] : 0);
+        if($rid<=0){ continue; }
+        $out[$rid]=array(
+            'am_dr'=>round(floatval(isset($row['am_dr']) ? $row['am_dr'] : 0),2),
+            'am_cr'=>round(floatval(isset($row['am_cr']) ? $row['am_cr'] : 0),2)
+        );
+    }
+
+    return $out;
+}
+
+private function sync_glh_amounts($id) {
+    $id=intval($id);
+    if($id<=0 || !$this->db->table_exists('glh')){ return array('am_dr'=>0,'am_cr'=>0); }
+
+    $totalsMap=$this->glh_detail_totals_map(array($id));
+    $totals=isset($totalsMap[$id]) ? $totalsMap[$id] : array('am_dr'=>0,'am_cr'=>0);
+
+    $fields=$this->db->list_fields('glh');
+    $dat=array();
+    if(in_array('am_dr',$fields,true)){ $dat['am_dr']=number_format($totals['am_dr'],2,'.',''); }
+    if(in_array('am_cr',$fields,true)){ $dat['am_cr']=number_format($totals['am_cr'],2,'.',''); }
+
+    if(count($dat)>0){
+        $this->db->where('id',$id)->update('glh',$dat);
+    }
+
+    return $totals;
+}
+
+private function jv_list_columns() {
+    return array(
         array('field'=>'date_','label'=>'DATE'),
         array('field'=>'code','label'=>'DOC#'),
         array('field'=>'particulars','label'=>'PARTICULARS'),
@@ -58,90 +96,147 @@ function list() {
         array('field'=>'void_by','label'=>'VOID BY'),
         array('field'=>'app_by','label'=>'APPROVED BY')
     );
+}
+
+private function jv_list_display_by_field($row,$statusField,$byField,&$userCache) {
+    $statusVal=isset($row[$statusField]) ? intval($row[$statusField]) : 0;
+    $byVal=isset($row[$byField]) ? $row[$byField] : '';
+    if($statusVal<=0 || !$this->has_approval($byVal)){ return ''; }
+
+    if(is_numeric($byVal)){
+        $aid=intval($byVal);
+        if(!isset($userCache[$aid])){
+            $userCache[$aid]=$this->approved_display_name($byVal);
+        }
+        return $userCache[$aid];
+    }
+
+    return $this->approved_display_name($byVal);
+}
+
+private function jv_list_rows($ds='',$de='',$qs='') {
+    $ds=is_string($ds) ? trim($ds) : '';
+    $de=is_string($de) ? trim($de) : '';
+    $qs=is_string($qs) ? trim($qs) : '';
+    $columns=$this->jv_list_columns();
     $selectFields=array('id','fin','void','app');
+
     foreach($columns as $col){
         if(!in_array($col['field'],$selectFields,true)){ $selectFields[]=$col['field']; }
     }
 
-    $rs=$this->db
-        ->select($selectFields)
-        ->limit(50)
+    $query=$this->db->select($selectFields)->where('ty_tran','03');
+    if(preg_match('/^\d{4}-\d{2}-\d{2}$/',$ds)){ $query->where('date_>=',$ds); }
+    if(preg_match('/^\d{4}-\d{2}-\d{2}$/',$de)){ $query->where('date_<=',$de); }
+
+    $rows=$query
+        ->order_by('id','desc')
+        ->limit($qs!=='' ? 300 : 50)
         ->get('glh')
         ->result_array();
+
+    $hdrIds=array();
+    foreach($rows as $row){
+        $rid=isset($row['id']) ? intval($row['id']) : 0;
+        if($rid>0){ $hdrIds[]=$rid; }
+    }
+
+    $totalsMap=$this->glh_detail_totals_map($hdrIds);
+    $userCache=array();
+    $out=array();
+
+    foreach($rows as $row){
+        $rowId=isset($row['id']) ? intval($row['id']) : 0;
+        $cells=array();
+        $searchParts=array();
+
+        foreach($columns as $col){
+            $fieldName=$col['field'];
+            $datafld='';
+
+            if($fieldName==='fin_by'){
+                $datafld=$this->jv_list_display_by_field($row,'fin','fin_by',$userCache);
+            }
+            else if($fieldName==='void_by'){
+                $datafld=$this->jv_list_display_by_field($row,'void','void_by',$userCache);
+            }
+            else if($fieldName==='app_by'){
+                $datafld=$this->jv_list_display_by_field($row,'app','app_by',$userCache);
+            }
+            else {
+                $datafld=isset($row[$fieldName]) ? $row[$fieldName] : '';
+                if($fieldName==='am_dr' || $fieldName==='am_cr'){
+                    if(isset($totalsMap[$rowId])){
+                        $datafld=($fieldName==='am_dr') ? $totalsMap[$rowId]['am_dr'] : $totalsMap[$rowId]['am_cr'];
+                    }
+                    if($datafld===null || $datafld===''){
+                        $datafld='';
+                    }
+                    else {
+                        $num=is_numeric($datafld) ? floatval($datafld) : 0;
+                        $datafld=number_format($num,2);
+                    }
+                }
+                else if($datafld===null || $datafld===''){
+                    $datafld='';
+                }
+            }
+
+            $cells[$fieldName]=(string)$datafld;
+            $searchParts[]=(string)$datafld;
+        }
+
+        $rawDate=isset($row['date_']) ? trim((string)$row['date_']) : '';
+        if($rawDate!==''){
+            $searchParts[]=$rawDate;
+            $stamp=strtotime($rawDate);
+            if($stamp!==false){
+                $searchParts[]=date('m/d/Y',$stamp);
+            }
+        }
+
+        if($qs!==''){
+            $matched=false;
+            foreach($searchParts as $part){
+                if($part!=='' && stripos($part,$qs)!==false){
+                    $matched=true;
+                    break;
+                }
+            }
+            if(!$matched){ continue; }
+        }
+
+        $out[]=array(
+            'id'=>$rowId,
+            'cells'=>$cells
+        );
+
+        if($qs!=='' && count($out)>=50){ break; }
+    }
+
+    return array($columns,$out);
+}
+
+private function jv_render_list_response($ds='',$de='',$qs='') {
+    list($columns,$rows)=$this->jv_list_rows($ds,$de,$qs);
 
     $th='';
     foreach($columns as $col){ $th.='<th>'.$col['label'].'</th>'; }
 
     $td='';
-    $userCache=array();
-    foreach($rs as $row){
-        $td.='<tr data-id="'.$row['id'].'">';
+    foreach($rows as $row){
+        $rowId=isset($row['id']) ? intval($row['id']) : 0;
+        $cells=isset($row['cells']) ? $row['cells'] : array();
+        $td.='<tr data-id="'.$rowId.'">';
         foreach($columns as $col){
             $fieldName=$col['field'];
-            if($fieldName==='fin_by'){
-                $datafld='';
-                $finVal=isset($row['fin']) ? intval($row['fin']) : 0;
-                $finBy=isset($row['fin_by']) ? $row['fin_by'] : '';
-                if($finVal>0 && $this->has_approval($finBy)){
-                    if(is_numeric($finBy)){
-                        $aid=intval($finBy);
-                        if(!isset($userCache[$aid])){
-                            $userCache[$aid]=$this->approved_display_name($finBy);
-                        }
-                        $datafld=$userCache[$aid];
-                    } else {
-                        $datafld=$this->approved_display_name($finBy);
-                    }
-                }
-            } else if($fieldName==='void_by'){
-                $datafld='';
-                $voidVal=isset($row['void']) ? intval($row['void']) : 0;
-                $voidBy=isset($row['void_by']) ? $row['void_by'] : '';
-                if($voidVal>0 && $this->has_approval($voidBy)){
-                    if(is_numeric($voidBy)){
-                        $aid=intval($voidBy);
-                        if(!isset($userCache[$aid])){
-                            $userCache[$aid]=$this->approved_display_name($voidBy);
-                        }
-                        $datafld=$userCache[$aid];
-                    } else {
-                        $datafld=$this->approved_display_name($voidBy);
-                    }
-                }
-            } else if($fieldName==='app_by'){
-                $datafld='';
-                $appVal=isset($row['app']) ? intval($row['app']) : 0;
-                $appBy=isset($row['app_by']) ? $row['app_by'] : '';
-                if($appVal>0 && $this->has_approval($appBy)){
-                    if(is_numeric($appBy)){
-                        $aid=intval($appBy);
-                        if(!isset($userCache[$aid])){
-                            $userCache[$aid]=$this->approved_display_name($appBy);
-                        }
-                        $datafld=$userCache[$aid];
-                    } else {
-                        $datafld=$this->approved_display_name($appBy);
-                    }
-                }
-            } else {
-                $datafld=isset($row[$fieldName]) ? $row[$fieldName] : '';
-                if($fieldName==='am_dr' || $fieldName==='am_cr'){
-                    if($datafld===null || $datafld===''){
-                        $datafld='';
-                    } else {
-                        $num=is_numeric($datafld) ? floatval($datafld) : 0;
-                        $datafld=number_format($num,2);
-                    }
-                } else if($datafld===null || $datafld===''){
-                    $datafld='';
-                }
-            }
-            $td.='<td>'.$datafld.'</td>';
+            $val=isset($cells[$fieldName]) ? $cells[$fieldName] : '';
+            $td.='<td>'.htmlspecialchars((string)$val,ENT_QUOTES).'</td>';
         }
         $td.='</tr>';
     }
 
-echo '<script>
+    return '<script>
 
 $(document).ready(function() 
 { 
@@ -175,143 +270,20 @@ function dep_edit(id){
 <table id="tbl_list" class="display nowrap" style="width:100%" > <thead> <tr>'.$th.'</tr> </thead> <tbody>'.$td.'</tbody></table>';
 }
 
-function list2() { 
-$qs=$this->input->post('qs');
-    $qs=is_string($qs) ? trim($qs) : '';
-    
-    $this->db->where('ty_tran','03');
-    if($qs!==''){
-        $this->db->group_start();
-        $this->db->like('code',$qs);
-        $this->db->or_like('particulars',$qs);
-        $this->db->group_end();
-    }
-
-    $columns=array(
-        array('field'=>'date_','label'=>'DATE'),
-        array('field'=>'code','label'=>'DOC#'),
-        array('field'=>'particulars','label'=>'PARTICULARS'),
-        array('field'=>'am_dr','label'=>'DEBIT'),
-        array('field'=>'am_cr','label'=>'CREDIT'),
-        array('field'=>'fin_by','label'=>'FINALIZED BY'),
-        array('field'=>'void_by','label'=>'VOID BY'),
-        array('field'=>'app_by','label'=>'APPROVED BY')
+function list() { 
+    echo $this->jv_render_list_response(
+        $this->input->post('ds'),
+        $this->input->post('de'),
+        $this->input->post('qs')
     );
-    $selectFields=array('id','fin','void','app');
-    foreach($columns as $col){
-        if(!in_array($col['field'],$selectFields,true)){ $selectFields[]=$col['field']; }
-    }
+}
 
-    $rs=$this->db
-        ->select($selectFields)
-        ->limit(50)
-        ->get('glh')
-        ->result_array();
-
-    $th='';
-    foreach($columns as $col){ $th.='<th>'.$col['label'].'</th>'; }
-
-    $td='';
-    $userCache=array();
-    foreach($rs as $row){
-        $td.='<tr data-id="'.$row['id'].'">';
-        foreach($columns as $col){
-            $fieldName=$col['field'];
-            if($fieldName==='fin_by'){
-                $datafld='';
-                $finVal=isset($row['fin']) ? intval($row['fin']) : 0;
-                $finBy=isset($row['fin_by']) ? $row['fin_by'] : '';
-                if($finVal>0 && $this->has_approval($finBy)){
-                    if(is_numeric($finBy)){
-                        $aid=intval($finBy);
-                        if(!isset($userCache[$aid])){
-                            $userCache[$aid]=$this->approved_display_name($finBy);
-                        }
-                        $datafld=$userCache[$aid];
-                    } else {
-                        $datafld=$this->approved_display_name($finBy);
-                    }
-                }
-            } else if($fieldName==='void_by'){
-                $datafld='';
-                $voidVal=isset($row['void']) ? intval($row['void']) : 0;
-                $voidBy=isset($row['void_by']) ? $row['void_by'] : '';
-                if($voidVal>0 && $this->has_approval($voidBy)){
-                    if(is_numeric($voidBy)){
-                        $aid=intval($voidBy);
-                        if(!isset($userCache[$aid])){
-                            $userCache[$aid]=$this->approved_display_name($voidBy);
-                        }
-                        $datafld=$userCache[$aid];
-                    } else {
-                        $datafld=$this->approved_display_name($voidBy);
-                    }
-                }
-            } else if($fieldName==='app_by'){
-                $datafld='';
-                $appVal=isset($row['app']) ? intval($row['app']) : 0;
-                $appBy=isset($row['app_by']) ? $row['app_by'] : '';
-                if($appVal>0 && $this->has_approval($appBy)){
-                    if(is_numeric($appBy)){
-                        $aid=intval($appBy);
-                        if(!isset($userCache[$aid])){
-                            $userCache[$aid]=$this->approved_display_name($appBy);
-                        }
-                        $datafld=$userCache[$aid];
-                    } else {
-                        $datafld=$this->approved_display_name($appBy);
-                    }
-                }
-            } else {
-                $datafld=isset($row[$fieldName]) ? $row[$fieldName] : '';
-                if($fieldName==='am_dr' || $fieldName==='am_cr'){
-                    if($datafld===null || $datafld===''){
-                        $datafld='';
-                    } else {
-                        $num=is_numeric($datafld) ? floatval($datafld) : 0;
-                        $datafld=number_format($num,2);
-                    }
-                } else if($datafld===null || $datafld===''){
-                    $datafld='';
-                }
-            }
-            $td.='<td>'.$datafld.'</td>';
-        }
-        $td.='</tr>';
-    }
-
-echo '<script>
-
-$(document).ready(function() 
-{ 
-var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]});
-
-$("#tbl_list tbody").on("click", "tr", function () 
-{ 
-    var rowId = $(this).data("id");
-    if(rowId){ dep_edit(rowId); }
-});
-
-function dep_edit(id){   
-    $.ajax({url:"'.base_url('176/dashboard/edit/').'" + id,method:"POST",data:{
-        id:id
-        
-    },success:function(data) {  
-             $("#xsearch").hide(); 
-             $("#form_entry").empty();  
-             $("#form_entry").html(data);  
-             $("#add_form").hide();
-             $("#forms").hide();
-         } 
-        });        
-        
-}   
-
-});
-
-</script>
-
-<table id="tbl_list" class="display nowrap" style="width:100%" > <thead> <tr>'.$th.'</tr> </thead> <tbody>'.$td.'</tbody></table>';
+function list2() { 
+    echo $this->jv_render_list_response(
+        $this->input->post('ds'),
+        $this->input->post('de'),
+        $this->input->post('qs')
+    );
 } 
     
 function del_rec() {
@@ -321,7 +293,9 @@ function del_rec() {
     
 function ddelrec() {
     $id=$_POST['seq'];
+    $hdrId=intval($this->db->where('seq',$id)->get('gld')->row('id'));
     $this->db->where('seq',$id)->delete('gld');
+    if($hdrId>0){ $this->sync_glh_amounts($hdrId); }
 } 
 
 function ddelrec_batch() {
@@ -369,6 +343,7 @@ function ddelrec_batch() {
 
     $this->db->where('id',$id)->where('sw',1)->where_in('seq',$clean)->delete('gld');
     $cnt=$this->db->affected_rows();
+    $this->sync_glh_amounts($id);
     echo json_encode(array('ok'=>1,'count'=>$cnt));
 }
 
@@ -390,28 +365,56 @@ function save() {
         else { 
             $this->db->where('id', $id)->update('glh',$data); 
             
-        } 
+} 
     
     echo json_encode($data); 
     
 } 
 
-private function next_jv_code() {
-    $rs=$this->db
-        ->like('code','JV','after')
-        ->order_by('code','desc')
-        ->limit(1)
-        ->get('glh')->result_array();
-    $seq=1;
-    if(count($rs)>0){
-        $last=$rs[0]['code'];
-        if(preg_match('/^JV(\d+)$/', $last, $m)){
-            $seq=intval($m[1]) + 1;
-        } else {
-            $digits=preg_replace('/\D+/', '', $last);
-            if($digits!==''){ $seq=intval($digits) + 1; }
-        }
+private function jv_sequence_from_value($value) {
+    $value=strtoupper(trim((string)$value));
+    if($value===''){ return 0; }
+
+    if(preg_match('/^JV(\d+)$/', $value, $m)){
+        return intval($m[1]);
     }
+
+    $digits=preg_replace('/\D+/', '', $value);
+    if($digits===''){ return 0; }
+
+    return intval($digits);
+}
+
+private function jv_max_sequence_in_table($table,$field) {
+    if(!$this->db->table_exists($table)){ return 0; }
+
+    $fields=$this->db->list_fields($table);
+    if(!in_array($field,$fields,true)){ return 0; }
+
+    $rows=$this->db
+        ->select($field)
+        ->like($field,'JV','after')
+        ->order_by('id','desc')
+        ->limit(50)
+        ->get($table)
+        ->result_array();
+
+    $maxSeq=0;
+    foreach($rows as $row){
+        $seq=$this->jv_sequence_from_value(isset($row[$field]) ? $row[$field] : '');
+        if($seq>$maxSeq){ $maxSeq=$seq; }
+    }
+
+    return $maxSeq;
+}
+
+private function next_jv_code() {
+    $seq=max(
+        $this->jv_max_sequence_in_table('glh','code'),
+        $this->jv_max_sequence_in_table('glh','doc_code'),
+        $this->jv_max_sequence_in_table('collh','jv_no')
+    ) + 1;
+
     return 'JV'.str_pad($seq, 8, '0', STR_PAD_LEFT);
 }
 
@@ -600,6 +603,7 @@ else if($sw=='branch') {
     $rs = $this->db
         -> like('concat(code,name)',$xs)        
         ->order_by('name') 
+        ->limit(10)
         ->get($xt)->result_array(); 
 $data[]=array("id"=>0, "text"=>'select branch');
 
@@ -661,6 +665,7 @@ else if($sw=='subsi')    {
     $xs=($xs===null) ? '' : trim((string)$xs);
 
     $data[]=array("id"=>0, "text"=>'select subsi/employee');
+    $seen=array();
 
     // Subsi records (display name only)
     $xt='subsi';
@@ -684,15 +689,10 @@ else if($sw=='subsi')    {
 
     $rs = $this->db->limit(20)->get($xt)->result_array(); 
     foreach($rs as $row){
-        $code='';
-        $name='';
-        if(isset($row['name'])){ $name=trim((string)$row['name']); }
-        else if(isset($row['nm_subsi'])){ $name=trim((string)$row['nm_subsi']); }
-        if(isset($row['code'])){ $code=trim((string)$row['code']); }
-        else if(isset($row['cd_subsi'])){ $code=trim((string)$row['cd_subsi']); }
-        $label=$name;
-        if($label===''){ $label=$code; }
-        if($label===''){ $label='subsi '.$row['id']; }
+        $label=$this->subsi_search_label($row);
+        $norm=$this->normalized_selector_label($label);
+        if($norm!=='' && isset($seen[$norm])){ continue; }
+        if($norm!==''){ $seen[$norm]=1; }
         $data[]=array("id"=>"sub:".$row['id'], "text"=>$label, "type"=>"subsi");
     }
 
@@ -742,6 +742,9 @@ else if($sw=='subsi')    {
         foreach($empRows as $row){
             $label=$this->emp_display_label($row);
             if($label===''){ $label='employee '.$row['id']; }
+            $norm=$this->normalized_selector_label($label);
+            if($norm!=='' && isset($seen[$norm])){ continue; }
+            if($norm!==''){ $seen[$norm]=1; }
             $data[]=array("id"=>"emp:".$row['id'], "text"=>$label, "type"=>"emp");
         }
     }
@@ -760,6 +763,18 @@ function fsave() {
     $upperFields=array('particulars','no_ref','no_refdoc');
     if(in_array($fld,$upperFields,true)){
         $val=strtoupper(trim((string)$val));
+    }
+
+    $requiredFields=array(
+        'particulars'=>'Particulars',
+        'date_'=>'Date',
+        'no_ref'=>'Voucher No',
+        'dt_refdoc'=>'Ref Date',
+        'no_refdoc'=>'Ref No'
+    );
+    if(isset($requiredFields[$fld]) && trim((string)$val)===''){
+        echo json_encode(array('ok'=>0,'msg'=>$requiredFields[$fld].' is required.'));
+        return;
     }
 
     if($fld==='void'){
@@ -827,20 +842,64 @@ private function row_value($row,$keys){
 }
 
 private function emp_display_label($row){
-    $empNo=$this->row_value($row,array('empno','emp_no','emp_num','emp_number'));
     $fname=$this->row_value($row,array('fname','first_name','firstname'));
     $mname=$this->row_value($row,array('mname','middle_name','middlename'));
     $lname=$this->row_value($row,array('lname','last_name','lastname'));
     $full=trim(preg_replace('/\s+/', ' ', trim($fname.' '.$mname.' '.$lname)));
-    $label=$empNo;
-    if($full!==''){
-        $label=($empNo!=='') ? ($empNo.' - '.$full) : $full;
+    $label='';
+    if($lname!==''){
+        $label=$lname;
+        $tail=trim(preg_replace('/\s+/', ' ', trim($fname.' '.$mname)));
+        if($tail!==''){
+            $label.=', '.$tail;
+        }
+    } else {
+        $label=$full;
+    }
+    if($label===''){
+        $empNo=$this->row_value($row,array('empno','emp_no','emp_num','emp_number'));
+        if($empNo!==''){ $label=$empNo; }
     }
     if($label===''){
         $idVal=$this->row_value($row,array('id'));
         if($idVal!==''){ $label='employee '.$idVal; }
     }
     return $label;
+}
+
+private function subsi_search_label($row){
+    $name=$this->row_value($row,array('name','nm_subsi'));
+    if($name!==''){ return $name; }
+    $code=$this->row_value($row,array('code','cd_subsi'));
+    if($code!==''){ return $code; }
+    $idVal=$this->row_value($row,array('id'));
+    return $idVal!=='' ? 'subsi '.$idVal : '';
+}
+
+private function normalized_selector_label($text){
+    $text=trim((string)$text);
+    if($text===''){ return ''; }
+    $text=preg_replace('/^[A-Z0-9][A-Z0-9\-\s\/]*\s+\-\s+/i','',$text);
+    $text=strtoupper($text);
+    $text=str_replace(array(',', '.', '(', ')', '&'), ' ', $text);
+    $text=preg_replace('/[^A-Z0-9 ]+/', ' ', $text);
+    $tokens=preg_split('/\s+/', trim($text));
+    if(!is_array($tokens)){ return ''; }
+    $tokens=array_values(array_filter($tokens,function($token){
+        return $token!=='' && !in_array($token,array('JR','SR','II','III','IV'),true);
+    }));
+    sort($tokens, SORT_STRING);
+    return implode(' ', $tokens);
+}
+
+private function subsi_display_label($row){
+    $code=$this->row_value($row,array('code','cd_subsi'));
+    $name=$this->row_value($row,array('name','nm_subsi'));
+    if($code!=='' && $name!==''){ return $code.' - '.$name; }
+    if($name!==''){ return $name; }
+    if($code!==''){ return $code; }
+    $idVal=$this->row_value($row,array('id'));
+    return $idVal!=='' ? 'subsi '.$idVal : '';
 }
 
 private function parse_subsi_value($raw){
@@ -860,6 +919,97 @@ private function parse_subsi_value($raw){
         return array('id'=>$id,'type'=>'subsi','branch'=>$id);
     }
     return array('id'=>0,'type'=>'','branch'=>0);
+}
+
+private function detail_id2_from_subsi_value($raw){
+    $info=$this->parse_subsi_value($raw);
+    $id=isset($info['id']) ? intval($info['id']) : 0;
+    if($id<=0){ return 0; }
+    return (isset($info['type']) && $info['type']==='emp') ? -$id : $id;
+}
+
+private function build_detail_particulars($subsiText,$remarks){
+    $subsiText=trim((string)$subsiText);
+    $remarks=strtoupper(trim((string)$remarks));
+    if($subsiText!=='' && $remarks!==''){ return $subsiText.' '.$remarks; }
+    if($remarks!==''){ return $remarks; }
+    return $subsiText;
+}
+
+private function detail_balance_state($id){
+    $id=intval($id);
+    $totalsMap=$this->glh_detail_totals_map(array($id));
+    $totals=isset($totalsMap[$id]) ? $totalsMap[$id] : array('am_dr'=>0,'am_cr'=>0);
+    $amDr=round(floatval(isset($totals['am_dr']) ? $totals['am_dr'] : 0),2);
+    $amCr=round(floatval(isset($totals['am_cr']) ? $totals['am_cr'] : 0),2);
+    $balance=round($amDr-$amCr,2);
+    return array(
+        'am_dr'=>$amDr,
+        'am_cr'=>$amCr,
+        'balance'=>$balance,
+        'balanced'=>(abs($balance) < 0.0001)
+    );
+}
+
+private function detail_subsi_meta($row){
+    $id2=0;
+    $particulars='';
+    $remarks='';
+
+    if(is_array($row)){
+        $id2=isset($row['id2']) ? intval($row['id2']) : 0;
+        $particulars=isset($row['particulars']) ? trim((string)$row['particulars']) : '';
+        $remarks=isset($row['remarks']) ? strtoupper(trim((string)$row['remarks'])) : '';
+    } else if(is_object($row)){
+        $id2=property_exists($row,'id2') ? intval($row->id2) : 0;
+        $particulars=property_exists($row,'particulars') ? trim((string)$row->particulars) : '';
+        $remarks=property_exists($row,'remarks') ? strtoupper(trim((string)$row->remarks)) : '';
+    }
+
+    $subsiId=0;
+    $subsiType='';
+    $subsiValue='0';
+    $subsiText='';
+
+    if($id2<0){
+        $subsiId=abs($id2);
+        $subsiType='emp';
+        $subsiValue='emp:'.$subsiId;
+        $empTable='hr_mf_emp';
+        $empTableExists=method_exists($this->db,'table_exists') ? $this->db->table_exists($empTable) : true;
+        if($empTableExists && $subsiId>0){
+            $empRow=$this->db->where('id',$subsiId)->get($empTable)->row();
+            if($empRow){ $subsiText=$this->emp_display_label($empRow); }
+        }
+    } else if($id2>0){
+        $subsiId=$id2;
+        $subsiType='subsi';
+        $subsiValue='sub:'.$subsiId;
+        $subsiRow=$this->db->where('id',$subsiId)->get('subsi')->row();
+        if($subsiRow){ $subsiText=$this->subsi_display_label($subsiRow); }
+    }
+
+    if($remarks!=='' && $particulars!==''){
+        $partUpper=strtoupper($particulars);
+        $remarksLen=strlen($remarks);
+        if($remarksLen>0 && strlen($partUpper)>=$remarksLen && substr($partUpper,-$remarksLen)===$remarks){
+            $prefix=trim(substr($particulars,0,strlen($particulars)-$remarksLen));
+            if($prefix!==''){ $subsiText=$prefix; }
+        }
+    }
+
+    if($remarks==='' && $subsiText!=='' && stripos($particulars,$subsiText)===0){
+        $remarks=trim(substr($particulars,strlen($subsiText)));
+    }
+    if($remarks===''){ $remarks=$particulars; }
+
+    return array(
+        'id'=>$subsiId,
+        'type'=>$subsiType,
+        'value'=>$subsiValue,
+        'text'=>$subsiText,
+        'remarks'=>$remarks
+    );
 }
 
 private function is_same_user($uid,$uname,$byVal){
@@ -993,6 +1143,19 @@ function Fin() {
         echo json_encode(array('ok'=>0,'msg'=>'cannot finalize a voided transaction'));
         return;
     }
+    if($sw==1){
+        $balanceState=$this->detail_balance_state($id);
+        if(!$balanceState['balanced']){
+            echo json_encode(array(
+                'ok'=>0,
+                'msg'=>'balance must be 0 before finalizing',
+                'am_dr'=>$balanceState['am_dr'],
+                'am_cr'=>$balanceState['am_cr'],
+                'balance'=>$balanceState['balance']
+            ));
+            return;
+        }
+    }
 
     $dat=array('fin'=>($sw==1 ? 1 : 0));
     if($sw==1){
@@ -1002,10 +1165,17 @@ function Fin() {
         $dat['fin_by']=null;
     }
     $this->db->where('id',$id)->update('glh',$dat);
-    echo json_encode(array('ok'=>1));
+    $balanceState=$this->detail_balance_state($id);
+    echo json_encode(array(
+        'ok'=>1,
+        'am_dr'=>$balanceState['am_dr'],
+        'am_cr'=>$balanceState['am_cr'],
+        'balance'=>$balanceState['balance']
+    ));
 }
     
 function edit($id) {
+$this->sync_glh_amounts($id);
     
 $fld=$this->db->list_fields('glh');  
 
@@ -1046,9 +1216,24 @@ option.small { font-size: 9px; }
 .jv-top textarea { min-height: 96px; resize: vertical; }
 .jv-top .jv-col-mid .input-group-text,
 .jv-top .jv-col-right .input-group-text { min-width: 95px; }
-.jv-void .custom-control { margin-left: 8px; }
+.jv-void { min-height: 31px; }
+.jv-void .custom-control {
+  display: flex;
+  align-items: center;
+  min-height: 31px;
+  margin-left: 10px;
+  margin-bottom: 0;
+  padding-left: 2.25rem;
+}
+.jv-void .custom-control-label {
+  min-height: 1rem;
+  margin-bottom: 0;
+}
 .jv-void .custom-control-label::before,
-.jv-void .custom-control-label::after { top: 0.15rem; }
+.jv-void .custom-control-label::after {
+  top: 50%;
+  transform: translateY(-50%);
+}
 .uc-input { text-transform: uppercase; }
 @media (max-width: 991px) {
   .jv-top .input-group-text { min-width: 90px; }
@@ -1060,6 +1245,14 @@ option.small { font-size: 9px; }
 var isApproved = '.($isApproved ? 'true' : 'false').';
 var canApprove = '.($canApprove ? 'true' : 'false').';
 
+$(document).on("focus", "#particulars, #date_, #no_ref, #dt_refdoc, #no_refdoc", function(){
+    $(this).data("prev", $(this).val());
+});
+
+$(document).on("input change", "#particulars, #date_, #no_ref, #dt_refdoc, #no_refdoc", function(){
+    $(this).removeClass("is-invalid");
+});
+
 function fsave(fld){
 var $el = $("#" + fld);
 var val = $el.val();
@@ -1067,9 +1260,32 @@ if($el.is("input[type=\"text\"], textarea")){
     val = String(val).toUpperCase();
     $el.val(val);
 }
+var requiredLabels = {
+    particulars: "Particulars",
+    date_: "Date",
+    no_ref: "Voucher No",
+    dt_refdoc: "Ref Date",
+    no_refdoc: "Ref No"
+};
+if(requiredLabels[fld] && $.trim(val)===""){
+    alert(requiredLabels[fld] + " is required.");
+    $el.addClass("is-invalid").focus();
+    var prevVal = $el.data("prev");
+    if(prevVal !== undefined){ $el.val(prevVal); }
+    return;
+}
 var datas=['.$id.',fld,val];
 $.ajax({url:"'.base_url("176/dashboard/fsave").'", 
-method:"POST", data:{datas:datas},success:function(data) { } }); 
+method:"POST", dataType:"json", data:{datas:datas},success:function(data) {
+    if(!data || data.ok===0){
+        alert((data && data.msg) ? data.msg : "save failed");
+        var prevVal = $el.data("prev");
+        if(prevVal !== undefined){ $el.val(prevVal); }
+        $el.addClass("is-invalid").focus();
+        return;
+    }
+    $el.data("prev", $el.val());
+} }); 
 }
 
 function toggleVoid(){
@@ -1138,8 +1354,9 @@ function setFinalizedState(isFinalized){
     var $fields = $("#particulars, #date_, #no_ref, #dt_refdoc, #no_refdoc, #void");
     $fields.prop("disabled", isFinalized);
 
-    $("#sub-branch, #sub-coa").prop("disabled", isFinalized);
-    $("#subs-btns input, #details-btns input").prop("disabled", isFinalized);
+    $("#sub-branch, #sub-coa, #subsi-code, #subsi-remarks, #subsi-amount").prop("disabled", isFinalized);
+    $("#details-btns input, #subsi-btns input, #jv-delete-selected, #jv-delete-cancel").prop("disabled", isFinalized);
+    $("#subsi-section :input").prop("disabled", isFinalized);
 
     var $finBtn = $("#Finx");
     if($finBtn.length){
@@ -1179,6 +1396,13 @@ function setFinalizedState(isFinalized){
 function Fin(sw) {
 var msg = (sw==1) ? "are you sure to finalize?" : "are you sure to unfinalize?";
 if(!confirm(msg)){ return; }
+if(sw==1){
+    var balance = typeof jvCalcBalance === "function" ? jvCalcBalance() : 0;
+    if(Math.abs(balance) > 0.0001){
+        alert("balance must be 0 to finalize");
+        return;
+    }
+}
 $.ajax({url:"'.base_url("176/dashboard/Fin").'", 
 method:"POST", dataType:"json", data:{id:'.$id.',sw:sw},success:function(data) { 
     if(!data || data.ok===0){
@@ -1191,6 +1415,7 @@ method:"POST", dataType:"json", data:{id:'.$id.',sw:sw},success:function(data) {
         canApprove = true;
     }
     setFinalizedState(sw===1);
+    if(typeof info === "function"){ info(1); }
 } }); 
 }
 
@@ -1244,31 +1469,32 @@ $voidToggleDisabled = ($voidVal>0 || $fin>0 || $isApproved) ? ' disabled' : '';
 $left='
 <div class="col-lg-4 col-md-12 col-sm-12 jv-col-left">
     <div class="input-group mb-1 input-group-sm">
-        <div class="input-group-prepend"><span class="input-group-text">1 Particulars</span></div>
+        <div class="input-group-prepend"><span class="input-group-text">Particulars</span></div>
         <textarea id="particulars" rows="4" class="form-control uc-input" data-upper="1"'.$disabled.'>'.$datafld['particulars'].'</textarea>
     </div>
 </div>
 <div class="col-lg-4 col-md-6 col-sm-12 jv-col-mid">
     <div class="input-group mb-1 input-group-sm">
-        <div class="input-group-prepend"><span class="input-group-text">'.$datafld['code'].'</span></div>
+        <div class="input-group-prepend"><span class="input-group-text">Doc No</span></div>
+        <input type="text" class="form-control" value="'.$datafld['code'].'" readonly>
         <input type="date" class="form-control" id="date_" value="'.$datafld['date_'].'" onchange="fsave(this.id);"'.$disabled.'>
     </div>
     <div class="input-group mb-1 input-group-sm">
-        <div class="input-group-prepend"><span class="input-group-text">4 Voucher No</span></div>
+        <div class="input-group-prepend"><span class="input-group-text">Voucher No</span></div>
         <input type="text" class="form-control uc-input" data-upper="1" id="no_ref" value="'.$datafld['no_ref'].'" onchange="fsave(this.id);"'.$disabled.'>
     </div>
     <div class="input-group mb-1 input-group-sm">
-        <div class="input-group-prepend"><span class="input-group-text">5 Ref Date</span></div>
+        <div class="input-group-prepend"><span class="input-group-text">Ref Date</span></div>
         <input type="date" class="form-control" id="dt_refdoc" value="'.$datafld['dt_refdoc'].'" onchange="fsave(this.id);"'.$disabled.'>
     </div>
 </div>
 <div class="col-lg-4 col-md-6 col-sm-12 jv-col-right">
     <div class="input-group mb-1 input-group-sm">
-        <div class="input-group-prepend"><span class="input-group-text">6 Ref No</span></div>
+        <div class="input-group-prepend"><span class="input-group-text">Ref No</span></div>
         <input type="text" class="form-control uc-input" data-upper="1" id="no_refdoc" value="'.$datafld['no_refdoc'].'" onchange="fsave(this.id);"'.$disabled.'>
     </div>
     <div class="input-group mb-1 input-group-sm align-items-center jv-void">
-        <div class="input-group-prepend"><span class="input-group-text">7 Void</span></div>
+        <div class="input-group-prepend"><span class="input-group-text">Void</span></div>
         <div class="custom-control custom-switch ml-2">
             <input type="checkbox" class="custom-control-input" id="void"'.$voidChecked.$voidToggleDisabled.' onchange="toggleVoid()">
             <label class="custom-control-label" for="void"></label>
@@ -1299,7 +1525,7 @@ $left='
     }
 
     $left.='
-    <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Close" onclick="location.reload()"> 
+    <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Close" onclick="closeRecordEntry()"> 
     </div>  
     </div>  
     ';
@@ -1309,43 +1535,24 @@ echo '
 
             <div class="container-fluid">   
 
-                <div class="card-body" id="topx" >
+                <div class="card-body jv-header-card" id="topx" >
                     <div class="container-fluid"> 
                         <div class="row jv-top">  
                             '.$left.'  
                         </div>
                         <div class="row jv-panels">
-                            <div class="col-sm-6 jv-panel">   
-        
-
-                                <!-- Nav tabs -->
-                                <ul class="nav nav-tabs">
-
-                                <li class="nav-item">                    
-                                <a class="nav-link active" data-toggle="tab"  onclick="info(1)" style="color:red"><b>Details</b></a></li>
-                                </ul>
-
-                                <!-- Tab panes -->
-                                <div class="tab-content">
-                                    <div class="tab-pane container-fluid active" id="fcon"></div> 
+                            <div class="col-xl-7 col-lg-7 col-md-12 jv-panel">   
+                                <div class="jv-panel-card">
+                                    <div class="jv-panel-title">Details</div>
+                                    <div id="fcon"></div> 
                                 </div>
-                                
                             </div>  
                             
-                            <div class="col-sm-6 jv-panel">           
-
-                                <!-- Nav tabs -->
-                                <ul class="nav nav-tabs">
-
-                                <li class="nav-item">                    
-                                <a class="nav-link active" data-toggle="tab"  onclick="info(2)" style="color:red"><b>Subsidiary</b></a></li>
-                                </ul>
-
-                                <!-- Tab panes -->
-                                <div class="tab-content">
-                                    <div class="tab-pane container-fluid active" id="subs"></div> 
+                            <div class="col-xl-5 col-lg-5 col-md-12 jv-panel">           
+                                <div class="jv-panel-card">
+                                    <div class="jv-panel-title">Subsidiary</div>
+                                    <div id="subs"></div> 
                                 </div>
-                                
                             </div>  
                         </div>
                     
@@ -1389,6 +1596,7 @@ var datas=['.$id.',sw];
 }
 
 info(1);
+info(2);
 
 
 </script>
@@ -1404,18 +1612,6 @@ function info() {
     $sw=isset($tmp[1]) ? intval($tmp[1]) : 0;
 
     $coa_opts='<option value="0">select COA</option>';
-    $coa_rows=$this->db->order_by('code','asc')->get('coa')->result_array();
-    foreach($coa_rows as $crow){
-        $cid=intval($crow['id']);
-        $code=isset($crow['code']) ? trim($crow['code']) : '';
-        $name=isset($crow['name']) ? trim($crow['name']) : '';
-        $label=$code;
-        if($name!==''){
-            $label=$label!=='' ? $label.' - '.$name : $name;
-        }
-        if($label===''){ $label='COA '.$cid; }
-        $coa_opts.='<option value="'.$cid.'">'.htmlspecialchars($label,ENT_QUOTES).'</option>';
-    }
 
     $hdr=$this->db->where('id',$id)->get('glh')->row();
     $fin=0;
@@ -1445,20 +1641,32 @@ table.dataTable { width: 100% !important; }
             ->where('sw',1)
             ->get('gld')->result_array();
 
-        $thlx=explode(',',' 
-        #
-        ,Branch
-        ,Code - Account Title
-        ,Particulars
-        ,Debit
-        ,Credit
-        ');
+        $thlx=array(
+            'Select',
+            '#',
+            'Branch',
+            'Code - Account Title',
+            'Particulars',
+            'Debit',
+            'Credit'
+        );
+
+        $balanceState=$this->detail_balance_state($id);
+        $balanceClass=$balanceState['balanced'] ? ' is-balanced' : ' is-unbalanced';
+        $deleteDisabled=$isReadOnly ? ' disabled' : '';
 
         echo '<div class="container-fluid"><div class="row"><div class="col-sm-12 jv-section jv-details-section">';
-        echo '<div class="input-group mb-1 input-group-sm col-sm-12" id="details-btns">
-            <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Add" onclick="showSubsidiarySection()"'.($isReadOnly ? ' disabled' : '').'>
-            <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Print" onclick="prints('.$id.')">
-            <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Close" onclick="closeRecordEntry()">
+
+        echo '<div id="jv-detail-status'.$sw.'" class="jv-detail-status">
+            <div class="jv-balance-strip">
+                <div class="jv-balance-pill"><strong>Debit</strong><span id="jv-total-debit" data-raw="'.htmlspecialchars((string)$balanceState['am_dr'],ENT_QUOTES).'">'.number_format($balanceState['am_dr'],2).'</span></div>
+                <div class="jv-balance-pill"><strong>Credit</strong><span id="jv-total-credit" data-raw="'.htmlspecialchars((string)$balanceState['am_cr'],ENT_QUOTES).'">'.number_format($balanceState['am_cr'],2).'</span></div>
+                <div class="jv-balance-pill'.$balanceClass.'"><strong>Balance</strong><span id="jv-balance-value" data-balance="'.htmlspecialchars((string)$balanceState['balance'],ENT_QUOTES).'">'.number_format($balanceState['balance'],2).'</span></div>
+            </div>
+            <div class="jv-detail-actions">
+                <input type="button" id="jv-delete-selected" class="btn btn-outline-danger btn-sm" value="Delete" onclick="jvDeleteSelectedRows()"'.$deleteDisabled.' data-readonly="'.($isReadOnly ? '1' : '0').'">
+                <input type="button" id="jv-delete-cancel" class="btn btn-outline-secondary btn-sm" value="Cancel" onclick="jvSetDetailDeleteMode(false)"'.$deleteDisabled.' data-readonly="'.($isReadOnly ? '1' : '0').'" style="display:none;">
+            </div>
         </div>';
 
         echo '<div class="col-sm-12">
@@ -1471,8 +1679,8 @@ table.dataTable { width: 100% !important; }
             $dr='';
             $cr='';
             $amt=floatval($row['amount']);
-            if($amt>0){ $dr=$amt; }
-            else if($amt<0){ $cr=abs($amt); }
+            if($amt>0){ $dr=number_format($amt,2); }
+            else if($amt<0){ $cr=number_format(abs($amt),2); }
 
             $branchLabel='';
             $branchRow=$this->db->where('id',$row['branch'])->get('gl_branch')->row();
@@ -1488,8 +1696,10 @@ table.dataTable { width: 100% !important; }
             $branchId=isset($row['branch']) ? intval($row['branch']) : 0;
             $coaId=isset($row['coa']) ? intval($row['coa']) : 0;
             $particulars=isset($row['particulars']) ? (string)$row['particulars'] : '';
+            $subsiMeta=$this->detail_subsi_meta($row);
             $amtRaw=isset($row['amount']) ? (string)$row['amount'] : '0';
-            echo '<tr class="jv-detail-row" data-seq="'.$seq.'" data-branch="'.$branchId.'" data-coa="'.$coaId.'" data-particulars="'.htmlspecialchars($particulars,ENT_QUOTES).'" data-amount="'.htmlspecialchars($amtRaw,ENT_QUOTES).'" data-branch-text="'.htmlspecialchars($branchLabel,ENT_QUOTES).'" data-coa-text="'.htmlspecialchars($coaLabel,ENT_QUOTES).'">';
+            echo '<tr class="jv-detail-row" data-seq="'.$seq.'" data-branch="'.$branchId.'" data-coa="'.$coaId.'" data-particulars="'.htmlspecialchars($particulars,ENT_QUOTES).'" data-remarks="'.htmlspecialchars($subsiMeta['remarks'],ENT_QUOTES).'" data-subsi-id="'.intval($subsiMeta['id']).'" data-subsi-type="'.htmlspecialchars($subsiMeta['type'],ENT_QUOTES).'" data-subsi-value="'.htmlspecialchars($subsiMeta['value'],ENT_QUOTES).'" data-subsi-text="'.htmlspecialchars($subsiMeta['text'],ENT_QUOTES).'" data-amount="'.htmlspecialchars($amtRaw,ENT_QUOTES).'" data-branch-text="'.htmlspecialchars($branchLabel,ENT_QUOTES).'" data-coa-text="'.htmlspecialchars($coaLabel,ENT_QUOTES).'">';
+            echo '<td class="jv-detail-check-cell jv-detail-delete-col"><input type="checkbox" class="jv-detail-check" value="'.$seq.'"'.($isReadOnly ? ' disabled' : '').'></td>';
             echo '<td>'.$seq.'</td>';
             echo '<td>'.htmlspecialchars($branchLabel,ENT_QUOTES).'</td>';
             echo '<td>'.htmlspecialchars($coaLabel,ENT_QUOTES).'</td>';
@@ -1504,9 +1714,39 @@ table.dataTable { width: 100% !important; }
 <script>
 $(document).ready(function(){
     if(typeof jvSyncHeaderId === "function"){ jvSyncHeaderId(); }
-    $("#tbl_listd'.$sw.'").DataTable({"scrollX": true, "order": [[ 0, "desc" ]] });
-    $("#tbl_listd'.$sw.' tbody").off("click", "tr").on("click", "tr", function(){
+    var table = $("#tbl_listd'.$sw.'").DataTable({
+        "scrollX": true,
+        "order": [[ 1, "desc" ]],
+        "columnDefs": [{ "targets": 0, "orderable": false, "searchable": false, "visible": false }]
+    });
+    window.jvDetailTable = table;
+    var $wrapper = $("#tbl_listd'.$sw.'_wrapper");
+    var $status = $("#jv-detail-status'.$sw.'");
+    if($status.length){
+        if($wrapper.find(".dataTables_filter").length){
+            $status.insertAfter($wrapper.find(".dataTables_filter"));
+        } else {
+            $wrapper.prepend($status);
+        }
+    }
+    if(typeof jvSetDetailDeleteMode === "function"){ jvSetDetailDeleteMode(false, true); }
+    if(typeof jvUpdateSelectedDeleteState === "function"){ jvUpdateSelectedDeleteState(); }
+    $("#tbl_listd'.$sw.' tbody").off("click", "tr").on("click", "tr", function(e){
+        if($(e.target).closest("button,label,a").length){ return; }
+        if(window.jvDetailDeleteMode){
+            if($(e.target).is("input")){ return; }
+            var $chk = $(this).find(".jv-detail-check");
+            if($chk.length && !$chk.prop("disabled")){
+                $chk.prop("checked", !$chk.prop("checked")).trigger("change");
+            }
+            return;
+        }
+        if($(e.target).closest("input").length){ return; }
         if(typeof jvEditDetailRow === "function"){ jvEditDetailRow(this); }
+    });
+    $("#tbl_listd'.$sw.' tbody").off("change", ".jv-detail-check").on("change", ".jv-detail-check", function(e){
+        e.stopPropagation();
+        if(typeof jvUpdateSelectedDeleteState === "function"){ jvUpdateSelectedDeleteState(); }
     });
 });
 </script>';
@@ -1526,34 +1766,13 @@ $(document).ready(function(){
             <select class="form-control" id="sub-coa"'.$detDisabled.'>'.$coa_opts.'</select>
         </div>';
 
-        echo '<div class="input-group mb-1 input-group-sm col-sm-12" id="subs-btns">
-            <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Clear" onclick="jvClearSubsFields()"'.($isReadOnly ? ' disabled' : '').' data-readonly="'.($isReadOnly ? '1' : '0').'">
-            <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Delete" onclick="jvToggleDeleteMode()"'.($isReadOnly ? ' disabled' : '').' id="subs-delete" data-readonly="'.($isReadOnly ? '1' : '0').'">
-            <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Save" onclick="jvSaveTempRows()"'.($isReadOnly ? ' disabled' : '').' id="subs-save" data-readonly="'.($isReadOnly ? '1' : '0').'">
-        </div>';
 
-        echo '<div class="col-sm-12 mt-2">
-            <div class="mb-1" style="font-weight:700;">
-                Entries
-                <span style="float:right;">Balance: <span id="subs-balance">0.00</span></span>
-            </div>
-            <table id="tbl_subs_temp" class="display nowrap jv-table" style="width:100%">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Branch</th>
-                        <th>Code - Account Title</th>
-                        <th>Particulars</th>
-                        <th>Amount</th>
-                    </tr>
-                </thead>
-                <tbody id="subs-temp-body"></tbody>
-            </table>
-        </div>';
+
+
 
         echo '</div>';
 
-        echo '<div class="col-sm-12 mt-2 jv-section jv-subsi-section" id="subsi-section" style="display:none;">
+        echo '<div class="col-sm-12 mt-2 jv-section jv-subsi-section" id="subsi-section">
             <div class="mb-1" style="font-weight:700;color:#c00;">Subsidiary Acc. Code Entry</div>
             <div class="input-group mb-1 input-group-sm">
                 <select class="form-control" id="subsi-code"'.$detDisabled.'>
@@ -1568,10 +1787,11 @@ $(document).ready(function(){
                 <div class="input-group-prepend"><span class="input-group-text">Amount</span></div>
                 <input type="number" class="form-control" id="subsi-amount" value="0"'.$detDisabled.'>
             </div>
+            <div class="jv-amount-note">Positive amount goes to debit. Negative amount goes to credit.</div>
             <div class="input-group mb-1 input-group-sm" id="subsi-btns">
                 <input type="button" id="subsi-save" class="form-control btn btn-outline-dark btn-sm" value="Save" onclick="subsiSave()"'.($isReadOnly ? ' disabled' : '').' data-readonly="'.($isReadOnly ? '1' : '0').'">
-                <input type="button" id="subsi-delete" class="form-control btn btn-outline-danger btn-sm" value="Delete" onclick="subsiDeleteRow()" style="display:none;"'.($isReadOnly ? ' disabled' : '').' data-readonly="'.($isReadOnly ? '1' : '0').'">
-                <input type="button" id="subsi-close" class="form-control btn btn-outline-dark btn-sm" value="Close" onclick="subsiClose()"'.($isReadOnly ? ' disabled' : '').' data-readonly="'.($isReadOnly ? '1' : '0').'">
+                <input type="button" id="subsi-clear" class="form-control btn btn-outline-dark btn-sm" value="Clear" onclick="jvClearSubsFields()"'.($isReadOnly ? ' disabled' : '').' data-readonly="'.($isReadOnly ? '1' : '0').'">
+                <input type="button" id="subsi-print" class="form-control btn btn-outline-dark btn-sm" value="Print" onclick="subsiPrint()"'.($isReadOnly ? ' disabled' : '').' data-readonly="'.($isReadOnly ? '1' : '0').'">
             </div>
         </div>
         </div></div>
@@ -1583,7 +1803,10 @@ $(document).ready(function(){
     { return { searchTerm: params.term,source:$("#source").val()};  },
     processResults: function (response) {  return { results: response  };  },  cache: true   }});
 
-    $("#sub-coa").select2();
+    $("#sub-coa").select2({ajax: { url: "'.base_url("176/dashboard/mf/coa").'" ,
+    type: "post", dataType: "json",  delay: 250,  data: function (params) 
+    { return { searchTerm: params.term };  },
+    processResults: function (response) {  return { results: response  };  },  cache: true   }});
 
     var isReadOnly = '.($isReadOnly ? 'true' : 'false').';
     var isFinalized = '.(($fin>0) ? 'true' : 'false').';
@@ -1641,6 +1864,7 @@ function saved() {
     
     if(intval($seq)>0){  $this->db ->where('seq',$seq) ->update('gld',$dat);  }
     else {  $this->db->insert('gld',$dat);  }
+    if($sw==1 && intval($id)>0){ $this->sync_glh_amounts($id); }
     
     print_r($tmp);
     
@@ -1680,10 +1904,21 @@ function save_batch() {
     foreach($rows as $row){
         $branch=isset($row['branch_id']) ? intval($row['branch_id']) : 0;
         $coa=isset($row['coa_id']) ? intval($row['coa_id']) : 0;
-        $part=isset($row['particulars']) ? strtoupper(trim((string)$row['particulars'])) : '';
+        $remarks=isset($row['remarks']) ? strtoupper(trim((string)$row['remarks'])) : '';
+        if($remarks==='' && isset($row['particulars'])){
+            $remarks=strtoupper(trim((string)$row['particulars']));
+        }
+        $subsiText=isset($row['subsi_text']) ? trim((string)$row['subsi_text']) : '';
+        $subsiRaw=isset($row['subsi_value']) ? trim((string)$row['subsi_value']) : '';
+        if($subsiRaw==='' && isset($row['subsi_id']) && intval($row['subsi_id'])>0){
+            $tmpType=isset($row['subsi_type']) ? strtolower(trim((string)$row['subsi_type'])) : 'sub';
+            $subsiRaw=(($tmpType==='emp' || $tmpType==='e') ? 'emp:' : 'sub:').intval($row['subsi_id']);
+        }
+        $id2=$this->detail_id2_from_subsi_value($subsiRaw);
+        $part=$this->build_detail_particulars($subsiText,$remarks);
         $amt=isset($row['amount']) ? floatval($row['amount']) : 0;
 
-        if($branch<=0 || $coa<=0 || $part==='' || $amt==0){
+        if($branch<=0 || $coa<=0 || $remarks==='' || $amt==0 || $id2===0){
             continue;
         }
         $sum+=$amt;
@@ -1692,6 +1927,8 @@ function save_batch() {
             'id'=>$id,
             'branch'=>$branch,
             'coa'=>$coa,
+            'remarks'=>$remarks,
+            'id2'=>$id2,
             'particulars'=>$part,
             'amount'=>$amt
         );
@@ -1707,7 +1944,15 @@ function save_batch() {
     }
 
     $this->db->insert_batch('gld',$insertRows);
-    echo json_encode(array('ok'=>1,'count'=>count($insertRows)));
+    $totals=$this->sync_glh_amounts($id);
+    $balanceState=$this->detail_balance_state($id);
+    echo json_encode(array(
+        'ok'=>1,
+        'count'=>count($insertRows),
+        'am_dr'=>$totals['am_dr'],
+        'am_cr'=>$totals['am_cr'],
+        'balance'=>$balanceState['balance']
+    ));
 }
 
 function update_detail() {
@@ -1715,9 +1960,18 @@ function update_detail() {
     $seq=intval($this->input->post('seq'));
     $branch=intval($this->input->post('branch'));
     $coa=intval($this->input->post('coa'));
+    $subsiRaw=trim((string)$this->input->post('subsi'));
+    $subsiText=trim((string)$this->input->post('subsi_text'));
+    $remarks=strtoupper(trim((string)$this->input->post('remarks')));
     $particulars=trim((string)$this->input->post('particulars'));
     $amtRaw=$this->input->post('amount');
     $amount=is_numeric($amtRaw) ? floatval($amtRaw) : 0;
+    $id2=$this->detail_id2_from_subsi_value($subsiRaw);
+
+    if($remarks==='' && $particulars!==''){
+        $remarks=strtoupper($particulars);
+    }
+    $particulars=$this->build_detail_particulars($subsiText,$remarks);
 
     if($id<=0 || $seq<=0){
         echo json_encode(array('ok'=>0,'msg'=>'invalid record'));
@@ -1738,36 +1992,49 @@ function update_detail() {
         return;
     }
 
-    if($branch<=0 || $coa<=0 || $particulars==='' || $amount==0){
-        echo json_encode(array('ok'=>0,'msg'=>'complete all the fields first'));
-        return;
-    }
-
     $row=$this->db->where('seq',$seq)->where('id',$id)->where('sw',1)->get('gld')->row();
     if(!$row){
         echo json_encode(array('ok'=>0,'msg'=>'detail record not found'));
+        return;
+    }
+    if($id2===0 && property_exists($row,'id2')){
+        $id2=intval($row->id2);
+    }
+    if($branch<=0 || $coa<=0 || $remarks==='' || $amount==0 || $id2===0){
+        echo json_encode(array('ok'=>0,'msg'=>'complete all the fields first'));
         return;
     }
 
     $dat=array(
         'branch'=>$branch,
         'coa'=>$coa,
+        'remarks'=>$remarks,
+        'id2'=>$id2,
         'particulars'=>$particulars,
         'amount'=>$amount
     );
     $this->db->where('seq',$seq)->update('gld',$dat);
-    echo json_encode(array('ok'=>1));
+    $totals=$this->sync_glh_amounts($id);
+    $balanceState=$this->detail_balance_state($id);
+    echo json_encode(array(
+        'ok'=>1,
+        'am_dr'=>$totals['am_dr'],
+        'am_cr'=>$totals['am_cr'],
+        'balance'=>$balanceState['balance']
+    ));
 }
 
 function save_subsi() {
     $id=intval($this->input->post('id'));
-    $subsiRaw=$this->input->post('subsi');
-    $subsiInfo=$this->parse_subsi_value($subsiRaw);
-    $subsiVal=isset($subsiInfo['branch']) ? intval($subsiInfo['branch']) : 0;
+    $branch=intval($this->input->post('branch'));
+    $subsiRaw=trim((string)$this->input->post('subsi'));
+    $subsiText=trim((string)$this->input->post('subsi_text'));
     $remarks=strtoupper(trim((string)$this->input->post('remarks')));
     $amtRaw=$this->input->post('amount');
     $amount=is_numeric($amtRaw) ? floatval($amtRaw) : 0;
     $coa=intval($this->input->post('coa'));
+    $id2=$this->detail_id2_from_subsi_value($subsiRaw);
+    $particulars=$this->build_detail_particulars($subsiText,$remarks);
 
     if($id<=0){
         echo json_encode(array('ok'=>0,'msg'=>'invalid record'));
@@ -1788,22 +2055,33 @@ function save_subsi() {
         return;
     }
 
-    if($subsiVal===0 || $remarks==='' || $amount==0){
+    if($branch<=0 || $coa<=0 || $id2===0 || $remarks==='' || $amount==0){
         echo json_encode(array('ok'=>0,'msg'=>'complete all the fields first'));
         return;
     }
 
     $dat=array(
-        'sw'=>2,
+        'sw'=>1,
         'id'=>$id,
-        'branch'=>$subsiVal,
+        'branch'=>$branch,
         'coa'=>$coa,
-        'particulars'=>$remarks,
+        'remarks'=>$remarks,
+        'id2'=>$id2,
+        'particulars'=>$particulars,
         'amount'=>$amount
     );
 
     $this->db->insert('gld',$dat);
-    echo json_encode(array('ok'=>1));
+    $seq=$this->db->insert_id();
+    $totals=$this->sync_glh_amounts($id);
+    $balanceState=$this->detail_balance_state($id);
+    echo json_encode(array(
+        'ok'=>1,
+        'seq'=>$seq,
+        'am_dr'=>$totals['am_dr'],
+        'am_cr'=>$totals['am_cr'],
+        'balance'=>$balanceState['balance']
+    ));
 }
 
 function subsi_list() {
@@ -1815,7 +2093,7 @@ function subsi_list() {
         return;
     }
 
-    $this->db->where('id',$id)->where('sw',2);
+    $this->db->where('id',$id)->where('sw',1);
     if($coa>0){ $this->db->where('coa',$coa); }
     $rows=$this->db->order_by('seq','asc')->get('gld')->result_array();
 
@@ -1827,30 +2105,9 @@ function subsi_list() {
 
         $branchLabel='';
         $branchVal=isset($row['branch']) ? intval($row['branch']) : 0;
-        if($branchVal<0){
-            $empId=abs($branchVal);
-            $empTable='hr_mf_emp';
-            $empTableExists=method_exists($this->db,'table_exists') ? $this->db->table_exists($empTable) : true;
-            if($empTableExists){
-                $empRow=$this->db->where('id',$empId)->get($empTable)->row();
-                if($empRow){
-                    $branchLabel=$this->emp_display_label($empRow);
-                }
-            }
-            if($branchLabel==='' && $empId>0){ $branchLabel='employee '.$empId; }
-        } else if($branchVal>0){
-            $subsiRow=$this->db->where('id',$branchVal)->get('subsi')->row();
-            if($subsiRow){
-                $code='';
-                $name='';
-                if(property_exists($subsiRow,'code')){ $code=trim((string)$subsiRow->code); }
-                else if(property_exists($subsiRow,'cd_subsi')){ $code=trim((string)$subsiRow->cd_subsi); }
-                if(property_exists($subsiRow,'name')){ $name=trim((string)$subsiRow->name); }
-                else if(property_exists($subsiRow,'nm_subsi')){ $name=trim((string)$subsiRow->nm_subsi); }
-                $branchLabel=$code;
-                if($name!==''){ $branchLabel=($branchLabel!=='') ? $branchLabel.' - '.$name : $name; }
-            }
-            if($branchLabel==='' && $branchVal>0){ $branchLabel='subsi '.$branchVal; }
+        if($branchVal>0){
+            $branchRow=$this->db->where('id',$branchVal)->get('gl_branch')->row();
+            if($branchRow){ $branchLabel=$this->branch_display_label($branchRow); }
         }
 
         $coaLabel='';
@@ -1866,10 +2123,18 @@ function subsi_list() {
         }
         if($coaLabel==='' && $coaId>0){ $coaLabel='COA '.$coaId; }
 
+        $subsiMeta=$this->detail_subsi_meta($row);
+
         $out[]=array(
+            'seq'=>isset($row['seq']) ? intval($row['seq']) : 0,
             'branch'=>$branchLabel,
             'coa'=>$coaLabel,
             'particulars'=>isset($row['particulars']) ? (string)$row['particulars'] : '',
+            'remarks'=>$subsiMeta['remarks'],
+            'subsi_id'=>$subsiMeta['id'],
+            'subsi_type'=>$subsiMeta['type'],
+            'subsi_value'=>$subsiMeta['value'],
+            'subsi_text'=>$subsiMeta['text'],
             'amount'=>$amt
         );
     }
@@ -2042,6 +2307,15 @@ function prints($id) {
     }
     $printedOn=date('m/d/Y h:i:s A');
 
+    $headerHtml='
+  <div class="header">
+    <div class="left">
+      <div class="title">JOURNAL VOUCHER ENTRIES</div>
+      <div class="company">'.htmlspecialchars(strtoupper($company),ENT_QUOTES).'</div>
+    </div>
+    <div class="date">'.htmlspecialchars($dispDate,ENT_QUOTES).'</div>
+  </div>';
+
     $footerHtml='
   <div class="print-footer">
     <div class="signatories">
@@ -2065,36 +2339,12 @@ function prints($id) {
     <div class="printed">PRINTED AT: <span id="printedOn">'.htmlspecialchars($printedOn,ENT_QUOTES).'</span> PRINTED BY: '.htmlspecialchars($printBy,ENT_QUOTES).'</div>
   </div>';
 
-    $rowsHtml=implode("\n",$rowItems);
-    if($rowsHtml!==''){ $rowsHtml.="\n"; }
-    $rowsHtml.=$totalRow;
+    $allRows=$rowItems;
+    $allRows[]=$totalRow;
 
-    $pagesHtml='
-<div class="page last">
-  <div class="header">
-    <div class="left">
-      <div class="title">JOURNAL VOUCHER ENTRIES</div>
-      <div class="company">'.htmlspecialchars(strtoupper($company),ENT_QUOTES).'</div>
-    </div>
-    <div class="date">'.htmlspecialchars($dispDate,ENT_QUOTES).'</div>
-  </div>
-  <table>
-    <thead>
-      <tr>
-        <th class="col-title">ACCOUNT TITLE</th>
-        <th class="col-code">ACCT. CODE</th>
-        <th class="col-branch">BRANCH</th>
-        <th class="col-num">DEBIT</th>
-        <th class="col-num">CREDIT</th>
-      </tr>
-    </thead>
-    <tbody>
-      '.$rowsHtml.'
-    </tbody>
-  </table>';
-
-    $pagesHtml.=$footerHtml.'
-</div>';
+    $headerJson=json_encode($headerHtml, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+    $footerJson=json_encode($footerHtml, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+    $rowsJson=json_encode($allRows, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 
     echo '<!DOCTYPE html>
 <html>
@@ -2103,21 +2353,23 @@ function prints($id) {
 <title>Journal Voucher Entries</title>
 <style>
 body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 0; padding: 0; background: #fff; font-size: 12px; line-height: 1.2; }
-.page { padding: 0.35in; max-width: 7.5in; margin: 0 auto; box-sizing: border-box; display: flex; flex-direction: column; min-height: 10in; }
+#jv-pages { padding: 12px 0; }
+#jv-measure { position: absolute; left: -99999px; top: 0; visibility: hidden; pointer-events: none; }
+.page { width: 8.5in; height: 11in; padding: 0.35in; margin: 0 auto 16px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: #fff; }
+.page.last { margin-bottom: 0; }
 .header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
 .header .left { font-size: 11px; line-height: 1.2; }
 .header .title { font-weight: 700; font-size: 24px; letter-spacing: 0.4px; }
 .header .company { font-weight: 700; font-size: 18px; margin-top: 2px; }
-.header .date { font-size: 16px; font-weight: 700;}
+.header .date { font-size: 16px; font-weight: 700; }
 table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 thead th { text-align: left; font-size: 11px; padding: 4px 8px; border-top: 1px solid #000; border-bottom: 1px solid #000; letter-spacing: 0.3px; }
 tbody td { font-size: 11px; padding: 4px 8px; vertical-align: top; }
-.col-num, .col-branch ,.col-code { 
-  text-align: right !important; 
-  white-space: nowrap; 
-  width: 15%; 
+.col-num, .col-branch, .col-code {
+  text-align: right !important;
+  white-space: nowrap;
+  width: 15%;
 }
-  
 .col-code { width: 18%; }
 .col-branch { width: 10%; }
 .col-title { width: 57%; overflow: hidden; }
@@ -2149,14 +2401,20 @@ tbody td { font-size: 11px; padding: 4px 8px; vertical-align: top; }
 @page { size: Letter; margin: 0; }
 @media print {
   body { margin: 0; }
-  .page { padding: 0.35in; max-width: none; width: 100%; margin: 0; min-height: 10in; page-break-after: always; }
+  #jv-pages { padding: 0; }
+  .page { margin: 0; page-break-after: always; }
   .page.last { page-break-after: auto; }
-  thead { display: table-header-group; }
   tr { page-break-inside: avoid; break-inside: avoid; }
   .total-row, .print-footer { page-break-inside: avoid; break-inside: avoid; }
 }
 </style>
 <script>
+var jvHeaderHtml='.$headerJson.';
+var jvFooterHtml='.$footerJson.';
+var jvRowHtmls='.$rowsJson.';
+var jvBuildTimer=null;
+var jvTableShell="<table><thead><tr><th class=\"col-title\">ACCOUNT TITLE</th><th class=\"col-code\">ACCT. CODE</th><th class=\"col-branch\">BRANCH</th><th class=\"col-num\">DEBIT</th><th class=\"col-num\">CREDIT</th></tr></thead><tbody></tbody></table>";
+
 function jvPad(n){ return (n < 10) ? ("0" + n) : String(n); }
 function jvFormatPrintedOn(d){
   var hours = d.getHours();
@@ -2171,12 +2429,110 @@ function jvUpdatePrintedOn(){
   if(!el){ return; }
   el.textContent = jvFormatPrintedOn(new Date());
 }
-window.addEventListener("beforeprint", jvUpdatePrintedOn);
-window.addEventListener("load", jvUpdatePrintedOn);
+function jvCreatePage(isLast){
+  var page = document.createElement("div");
+  page.className = "page" + (isLast ? " last" : "");
+  page.innerHTML = jvHeaderHtml + jvTableShell + (isLast ? jvFooterHtml : "");
+  return page;
+}
+function jvRenderPage(rows, isLast){
+  var page = jvCreatePage(isLast);
+  var body = page.querySelector("tbody");
+  if(rows.length > 0){
+    body.insertAdjacentHTML("beforeend", rows.join(""));
+  }
+  return page;
+}
+function jvPageFits(host, rows, isLast){
+  host.innerHTML = "";
+  var page = jvRenderPage(rows, isLast);
+  host.appendChild(page);
+  return page.scrollHeight <= (page.clientHeight + 1);
+}
+function jvSplitLastPage(host, pages){
+  var carry = pages.pop().slice();
+  var newLast = [];
+
+  while(carry.length > 0){
+    var candidate = carry[carry.length - 1];
+    newLast.unshift(candidate);
+    if(jvPageFits(host, newLast, true)){
+      carry.pop();
+    } else {
+      newLast.shift();
+      break;
+    }
+  }
+
+  if(newLast.length === 0 && carry.length > 0){
+    newLast.unshift(carry.pop());
+  }
+
+  if(carry.length > 0){
+    pages.push(carry);
+  }
+  pages.push(newLast);
+}
+function jvBuildPages(){
+  var pagesHost = document.getElementById("jv-pages");
+  var measureHost = document.getElementById("jv-measure");
+  if(!pagesHost || !measureHost){ return; }
+
+  var pages = [[]];
+  for(var i = 0; i < jvRowHtmls.length; i++){
+    var current = pages[pages.length - 1];
+    current.push(jvRowHtmls[i]);
+    if(!jvPageFits(measureHost, current, false)){
+      current.pop();
+      if(current.length === 0){
+        current.push(jvRowHtmls[i]);
+      } else {
+        pages.push([jvRowHtmls[i]]);
+      }
+    }
+  }
+
+  if(pages.length === 0){
+    pages = [[]];
+  }
+
+  if(!jvPageFits(measureHost, pages[pages.length - 1], true)){
+    jvSplitLastPage(measureHost, pages);
+  }
+
+  while(pages.length > 1 && pages[0].length === 0){
+    pages.shift();
+  }
+
+  pagesHost.innerHTML = "";
+  var fragment = document.createDocumentFragment();
+  for(var p = 0; p < pages.length; p++){
+    fragment.appendChild(jvRenderPage(pages[p], p === pages.length - 1));
+  }
+  pagesHost.appendChild(fragment);
+  measureHost.innerHTML = "";
+  jvUpdatePrintedOn();
+}
+function jvScheduleBuild(){
+  if(jvBuildTimer !== null){
+    window.clearTimeout(jvBuildTimer);
+  }
+  jvBuildTimer = window.setTimeout(function(){
+    jvBuildTimer = null;
+    jvBuildPages();
+  }, 40);
+}
+window.addEventListener("load", jvScheduleBuild);
+window.addEventListener("resize", jvScheduleBuild);
+window.addEventListener("beforeprint", function(){
+  jvBuildPages();
+  jvUpdatePrintedOn();
+});
 </script>
 </head>
 <body>
-'.$pagesHtml.'
+<div id="jv-pages"></div>
+<div id="jv-measure" aria-hidden="true"></div>
 </body>
 </html>';
 

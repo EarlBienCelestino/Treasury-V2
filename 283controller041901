@@ -1178,6 +1178,9 @@ $pt=0;
 $fin=$datafld['fin']; 
 $dtl=$top2=$top3=$top4=$top=$left=$right=$btn=''; 
 $top=' ';
+$uid_edit      = $_SESSION['user_id'];
+$ur_edit       = $this->db->where('userid',$uid_edit)->get('scm_user')->row('User_rights');
+$is_accounting_user = ($ur_edit==8 || $ur_edit==4 || $ur_edit==22);
 
 for($a=1;$a<count($cap);$a++) {
     
@@ -1593,25 +1596,32 @@ method:"POST", data:{id:'.$id.'},success:function(data) {
 }
 
 function Fin(sw) {
-var xsw=1;
-var msg="Unfinalized";
-
-if(sw==1){
-    var msg="Finalized"; 
-
+    var msg = (sw==1) ? "Finalize" : "Unfinalize";
+    if(confirm(msg + " this transaction?")){
+        $.ajax({
+            url: "'.base_url("283/dashboard/Fin").'",
+            method: "POST",
+            data: {id: '.$id.', sw: sw},
+            success: function(){ exits(); }
+        });
+    }
 }
 
-if(xsw==1){
-if(confirm(msg + " this transaction ?")==true){
-$.ajax({url:"'.base_url("283/dashboard/Fin").'", 
-method:"POST", data:{id:'.$id.',sw:sw},success:function(data) { 
-    exits();
-} }); 
-
-}
-
-}
-else {alert(" please fill field with * ");}
+function Fin_accounting(sw) {
+    var missing = false;
+    $("#tbl_liqd tbody tr").each(function(){
+        var table_inst = $("#tbl_liqd").DataTable();
+        var rowData    = table_inst.row(this).data();
+    });
+    var msg = (sw==1) ? "Finalize" : "Unfinalize";
+    if(confirm(msg + " this transaction?")){
+        $.ajax({
+            url: "'.base_url("283/dashboard/Fin").'",
+            method: "POST",
+            data: {id: '.$id.', sw: sw},
+            success: function(data){ exits(); }
+        });
+    }
 }
 
 function prints(id) {
@@ -1651,9 +1661,12 @@ $("#gtamt").html(z);
             <input type="hidden" id="dfin" value="'.$datafld['fin'].'">';
 
             if($datafld['fin']==0){
+            $fin_onclick = ($is_accounting_user ?? false)
+                ? 'Fin_accounting(1)'
+                : 'Fin(1)';
             echo '
             <input type="button" class="form-control btn btn-outline-dark btn-sm" 
-            value="Fin" onclick="Fin(1)" id="Finx">         
+            value="Fin" onclick="'.$fin_onclick.'" id="Finx">         
             ';
 
             }
@@ -1806,18 +1819,17 @@ if($sw==1){
         $exp_label = (!empty($row['expense']) && isset($expense_opts[$row['expense']])) 
                      ? $expense_opts[$row['expense']] : '';
         $tamt += floatval($row['amount']);
-        $td .= '<tr>
-            <td>'.$row['seq'].'</td>
+        $td .= '<tr data-seq="'.intval($row['seq']).'">
             <td>'.(!empty($row['date_']) ? date('m/d/Y', strtotime($row['date_'])) : '').'</td>
             <td>'.htmlspecialchars($row['particulars'], ENT_QUOTES).'</td>
             <td>'.$exp_label.'</td>
             <td style="text-align:right;">'.number_format(floatval($row['amount']),2).'</td>
+            <td>'.htmlspecialchars($row['remarks'] ?? '', ENT_QUOTES).'</td>
         </tr>';
     }
-    $th = '<th>Seq</th><th>Date</th><th>Particulars</th><th>Expense</th><th>Amount</th>';
-
-    $hide = 'style="display:none"';
-    if($ur==8 || $ur==4){ $hide=''; }
+    $th = '<th>Date</th><th>Particulars</th><th>Expense</th><th>Amount</th><th>Remarks</th>';
+    $is_accounting = ($ur==8 || $ur==4 || $ur==22);
+    $hide = $is_accounting ? '' : 'style="display:none"';
 
     $exp_select = '<option value="0">-- Select --</option>';
     for($b=1; $b<=4; $b++){
@@ -1851,6 +1863,19 @@ function dsave() {
     var partVal    = $("#df-3").val().trim();
     var expenseVal = $("#df-expense").val();
     var amountVal  = parseFloat($("#df-4").val());
+
+    var branchVisible = ($("#df-1").closest("div").is(":visible"));
+    var coaVisible    = ($("#df-2").closest("div").is(":visible"));
+
+    if(branchVisible && (parseInt(branchId) <= 0)){
+        alert("Branch is required for accounting.");
+        return;
+    }
+
+    if(coaVisible && (parseInt(coaId) <= 0)){
+        alert("COA is required for accounting.");
+        return;
+    }
 
     if(dateVal === ""){
         alert("Date is required.");
@@ -1948,22 +1973,28 @@ $(document).ready(function() {
         "order": [[0,"asc"]],
         "paging": false,
         "searching": false,
-        "info": false
+        "info": false,
+        "createdRow": function(row, data, dataIndex){
+        }
     });
     $("#tbl_liqd tbody").on("click", "tr", function() {
         var d = table.row(this).data();
-        $("#seq").val(d[0]);
-        $("#df-date").val(function(){
-            // convert m/d/Y back to Y-m-d for date input
-            if(!d[1]) return "";
-            var p = d[1].split("/");
-            return p[2]+"-"+p[0].padStart(2,"0")+"-"+p[1].padStart(2,"0");
-        }());
-        $("#df-3").val(d[2]);
-        // match expense text to value
+        var rowNode  = table.row(this).node();
+        var seq_val  = $(rowNode).data("seq") || 0;
+        $("#seq").val(seq_val);
+
+        var dateStr = d[0] || "";
+        var dateFmt = "";
+        if(dateStr){
+            var p = dateStr.split("/");
+            if(p.length===3){ dateFmt = p[2]+"-"+p[0].padStart(2,"0")+"-"+p[1].padStart(2,"0"); }
+        }
+        $("#df-date").val(dateFmt);
+        $("#df-3").val(d[1]);
         var expMap = {"FOOD":1,"TRANSPO":2,"GAS":3,"OTHER":4};
-        $("#df-expense").val(expMap[d[3]] || 0);
-        $("#df-4").val(d[4].replace(/,/g,""));
+        $("#df-expense").val(expMap[d[2]] || 0);
+        $("#df-4").val(String(d[3] || "").replace(/,/g,""));
+        $("#df-remarks").val(d[4] || "");
     });
 });
 </script>
@@ -2029,8 +2060,9 @@ $(document).ready(function() {
                 <tbody>'.$td.'</tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="4" style="text-align:right;font-weight:bold;">Total</td>
+                        <td colspan="3" style="text-align:right;font-weight:bold;">Total</td>
                         <td style="text-align:right;font-weight:bold;">'.number_format($tamt,2).'</td>
+                        <td></td>
                     </tr>
                 </tfoot>
             </table>

@@ -381,6 +381,9 @@ function list() {
         return;
     }
 
+    $uid = $_SESSION['user_id'];
+    $ur  = $this->db->where('userid',$uid)->get('scm_user')->row('User_rights');
+
     $start = $ds.' 00:00:00';
     $end   = date('Y-m-d', strtotime($de.' +1 day')).' 00:00:00';
 
@@ -392,23 +395,27 @@ function list() {
         $this->db->where('r_type', $rt);
     }
 
+    $sw = 0;
+    if($ur==4 or $ur==8 or $ur==22) { $sw=1; }
+    if($sw==0){ $this->db->where('created_by',$uid); }
+
     $rs = $this->db
         ->order_by('date_','desc')
         ->order_by('id','desc')
         ->get()
         ->result_array();
 
-    $fld = explode(',','id,code,payee,amount,payment_type,remarks');
+    $fld = explode(',','id,code,date_,payee,amount,payment_type,remarks');
     $td = '';
     $th = '';
 
     for($a=0; $a<count($fld); $a++) {
-    $fldnm = str_replace('_',' ',$fld[$a]);
+        $fldnm = str_replace('_',' ',$fld[$a]);
 
-    if($a==1){ $th .= '<th>RFP Type</th>'; }
+        if($a==1){ $th .= '<th>RFP Type</th>'; }
 
-    $th .= '<th>'.ucwords($fldnm).'</th>';
-}
+        $th .= '<th>'.ucwords($fldnm).'</th>';
+    }
 
     $type = explode(',',',Cash Advance,Reimburse,Quotation,Replenishment,Supplier');
 
@@ -467,21 +474,8 @@ $(document).ready(function() {
     $("#tbl_list tbody").off("click", "tr").on("click", "tr", function() {
         var data = table.row(this).data();
         if(!data || typeof data[0] === "undefined"){ return; }
-        edit_rec(data[0]);
+        edit_recs(data[0]);
     });
-
-    function edit_rec(id) {
-        $.ajax({
-            url: "'.base_url("99/dashboard/edit_rec").'",
-            method: "POST",
-            data: {id: id},
-            success: function(data) {
-                $("#rfp-row").hide();
-                $("#forms").empty();
-                $("#forms").html(data);
-            }
-        });
-    }
 });
 </script>
 
@@ -2429,52 +2423,81 @@ $fldcap= $fld;
 $top.='
 
 <style>
-.input-group.input-group-sm{
-    display:flex;
+.rfp-inline-group{
+    display:flex !important;
     flex-wrap:nowrap !important;
-    align-items:stretch;
-    width:100%;
+    align-items:stretch !important;
+    width:100% !important;
+    margin-bottom:0 !important;
 }
 
-.input-group.input-group-sm > .input-group-prepend{
-    flex:0 0 auto;
+.rfp-inline-group > .input-group-prepend{
+    flex:0 0 auto !important;
 }
 
-.input-group.input-group-sm > .input-group-prepend .input-group-text{
-    min-width:140px;
-    white-space:nowrap;
+.rfp-inline-group > .input-group-prepend > .input-group-text{
+    min-width:120px !important;
+    max-width:120px !important;
+    width:120px !important;
+    white-space:nowrap !important;
+    overflow:hidden !important;
+    text-overflow:ellipsis !important;
 }
 
-.input-group.input-group-sm > .form-control,
-.input-group.input-group-sm > .select2-container,
-.input-group.input-group-sm > textarea.form-control{
+.rfp-inline-group > .form-control,
+.rfp-inline-group > select.form-control,
+.rfp-inline-group > textarea.form-control,
+.rfp-inline-group > .select2-container{
     flex:1 1 auto !important;
     width:1% !important;
     min-width:0 !important;
+    max-width:none !important;
+    display:block !important;
+    margin:0 !important;
 }
 
-.input-group.input-group-sm > .select2-container .select2-selection--single,
-.input-group.input-group-sm > .select2-container .select2-selection--multiple{
-    height: calc(1.5em + .5rem + 2px);
-    min-height: calc(1.5em + .5rem + 2px);
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
+.rfp-inline-group > .select2-container{
+    position:relative !important;
 }
 
-.input-group.input-group-sm > .select2-container .select2-selection__rendered{
-    line-height: calc(1.5em + .5rem);
+.rfp-inline-group > .select2-container .selection{
+    display:block !important;
+    width:100% !important;
 }
 
-.input-group.input-group-sm > .select2-container .select2-selection__arrow{
-    height: calc(1.5em + .5rem + 2px);
-}
-
-.input-group.input-group-sm > textarea.form-control{
+.rfp-inline-group > .select2-container .select2-selection--single,
+.rfp-inline-group > .select2-container .select2-selection--multiple{
+    width:100% !important;
+    min-width:0 !important;
     height: calc(1.5em + .5rem + 2px) !important;
     min-height: calc(1.5em + .5rem + 2px) !important;
-    resize:none;
-    overflow:hidden;
-    white-space:nowrap;
+    border-top-left-radius:0 !important;
+    border-bottom-left-radius:0 !important;
+}
+
+.rfp-inline-group > .select2-container .select2-selection__rendered{
+    line-height: calc(1.5em + .5rem) !important;
+    padding-left:6px !important;
+    padding-right:24px !important;
+}
+
+.rfp-inline-group > .select2-container .select2-selection__arrow{
+    height: calc(1.5em + .5rem + 2px) !important;
+}
+
+.rfp-inline-group > textarea.form-control{
+    height: calc(1.5em + .5rem + 2px) !important;
+    min-height: calc(1.5em + .5rem + 2px) !important;
+    resize:none !important;
+    overflow:hidden !important;
+    white-space:nowrap !important;
+}
+
+.rfp-inline-group > input:disabled,
+.rfp-inline-group > select:disabled,
+.rfp-inline-group > textarea:disabled{
+    background-color:#e9ecef !important;
+    cursor:not-allowed !important;
 }
 </style>
 <script> 
@@ -2684,18 +2707,21 @@ elseif($a==3 ){
 
 elseif($a==4){ 
 
-    $dept_rs = $this->db->order_by('name','asc')->get('dept')->result();
-    $dept_opt = '<option value="">Select Department</option>';
+    $rfp_types = explode(',', ',Cash Advance,Reimburse,Quotation,Replenishment,Supplier');
+    $rfp_opt = '<option value="">Select RFP Type</option>';
 
-    foreach($dept_rs as $dept_row){
-        $sel = (intval($dataf) == intval($dept_row->id)) ? 'selected' : '';
-        $dept_opt .= '<option value="'.$dept_row->id.'" '.$sel.'>'.htmlspecialchars($dept_row->name, ENT_QUOTES).'</option>';
+    for($b=1; $b<count($rfp_types); $b++){
+        $sel = (intval($dataf) == $b) ? 'selected' : '';
+        $rfp_opt .= '<option value="'.$b.'" '.$sel.'>'.htmlspecialchars($rfp_types[$b], ENT_QUOTES).'</option>';
     }
 
     $top.=' 
-    <div class="input-group mb-1 input-group-sm"> 
-         <select class="form-control select2-dropdown" id="'.$fld[$a].'" onchange="fsave(this.id)">
-            '.$dept_opt.'
+    <div class="input-group mb-1 input-group-sm">
+        <div class="input-group-prepend">
+            <span class="input-group-text">RFP Type</span>
+        </div>
+         <select class="form-control" id="'.$fld[$a].'" onchange="fsave(this.id)" disabled>
+            '.$rfp_opt.'
          </select>
     </div> ';
 }
@@ -3060,12 +3086,12 @@ $(document).ready(function(){ toggle_initial_disbursement(); });
 ';
 }
     elseif($a==4){ 
-$dept = $this->db->order_by('name','asc')->get('dept')->result();
+$rfp_types = explode(',', ',Cash Advance,Reimburse,Quotation,Replenishment,Supplier');
+$opt = '<option value="">Select RFP Type</option>';
 
-$opt = '<option value="">Select Department</option>';
-foreach($dept as $row){
-    $sel = (intval($dataf) == intval($row->id)) ? 'selected' : '';
-    $opt .= '<option value="'.$row->id.'" '.$sel.'>'.htmlspecialchars($row->name, ENT_QUOTES).'</option>';
+for($b=1; $b<count($rfp_types); $b++){
+    $sel = (intval($datafld['r_type']) == $b) ? 'selected' : '';
+    $opt .= '<option value="'.$b.'" '.$sel.'>'.htmlspecialchars($rfp_types[$b], ENT_QUOTES).'</option>';
 }
 
 $top.=' 
@@ -3600,39 +3626,71 @@ if($_can_ap && intval($_fin_now) > 0){
         <input type="text" class="form-control" id="approved_by" value="'.htmlspecialchars($appr_name_val,ENT_QUOTES).'" disabled style="background-color:#e9ecef;color:#333;cursor:not-allowed;" />
     </div>';
 
-    // ── DV No field HTML ────────────────────────────────────────────────
     $dv_display_val = '';
-    if(intval($datafld[$fld[13]]) > 0){
-        $dv_row2 = $this->db->where('id',$datafld[$fld[13]])->get('dvh')->row_array();
+    $dv_id_found    = 0;
+
+    $dv_from_rfp = $this->db->where('rfp', $id)->order_by('id','desc')->limit(1)->get('dvh')->row_array();
+    if(!empty($dv_from_rfp)){
+        $dv_id_found = intval($dv_from_rfp['id']);
+        $dv_total2   = 0;
+        foreach($this->db->where('id',$dv_id_found)->get('dvd')->result_array() as $dr){
+            $dv_total2 += floatval($dr['amount']);
+        }
+        if($dv_total2 <= 0 && isset($dv_from_rfp['dv_amt'])){ $dv_total2 = floatval($dv_from_rfp['dv_amt']); }
+        $dv_date2       = (!empty($dv_from_rfp['date_']) && substr($dv_from_rfp['date_'],0,4)>'2000') ? date('Y-m-d',strtotime($dv_from_rfp['date_'])) : '';
+        $dv_display_val = $dv_from_rfp['trncode'].' - '.$dv_date2.' Amt '.number_format($dv_total2,2,'.','');
+    }
+    elseif(intval($datafld[$fld[13]]) > 0){
+        $dv_id_found = intval($datafld[$fld[13]]);
+        $dv_row2 = $this->db->where('id',$dv_id_found)->get('dvh')->row_array();
         if($dv_row2){
             $dv_total2 = 0;
-            foreach($this->db->where('id',$datafld[$fld[13]])->get('dvd')->result_array() as $dr){ $dv_total2 += floatval($dr['amount']); }
+            foreach($this->db->where('id',$dv_id_found)->get('dvd')->result_array() as $dr){
+                $dv_total2 += floatval($dr['amount']);
+            }
             if($dv_total2 <= 0 && isset($dv_row2['dv_amt'])){ $dv_total2 = floatval($dv_row2['dv_amt']); }
-            $dv_date2 = (!empty($dv_row2['date_']) && substr($dv_row2['date_'],0,4)>'2000') ? date('Y-m-d',strtotime($dv_row2['date_'])) : '';
+            $dv_date2       = (!empty($dv_row2['date_']) && substr($dv_row2['date_'],0,4)>'2000') ? date('Y-m-d',strtotime($dv_row2['date_'])) : '';
             $dv_display_val = $dv_row2['trncode'].' - '.$dv_date2.' Amt '.number_format($dv_total2,2,'.','');
         }
     }
+
     $dv_no_html = '
     <div class="input-group mb-1 input-group-sm">
         <div class="input-group-prepend"><span class="input-group-text">DV No</span></div>
-        <input type="text" class="form-control" id="'.$fld[13].'" value="'.htmlspecialchars($dv_display_val,ENT_QUOTES).'" disabled style="background-color:#e9ecef;color:#6c757d;cursor:not-allowed;" />
+        <input type="text" class="form-control" id="'.$fld[13].'"
+            value="'.htmlspecialchars($dv_display_val,ENT_QUOTES).'"
+            disabled style="background-color:#e9ecef;color:#6c757d;cursor:not-allowed;"
+            title="'.htmlspecialchars($dv_display_val,ENT_QUOTES).'" />
     </div>';
 
-    // ── DV Approved By field HTML ───────────────────────────────────────
-    $dv_appr_name = '';
-    if(intval($datafld[$fld[14]]) > 0){
+    $dv_appr_name  = '';
+    $dv_appr_id    = 0;
+
+    if($dv_id_found > 0){
+        $dv_appr_row = $this->db->where('id', $dv_id_found)->get('dvh')->row_array();
+        if(!empty($dv_appr_row) && intval($dv_appr_row['approved_by']) > 0){
+            $dv_appr_id  = intval($dv_appr_row['approved_by']);
+            $nm_appr     = $this->db->where('id', $dv_appr_id)->get('users')->row('name');
+            $dv_appr_name = $nm_appr ? $nm_appr : '';
+        }
+    }
+    if(empty($dv_appr_name) && intval($datafld[$fld[14]]) > 0){
         $nm14 = $this->db->where('id',$datafld[$fld[14]])->get('users')->row('name');
         $dv_appr_name = $nm14 ? $nm14 : '';
+        $dv_appr_id   = intval($datafld[$fld[14]]);
     }
+
     $dv_approved_by_html = '
     <div class="input-group mb-1 input-group-sm">
         <div class="input-group-prepend"><span class="input-group-text">DV Approved By</span></div>
-        <select class="form-control" id="'.$fld[14].'" disabled>
-            <option value="'.$datafld[$fld[14]].'">'.htmlspecialchars($dv_appr_name,ENT_QUOTES).'</option>
-        </select>
+        <input type="text" class="form-control"
+            id="'.$fld[14].'"
+            value="'.htmlspecialchars($dv_appr_name,ENT_QUOTES).'"
+            disabled
+            style="background-color:#e9ecef;color:#333;cursor:not-allowed;"
+            title="'.htmlspecialchars($dv_appr_name,ENT_QUOTES).'" />
     </div>';
 
-    // ── Amount field HTML ───────────────────────────────────────────────
     $amt_display9 = (floatval($datafld[$fld[9]]) > 0) ? number_format(floatval($datafld[$fld[9]]),2,'.','') : '';
     $amount_html = '
     <div class="input-group mb-1 input-group-sm">
@@ -3640,7 +3698,6 @@ if($_can_ap && intval($_fin_now) > 0){
         <input type="number" class="form-control" id="'.$fld[9].'" value="'.$amt_display9.'" disabled style="background-color:#e9ecef;color:#6c757d;cursor:not-allowed;"/>
     </div>';
 
-    // ── Time Release field HTML ─────────────────────────────────────────
     $time_options_new = array(1=>'11:00 AM', 2=>'7:00 PM');
     $topt_new = '<option value="0">Select Time</option>';
     foreach($time_options_new as $tv=>$tt){
@@ -3666,9 +3723,9 @@ if($_can_ap && intval($_fin_now) > 0){
     $purpose_opts = explode(',','select none,Merchandise, Raw Mat, Down Payment, Mobilization, Travel, Utilities, Professional Fee , Asset, Legal Fees, Repaired Maintenance, Trucking & Delivery, Supplies, Others');
     $purpose_eopt = '<option value="'.$datafld[$fld[6]].'">'.(isset($purpose_opts[$datafld[$fld[6]]]) ? $purpose_opts[$datafld[$fld[6]]] : '').'</option>';
     $purpose_html = '
-    <div class="input-group mb-1 input-group-sm">
+    <div class="input-group mb-1 input-group-sm rfp-inline-group">
         <div class="input-group-prepend"><span class="input-group-text">Purpose</span></div>
-        <select class="form-control" id="'.$fld[6].'" onchange="fsave(this.id)">'.$purpose_eopt.'</select>
+        <select class="form-control rfp-inline-select" id="'.$fld[6].'" onchange="fsave(this.id)">'.$purpose_eopt.'</select>
     </div>';
 
     // ── Payment Type field HTML ─────────────────────────────────────────
@@ -3681,11 +3738,11 @@ if($_can_ap && intval($_fin_now) > 0){
     $pay_others_new = isset($datafld['payment_others']) ? $datafld['payment_others'] : '';
     $pt_others_disp = ($datafld[$fld[10]]==4) ? '' : 'style="display:none;"';
     $payment_type_html = '
-    <div class="input-group mb-1 input-group-sm">
+    <div class="input-group mb-1 input-group-sm rfp-inline-group">
         <div class="input-group-prepend"><span class="input-group-text">Payment Type</span></div>
-        <select class="form-control" id="'.$fld[10].'" onchange="check_others(this.id)">'.$pt_eopt.'</select>
+        <select class="form-control rfp-inline-select" id="'.$fld[10].'" onchange="check_others(this.id)">'.$pt_eopt.'</select>
     </div>
-    <div class="input-group mb-1 input-group-sm" id="payment_others_wrapper" '.$pt_others_disp.'>
+    <div class="input-group mb-1 input-group-sm rfp-inline-group" id="payment_others_wrapper" '.$pt_others_disp.'>
         <div class="input-group-prepend"><span class="input-group-text">Others</span></div>
         <input type="text" class="form-control" id="payment_others" onchange="fsave(this.id)" value="'.$pay_others_new.'" placeholder="Specify Others" />
     </div>';
@@ -3768,7 +3825,7 @@ if($_can_ap && intval($_fin_now) > 0){
 <!-- ROW 2: Request By | Dept | Purpose | Amount -->
 <div class="row no-gutters mb-1">
     <div class="col-sm-3 pr-1">
-        <div class="input-group input-group-sm">
+        <div class="input-group input-group-sm rfp-inline-group">
             <div class="input-group-prepend"><span class="input-group-text">Request By</span></div>
             <select class="form-control" id="request_by" onchange="fsave(this.id)">
                 <option value="'.$datafld['request_by'].'">'.$this->db->where('id',$datafld['request_by'])->get('users')->row('name').'</option>
@@ -3776,13 +3833,13 @@ if($_can_ap && intval($_fin_now) > 0){
         </div>
     </div>
     <div class="col-sm-3 pr-1">
-        <div class="input-group input-group-sm">
+        <div class="input-group input-group-sm rfp-inline-group">
             <div class="input-group-prepend"><span class="input-group-text">Dept</span></div>
             '.(strpos($top_dept_html = (function() use ($datafld,$fld,$opt){ 
                 // inline dept select is already in $top from loop; rebuild it clean
                 return ''; 
             })(), '') !== false ? 
-            '<select class="form-control select2-dropdown" id="'.$fld[4].'" onchange="fsave(this.id)">'.(function() use ($datafld,$fld){
+            '<select class="form-control select2-dropdown rfp-inline-select" id="'.$fld[4].'" onchange="fsave(this.id)">'.(function() use ($datafld,$fld){
                 $dept2 = $this->db->order_by('name','asc')->get('dept')->result();
                 $o='<option value="">Select Department</option>';
                 foreach($dept2 as $dr){
@@ -3804,15 +3861,15 @@ if($_can_ap && intval($_fin_now) > 0){
 <!-- ROW 3: Payee | Payment Type | Remarks -->
 <div class="row no-gutters mb-1">
     <div class="col-sm-3 pr-1">
-        <div class="input-group input-group-sm">
-            <div class="input-group-prepend"><span class="input-group-text">Payee</span></div>
-            <select class="form-control" id="payee" style="width:calc(100% - 57px);">
-                '.(!empty($datafld[$fld[7]])
-                    ? '<option value="'.htmlspecialchars($datafld[$fld[7]],ENT_QUOTES).'" selected>'.htmlspecialchars($datafld[$fld[7]],ENT_QUOTES).'</option>'
-                    : '').'
-            </select>
-        </div>
+    <div class="input-group input-group-sm rfp-inline-group">
+        <div class="input-group-prepend"><span class="input-group-text">Payee</span></div>
+        <select class="form-control rfp-inline-select" id="payee">
+            '.(!empty($datafld[$fld[7]])
+                ? '<option value="'.htmlspecialchars($datafld[$fld[7]],ENT_QUOTES).'" selected>'.htmlspecialchars($datafld[$fld[7]],ENT_QUOTES).'</option>'
+                : '').'
+        </select>
     </div>
+</div>
     <div class="col-sm-3 pr-1">
         '.$payment_type_html.'
     </div>
@@ -3868,10 +3925,34 @@ if($_can_ap && intval($_fin_now) > 0){
 </div>
 
 <script>
-// ── payee select2 ──────────────────────────────────────────────────────
 $(document).ready(function(){
+
+    function forceInlineSelect2(sel){
+        var $el = $(sel);
+        if(!$el.length) return;
+
+        var $container = $el.next(".select2-container");
+        $container.css({
+            width: "1%",
+            flex: "1 1 auto",
+            minWidth: "0",
+            maxWidth: "none"
+        });
+
+        $container.find(".selection").css({
+            display: "block",
+            width: "100%"
+        });
+
+        $container.find(".select2-selection--single, .select2-selection--multiple").css({
+            width: "100%",
+            minWidth: "0"
+        });
+    }
+
     $("#payee").select2({
         width: "100%",
+        dropdownAutoWidth: false,
         placeholder: "Type or select payee",
         allowClear: true,
         tags: true,
@@ -3903,19 +3984,32 @@ $(document).ready(function(){
 
     $("#purpose").select2({
         width:"100%",
+        dropdownAutoWidth: false,
         ajax: {
             placeholder: "Select a purpose",
             allowClear: true,
             url: "'.base_url("99/dashboard/mf/purpose").'",
-            type: "post", dataType: "json", delay: 250,
+            type: "post",
+            dataType: "json",
+            delay: 250,
             data: function(params){ return { searchTerm: params.term, id:'.$id.' }; },
             processResults: function(response){ return { results: response }; },
             cache: true
         }
     }).on("change", function(){ fsave(this.id); });
 
-    $(".select2-dropdown").select2({ width: "100%", tags: true }).on("change", function(){
+    $(".select2-dropdown").select2({
+        width: "100%",
+        dropdownAutoWidth: false,
+        tags: true
+    }).on("change", function(){
         if(this.id){ fsave(this.id); }
+    });
+
+    forceInlineSelect2("#payee");
+    forceInlineSelect2("#purpose");
+    $(".select2-dropdown").each(function(){
+        forceInlineSelect2(this);
     });
 
     // ── show/hide tabs based on RFP type ──────────────────────────────
@@ -5639,11 +5733,16 @@ else if($sw == 6) {
 
         $photo = '';
         if(!empty($row->b64) && !empty($row->mime)){
+            $safe_b64  = htmlspecialchars($row->b64, ENT_QUOTES);
+            $safe_mime = htmlspecialchars($row->mime, ENT_QUOTES);
             if($row->mime == 'application/pdf'){
-                $photo = '<a class="attach-photo-link" href="data:'.$row->mime.';base64,'.$row->b64.'" target="_blank">VIEW PDF</a>';
+                $photo = '<a class="attach-photo-link" href="#"
+                    onclick="show_attach_preview(\'data:'.$safe_mime.';base64,'.$safe_b64.'\',\'pdf\'); return false;"
+                    >VIEW PDF</a>';
             } else {
-                $photo = '<a class="attach-photo-link" href="data:'.$row->mime.';base64,'.$row->b64.'" target="_blank">
-                    <img src="data:'.$row->mime.';base64,'.$row->b64.'" 
+                $photo = '<a class="attach-photo-link" href="#"
+                    onclick="show_attach_preview(\'data:'.$safe_mime.';base64,'.$safe_b64.'\',\'img\'); return false;">
+                    <img src="data:'.$safe_mime.';base64,'.$safe_b64.'"
                     style="width:70px;height:55px;object-fit:cover;border:1px solid #ccc;"></a>';
             }
         }
@@ -5656,7 +5755,38 @@ else if($sw == 6) {
     }
 
 echo '
+<div id="attach-preview-modal"
+    style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+           background:rgba(0,0,0,0.75);z-index:99999;align-items:center;justify-content:center;">
+    <div style="position:relative;max-width:90vw;max-height:90vh;background:#fff;padding:8px;border-radius:4px;">
+        <button onclick="close_attach_preview()"
+            style="position:absolute;top:-14px;right:-14px;background:#dc3545;color:#fff;
+                   border:none;border-radius:50%;width:28px;height:28px;font-size:16px;
+                   cursor:pointer;line-height:1;z-index:2;">&#x2715;</button>
+        <div id="attach-preview-content" style="max-width:85vw;max-height:85vh;overflow:auto;"></div>
+    </div>
+</div>
+
 <script>
+function show_attach_preview(src, type){
+    var content = "";
+    if(type === "pdf"){
+        content = "<iframe src=\""+src+"\" style=\"width:80vw;height:80vh;border:none;\"></iframe>";
+    } else {
+        content = "<img src=\""+src+"\" style=\"max-width:85vw;max-height:85vh;display:block;\">";
+    }
+    document.getElementById("attach-preview-content").innerHTML = content;
+    var modal = document.getElementById("attach-preview-modal");
+    modal.style.display = "flex";
+}
+function close_attach_preview(){
+    document.getElementById("attach-preview-modal").style.display = "none";
+    document.getElementById("attach-preview-content").innerHTML = "";
+}
+document.getElementById("attach-preview-modal").addEventListener("click", function(e){
+    if(e.target === this){ close_attach_preview(); }
+});
+
 $(document).ready(function(){
 
     var table = $("#tbl_list'.$sw.'").DataTable({"scrollX": true, "order": [[0, "desc"]]});

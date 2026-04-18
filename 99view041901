@@ -84,7 +84,7 @@ for($a=1;$a<count($fld);$a++) {
                         </select>
                     </div> 
                     <div class="input-group mb-1 input-group-sm"> 
-                        <input type="button" class="form-control " value="View" onclick="list()"> 
+                        <input type="button" class="form-control " value="View" onclick="listtest()"> 
                         <input type="button" class="form-control " value="Add" onclick="addrec()"> </div>   
             </div>
         </div>  
@@ -100,26 +100,41 @@ for($a=1;$a<count($fld);$a++) {
 <script>
 
 function exits() {
-    var datas = [
-        $("#ds").val(),
-        $("#de").val(),
-        $("#rt").val() || 0
-    ];
+    var ds = $("#ds").val();
+    var de = $("#de").val();
+    var rt = $("#rt").val() || 0;
+
+    if(ds === "" || de === ""){
+        alert("Please select Date Start and Date End.");
+        return;
+    }
+
+    $("#forms").empty();
+    $("#forms-col").empty();
 
     $.ajax({
         url: "<?=base_url('99/dashboard/list')?>",
         method: "POST",
-        data: { datas: datas },
+        data: {
+            ds: ds,
+            de: de,
+            rt: rt
+        },
         success: function(data) {
             $("#forms").empty();
-            $("#forms-col").empty().html(data);
+            $("#forms-col").html(data);
             $("#xsearch").show();
             $("#rfp-row").show();
+        },
+        error: function(xhr) {
+            alert("Unable to load RFP list.");
+            console.log(xhr.responseText);
         }
     });
 }
 function edit_recs(id) {
-    $("#rfp-row").hide(); 
+    $("#rfp-row").hide();
+    $("#forms").empty();
 
     $.ajax({
         url: "<?=base_url("99/dashboard/edit_rec")?>",
@@ -155,7 +170,7 @@ function addrec() {
     }
 }
 
-function list() {
+function listtest() {
     var ds = $("#ds").val();
     var de = $("#de").val();
     var rt = $("#rt").val() || 0;
@@ -189,6 +204,7 @@ function list() {
         }
     }); 
 }
+    
 function list2() {
     var qs = $("#qs").val();
     $.ajax({
@@ -209,7 +225,7 @@ function list2() {
 $(document).ready(function() { 
     $("#xsearch").show();
     $("#rfp-row").removeClass("rfp-edit-mode");
-    list();
+    listtest();
 }); 
 
 </script>

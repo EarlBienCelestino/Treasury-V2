@@ -365,30 +365,28 @@ $("#xsearch").hide();
 function list() {
     $tbl = 'ac_rfph';
 
-    $tmp = $this->input->post('datas');
-
     $ds = trim((string)$this->input->post('ds'));
     $de = trim((string)$this->input->post('de'));
     $rt = intval($this->input->post('rt'));
 
-    if((!$ds || !$de) && is_array($tmp)){
-        $ds = isset($tmp[0]) ? trim((string)$tmp[0]) : $ds;
-        $de = isset($tmp[1]) ? trim((string)$tmp[1]) : $de;
-        $rt = isset($tmp[2]) ? intval($tmp[2]) : $rt;
-    }
-
     date_default_timezone_set("Asia/Manila");
 
+    if($ds === '' || $de === ''){
+        echo '<div class="alert alert-warning m-2">Please select Date Start and Date End.</div>';
+        return;
+    }
+
+    if($ds > $de){
+        echo '<div class="alert alert-warning m-2">Date Start must not be later than Date End.</div>';
+        return;
+    }
+
+    $start = $ds.' 00:00:00';
+    $end   = date('Y-m-d', strtotime($de.' +1 day')).' 00:00:00';
+
     $this->db->from($tbl);
-
-    if($ds !== ''){
-        $this->db->where('date_ >=', $ds.' 00:00:00');
-    }
-
-    if($de !== ''){
-        $next_day = date('Y-m-d', strtotime($de.' +1 day'));
-        $this->db->where('date_ <', $next_day.' 00:00:00');
-    }
+    $this->db->where('date_ >=', $start);
+    $this->db->where('date_ <',  $end);
 
     if($rt > 0){
         $this->db->where('r_type', $rt);
@@ -967,7 +965,11 @@ function view_attach($id){
     if(!$row){ exit; }
 
     header("Content-Type: ".$row->mime);
-    echo base64_decode($row->b64);
+    header("Cache-Control: no-cache, no-store, must-revalidate");
+    header("Pragma: no-cache");
+    header("Expires: 0");
+
+echo base64_decode($row->b64);
 }    
 function payee_list() {
 header('Content-Type: application/json');
@@ -2439,13 +2441,13 @@ $top.='
 }
 
 .input-group.input-group-sm > .input-group-prepend .input-group-text{
-    white-space:nowrap;
     min-width:140px;
+    white-space:nowrap;
 }
 
 .input-group.input-group-sm > .form-control,
-.input-group.input-group-sm > textarea.form-control,
-.input-group.input-group-sm > .select2-container{
+.input-group.input-group-sm > .select2-container,
+.input-group.input-group-sm > textarea.form-control{
     flex:1 1 auto !important;
     width:1% !important;
     min-width:0 !important;
@@ -2683,20 +2685,17 @@ elseif($a==3 ){
 elseif($a==4){ 
 
     $dept_rs = $this->db->order_by('name','asc')->get('dept')->result();
-    $opt = '<option value="">Select Department</option>';
+    $dept_opt = '<option value="">Select Department</option>';
 
     foreach($dept_rs as $dept_row){
         $sel = (intval($dataf) == intval($dept_row->id)) ? 'selected' : '';
-        $opt .= '<option value="'.$dept_row->id.'" '.$sel.'>'.htmlspecialchars($dept_row->name, ENT_QUOTES).'</option>';
+        $dept_opt .= '<option value="'.$dept_row->id.'" '.$sel.'>'.htmlspecialchars($dept_row->name, ENT_QUOTES).'</option>';
     }
 
     $top.=' 
     <div class="input-group mb-1 input-group-sm"> 
-         <div class="input-group-prepend">
-            <span class="input-group-text">'.$xcap.'</span>
-         </div>
          <select class="form-control select2-dropdown" id="'.$fld[$a].'" onchange="fsave(this.id)">
-            '.$opt.'
+            '.$dept_opt.'
          </select>
     </div> ';
 }

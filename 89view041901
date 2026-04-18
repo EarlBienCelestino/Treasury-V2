@@ -1,0 +1,390 @@
+<?php 
+echo '
+<script src="'.base_url().'new/jquery.dataTables.min.js"></script>
+<link rel="stylesheet" href="'.base_url().'new/jquery.dataTables.min.css">
+
+<link href="'.base_url().'new/select2.min.css" rel="stylesheet">
+<script src="'.base_url().'new/select2.min.js"></script>';
+
+$rs=$this->db->where('id',89)->get('scm_settings')->result(); foreach($rs as $row) { $title=$row->caption;} 
+$var='var '.$fld[0].'=$("#'.$fld[0].'").val();';
+$post=$fld[0].':'.$fld[0];for($a=1;$a<count($fld);$a++) {$var.='var '.$fld[$a].'=$("#'.$fld[$a].'").val();';$post.=','.$fld[$a].':'.$fld[$a];}
+
+$uid=$_SESSION['user_id'];
+$ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights');
+$loc=$this->db->where('userid',$uid)->get('scm_user')->row('Branch'); 
+$date=date('Y-m-d');
+$ds= date('Y-m-d', strtotime($date. ' - 7 days'));
+?>
+
+<title><?=$title?></title>
+<br />
+
+<style>
+#xsearch{
+    background: linear-gradient(135deg, #f8fbff 0%, #eef3f8 100%);
+    border: 1px solid #d9e0e7;
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(15,23,42,.05);
+    padding: 14px 16px;
+    margin-bottom: 14px;
+}
+#xsearch .input-group-text,
+#form_entry .input-group-text,
+#forms .input-group-text{
+    min-width: 100px;
+    font-weight: 600;
+}
+#form_entry .card,
+#forms .card,
+#form_entry .section-box,
+#forms .section-box{
+    border: 1px solid #d9e0e7;
+    border-radius: 14px;
+    box-shadow: 0 10px 28px rgba(15,23,42,.05);
+}
+#form_entry .card{
+    padding: 14px;
+}
+#form_entry .select2-container,
+#forms .select2-container{
+    width: 100% !important;
+}
+#form_entry .input-group.input-group-sm > .select2-container,
+#forms .input-group.input-group-sm > .select2-container{
+    flex: 1 1 auto;
+    width: 1% !important;
+    min-width: 0;
+}
+#form_entry .input-group.input-group-sm > .select2-container .select2-selection--single,
+#forms .input-group.input-group-sm > .select2-container .select2-selection--single{
+    height: calc(1.5em + .5rem + 2px);
+    min-height: calc(1.5em + .5rem + 2px);
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+#form_entry .input-group.input-group-sm > .select2-container .select2-selection__rendered,
+#forms .input-group.input-group-sm > .select2-container .select2-selection__rendered{
+    line-height: calc(1.5em + .5rem);
+}
+#form_entry #balance .table{
+    margin-top: 14px;
+    background: #fff;
+    border: 1px solid #d9e0e7;
+    border-radius: 14px;
+    overflow: hidden;
+}
+#form_entry #balance td{
+    padding: 10px 12px;
+}
+#form_entry .nav-tabs{
+    border-bottom: 1px solid #d9e0e7;
+    gap: 4px;
+}
+#form_entry .nav-tabs .nav-link{
+    border-radius: 10px 10px 0 0;
+    color: #425466;
+    font-weight: 600;
+}
+#form_entry .nav-tabs .nav-link.selected-tab,
+#form_entry .nav-tabs .nav-link.active{
+    background: #12324a;
+    color: #fff;
+    border-color: #12324a;
+}
+#form_entry .row > [class*="col-"],
+#forms .row > [class*="col-"]{
+    margin-bottom: 8px;
+}
+#form_entry .btn,
+#forms .btn{
+    border-radius: 10px;
+    font-weight: 600;
+    box-shadow: none; 
+}
+#form_entry .dashboard89-uppercase{
+    text-transform: uppercase;
+}
+#form_entry .dashboard89-header-actions,
+#form_entry .dashboard89-entry-actions{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+}
+#form_entry .dashboard89-header-actions .form-control,
+#form_entry .dashboard89-header-actions .btn,
+#form_entry .dashboard89-entry-actions .form-control,
+#form_entry .dashboard89-entry-actions .btn{
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 110px;
+}
+#form_entry .dashboard89-delete-actions{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+#form_entry .dashboard89-delete-actions .btn{
+    flex: 0 0 auto;
+    min-width: 140px;
+}
+#form_entry .dashboard89-amount-note{
+    margin: -2px 0 6px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+}
+#form_entry #chklst tbody tr{
+    cursor: pointer;
+}
+#form_entry #chklst.delete-mode tbody tr.dashboard89-delete-row-selected td{
+    background: #ffe2e6 !important;
+}
+#forms table.dataTable tbody tr.dashboard89-row-finalized td{
+    background: #ecfff7 !important;
+}
+#forms table.dataTable tbody tr.dashboard89-row-voided td{
+    background: #ffeded !important;
+    color: #000000;
+}
+@media (max-width: 767px){
+    #xsearch .input-group-text,
+    #form_entry .input-group-text,
+    #forms .input-group-text{
+        min-width: 88px;
+    }
+    #form_entry .dashboard89-delete-actions .btn,
+    #form_entry .dashboard89-entry-actions .btn{
+        width: 100%;
+    }
+}
+</style>
+
+<div class="container-fluid">
+
+    <div id="xsearch" >
+        <div class="row"  >
+            <div class="input-group mb-1 input-group-sm col-sm-2">  
+                <input type="text" class="form-control " id="qs" onfocusout="list2()" placeholder="<?=$title?> Q/S"/>
+                <input type="text" class="form-control " id="qs2" onfocusout="list3()" placeholder="Amount"/>
+            </div>  
+
+            <div class="input-group mb-1 input-group-sm col-sm-2"> 
+                <div class="input-group-prepend"> <span class="input-group-text">From</span></div>
+                <input type="text" class="form-control " id="ds" value="" placeholder="Select Date" />
+            </div>  
+
+            <div class="input-group mb-1 input-group-sm col-sm-2"> 
+                <div class="input-group-prepend"> <span class="input-group-text">To</span></div>
+                <input type="date" class="form-control " id="de"   value="<?=date('Y-m-d')?>" />
+            </div>  
+
+            <div class="input-group mb-1 input-group-sm col-sm-1"> 
+                <select class="form-control " id="prtopt" onchange="listx();" >
+                    <option value=0 selected>All</option>
+                    <option value=1>Check</option>
+                    <option value=2>Cash</option>
+                    <option value=3>G-Cash</option>
+                    <option value=4>For Approval</option>
+                    <option value=5>Approved</option>
+                </select>
+            </div> 
+
+            <div class="input-group mb-1 input-group-sm col-sm-2"> 
+                <select class="form-control " id="payee" onchange="listx();" >
+                    <option value=0 selected>All</option>
+                </select>
+            </div> 
+            
+            
+
+
+            <div class="input-group mb-1 input-group-sm col-xs-6 col-sm-3"> 
+                <input type="button" class="form-control " value="View" onclick="listx()" >  
+                <input type="button" class="form-control " value="Add" onclick="addrec()" >
+            </div>
+
+            <input type="hidden" id="id" value=0 >
+            <input type="hidden" id="br" value=0 >
+            <input type="hidden" id="wh" value=1 >
+            <input type="hidden" id="st" value=0 >
+
+        </div>  
+    </div>  
+
+    <div class="row" id="report"></div>
+    <div class="row" id="forms"></div>
+    <div class="row" id="form_entry"></div>
+</div>
+
+<script>
+
+var applyDate=0;
+var discardDvDraftUrl = "<?=base_url('89/dashboard/discard_empty_draft')?>";
+
+function cleanupEmptyDvDraft(options) {
+    var draftId = parseInt($("#id").val() || 0, 10);
+    var opts = options || {};
+    if(draftId <= 0){
+        if(typeof opts.onDone === "function"){ opts.onDone(); }
+        return;
+    }
+
+    $.ajax({
+        url: discardDvDraftUrl,
+        method: "POST",
+        async: opts.sync === true ? false : true,
+        data: { id: draftId },
+        complete: function(){
+            if(opts.clearId !== false){
+                $("#id").val(0);
+            }
+            if(typeof opts.onDone === "function"){
+                opts.onDone();
+            }
+        }
+    });
+}
+
+function cleanupEmptyDvDraftBeforeUnload() {
+    var draftId = parseInt($("#id").val() || 0, 10);
+    if(draftId <= 0){ return; }
+
+    if(navigator.sendBeacon){
+        var fd = new FormData();
+        fd.append("id", draftId);
+        navigator.sendBeacon(discardDvDraftUrl, fd);
+        return;
+    }
+
+    cleanupEmptyDvDraft({ sync: true, clearId: false });
+}
+
+function list() {
+var datas=[$("#ds").val(),$("#de").val(),$("#prtopt").val(),$("#payee").val(),applyDate]; 
+$.ajax({url:"<?=base_url('89/dashboard/list')?>",method:"POST",data:{datas:datas}, success:function(data) { $("#forms").empty(); $("#forms").html(data); }  }); 
+
+} 
+
+
+function listx(){
+    applyDate=1;
+    list();
+}
+
+function list2() {
+    var qs = $("#qs").val().trim();
+    if (qs === "") { list(); return; }
+    var datas=[$("#ds").val(),$("#de").val(),$("#prtopt").val(),qs,$("#payee").val()]; 
+    $.ajax({url:"<?=base_url('89/dashboard/list2')?>",method:"POST",data:{datas:datas}, success:function(data) { $("#forms").empty(); $("#forms").html(data); }  }); 
+
+} 
+
+function list3() {
+    var qs2 = $("#qs2").val().trim();
+    if (qs2 === "") { list(); return; }
+    var datas=[$("#ds").val(),$("#de").val(),$("#prtopt").val(),qs2,$("#payee").val()]; 
+    $.ajax({url:"<?=base_url('89/dashboard/list22')?>",method:"POST",data:{datas:datas}, success:function(data) { $("#forms").empty(); $("#forms").html(data); }  }); 
+
+} 
+
+
+function prt() {
+    var datas=[
+        $("#ds").val()
+        ,$("#de").val()
+        ,$("#prtopt").val()
+        ];
+    $.ajax({url:"<?=base_url('89/dashboard/rpt1')?>",method:"POST", data:{datas:datas},success:function(data) 
+    { 
+        $("#forms").html(data)
+
+    } 
+
+    }); 
+}
+
+$(document).ready(function() {
+
+if ($('#trn_list').length) {
+    $('#trn_list').DataTable();
+}
+applyDate=0;
+list(); 
+
+var dsInput=document.getElementById("ds");
+if(dsInput){
+    dsInput.addEventListener("focus", function(){
+        if(this.type !== "date"){ this.type="date"; }
+    });
+    dsInput.addEventListener("blur", function(){
+        if(!this.value){
+            this.type="text";
+            this.placeholder="Select Date";
+        }
+    });
+}
+
+    
+$("#payee").select2({ajax: { url: "<?=base_url('89/dashboard/subsix')?>" ,type: "post", 
+dataType: "json",  delay: 250,  data: function (params) { return { searchTerm: params.term  };  },
+processResults: function (response) {  return { results: response  };  },  cache: true   }}); 
+
+$(document).on("input", ".dashboard89-uppercase", function(){
+    var start = this.selectionStart;
+    var end = this.selectionEnd;
+    this.value = (this.value || "").toUpperCase();
+    if(typeof this.setSelectionRange === "function" && start !== null && end !== null){
+        this.setSelectionRange(start, end);
+    }
+});
+    
+
+});    
+
+function addrec() {
+    // avoid creating another record if one is already open
+    if (parseInt($("#id").val()) > 0) {
+        return;
+    }
+    $.ajax({url:"<?=base_url('89/dashboard/addrec')?>",
+            method:"POST",
+            dataType:"json",
+            data:{},
+            success:function(data) { 
+                var id=data.id;
+                $("#id").val(id);
+
+                edit_recx(id);  
+
+            } }); 
+}     
+
+function edit_recx(id) {
+
+    $.ajax({url:"<?=base_url('89/dashboard/edit_rec')?>",
+            method:"POST",
+            data:{id:id},
+            success:function(data) { 
+                $("#forms").empty(); 
+                $("#form_entry").html(data); 
+            } }); 
+}   
+
+function exits() {
+
+    var datas=[$("#ds").val(),$("#de").val(),$("#prtopt").val(), $("#payee").val(), applyDate];  
+    cleanupEmptyDvDraft({
+        onDone: function(){
+            $.ajax({url:"<?=base_url('89/dashboard/list')?>",method:"POST",data:{datas:datas},success:function(data) {  $("#forms").empty(); $("#forms").html(data);    $("#form_entry").empty(); $("#id").val(0); } }); 
+        }
+    });
+}        
+
+window.addEventListener("beforeunload", cleanupEmptyDvDraftBeforeUnload);
+
+</script>

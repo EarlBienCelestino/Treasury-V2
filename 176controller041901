@@ -1,0 +1,2556 @@
+<?php
+defined('BASEPATH') OR exit('No direct script access allowed');
+
+class Dashboard extends CI_Controller {
+
+public function __construct() {
+    
+    parent::__construct();	
+    $this->load->helper('form'); 
+    $this->load->model('user_model');
+    $this->load->model( 'Recordset' );
+    $this->load->helper('url', 'form'); 
+    
+    if(!$this->session->userdata('user_id'))  { redirect('user/login');  }      
+}
+
+function index() { 
+    
+    $uid=$_SESSION['user_id'];
+    
+    $this->load->view("header");
+    
+    $ur = 
+    
+    $data['title']=$this->db->where( 'id', 176 )->get( 'scm_settings' )->row( 'caption');
+    $data['ur']=$this->db->where( 'userid', $uid )->get( 'scm_user' )->row( 'User_rights');
+    $data['fld']=$this->db->list_fields('glh');
+    $data['xurl']=base_url('176/dashboard');
+    
+    $this->load->view("176/view",$data);    
+        
+    if($this->Recordset->ac_chk(176)==0){ redirect('dashboard/index'); } 
+    
+    
+}    
+
+private function glh_detail_totals_map($ids) {
+    if(!$this->db->table_exists('gld')){ return array(); }
+
+    $clean=array();
+    foreach((array)$ids as $id){
+        $id=intval($id);
+        if($id>0){ $clean[$id]=$id; }
+    }
+
+    if(count($clean)===0){ return array(); }
+
+    $rows=$this->db
+        ->select('id, SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) AS am_dr, SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) AS am_cr', false)
+        ->where('sw',1)
+        ->where_in('id',array_values($clean))
+        ->group_by('id')
+        ->get('gld')
+        ->result_array();
+
+    $out=array();
+    foreach($rows as $row){
+        $rid=intval(isset($row['id']) ? $row['id'] : 0);
+        if($rid<=0){ continue; }
+        $out[$rid]=array(
+            'am_dr'=>round(floatval(isset($row['am_dr']) ? $row['am_dr'] : 0),2),
+            'am_cr'=>round(floatval(isset($row['am_cr']) ? $row['am_cr'] : 0),2)
+        );
+    }
+
+    return $out;
+}
+
+private function sync_glh_amounts($id) {
+    $id=intval($id);
+    if($id<=0 || !$this->db->table_exists('glh')){ return array('am_dr'=>0,'am_cr'=>0); }
+
+    $totalsMap=$this->glh_detail_totals_map(array($id));
+    $totals=isset($totalsMap[$id]) ? $totalsMap[$id] : array('am_dr'=>0,'am_cr'=>0);
+
+    $fields=$this->db->list_fields('glh');
+    $dat=array();
+    if(in_array('am_dr',$fields,true)){ $dat['am_dr']=number_format($totals['am_dr'],2,'.',''); }
+    if(in_array('am_cr',$fields,true)){ $dat['am_cr']=number_format($totals['am_cr'],2,'.',''); }
+
+    if(count($dat)>0){
+        $this->db->where('id',$id)->update('glh',$dat);
+    }
+
+    return $totals;
+}
+
+private function jv_list_columns() {
+    return array(
+        array('field'=>'date_','label'=>'DATE'),
+        array('field'=>'code','label'=>'DOC#'),
+        array('field'=>'particulars','label'=>'PARTICULARS'),
+        array('field'=>'am_dr','label'=>'DEBIT'),
+        array('field'=>'am_cr','label'=>'CREDIT'),
+        array('field'=>'fin_by','label'=>'FINALIZED BY'),
+        array('field'=>'void_by','label'=>'VOID BY'),
+        array('field'=>'app_by','label'=>'APPROVED BY')
+    );
+}
+
+private function jv_list_display_by_field($row,$statusField,$byField,&$userCache) {
+    $statusVal=isset($row[$statusField]) ? intval($row[$statusField]) : 0;
+    $byVal=isset($row[$byField]) ? $row[$byField] : '';
+    if($statusVal<=0 || !$this->has_approval($byVal)){ return ''; }
+
+    if(is_numeric($byVal)){
+        $aid=intval($byVal);
+        if(!isset($userCache[$aid])){
+            $userCache[$aid]=$this->approved_display_name($byVal);
+        }
+        return $userCache[$aid];
+    }
+
+    return $this->approved_display_name($byVal);
+}
+
+private function jv_list_rows($ds='',$de='',$qs='') {
+    $ds=is_string($ds) ? trim($ds) : '';
+    $de=is_string($de) ? trim($de) : '';
+    $qs=is_string($qs) ? trim($qs) : '';
+    $columns=$this->jv_list_columns();
+    $selectFields=array('id','fin','void','app');
+
+    foreach($columns as $col){
+        if(!in_array($col['field'],$selectFields,true)){ $selectFields[]=$col['field']; }
+    }
+
+    $query=$this->db->select($selectFields)->where('ty_tran','03');
+    if(preg_match('/^\d{4}-\d{2}-\d{2}$/',$ds)){ $query->where('date_>=',$ds); }
+    if(preg_match('/^\d{4}-\d{2}-\d{2}$/',$de)){ $query->where('date_<=',$de); }
+
+    $rows=$query
+        ->order_by('id','desc')
+        ->limit($qs!=='' ? 300 : 50)
+        ->get('glh')
+        ->result_array();
+
+    $hdrIds=array();
+    foreach($rows as $row){
+        $rid=isset($row['id']) ? intval($row['id']) : 0;
+        if($rid>0){ $hdrIds[]=$rid; }
+    }
+
+    $totalsMap=$this->glh_detail_totals_map($hdrIds);
+    $userCache=array();
+    $out=array();
+
+    foreach($rows as $row){
+        $rowId=isset($row['id']) ? intval($row['id']) : 0;
+        $cells=array();
+        $searchParts=array();
+
+        foreach($columns as $col){
+            $fieldName=$col['field'];
+            $datafld='';
+
+            if($fieldName==='fin_by'){
+                $datafld=$this->jv_list_display_by_field($row,'fin','fin_by',$userCache);
+            }
+            else if($fieldName==='void_by'){
+                $datafld=$this->jv_list_display_by_field($row,'void','void_by',$userCache);
+            }
+            else if($fieldName==='app_by'){
+                $datafld=$this->jv_list_display_by_field($row,'app','app_by',$userCache);
+            }
+            else {
+                $datafld=isset($row[$fieldName]) ? $row[$fieldName] : '';
+                if($fieldName==='am_dr' || $fieldName==='am_cr'){
+                    if(isset($totalsMap[$rowId])){
+                        $datafld=($fieldName==='am_dr') ? $totalsMap[$rowId]['am_dr'] : $totalsMap[$rowId]['am_cr'];
+                    }
+                    if($datafld===null || $datafld===''){
+                        $datafld='';
+                    }
+                    else {
+                        $num=is_numeric($datafld) ? floatval($datafld) : 0;
+                        $datafld=number_format($num,2);
+                    }
+                }
+                else if($datafld===null || $datafld===''){
+                    $datafld='';
+                }
+            }
+
+            $cells[$fieldName]=(string)$datafld;
+            $searchParts[]=(string)$datafld;
+        }
+
+        $rawDate=isset($row['date_']) ? trim((string)$row['date_']) : '';
+        if($rawDate!==''){
+            $searchParts[]=$rawDate;
+            $stamp=strtotime($rawDate);
+            if($stamp!==false){
+                $searchParts[]=date('m/d/Y',$stamp);
+            }
+        }
+
+        if($qs!==''){
+            $matched=false;
+            foreach($searchParts as $part){
+                if($part!=='' && stripos($part,$qs)!==false){
+                    $matched=true;
+                    break;
+                }
+            }
+            if(!$matched){ continue; }
+        }
+
+        $out[]=array(
+            'id'=>$rowId,
+            'cells'=>$cells
+        );
+
+        if($qs!=='' && count($out)>=50){ break; }
+    }
+
+    return array($columns,$out);
+}
+
+private function jv_render_list_response($ds='',$de='',$qs='') {
+    list($columns,$rows)=$this->jv_list_rows($ds,$de,$qs);
+
+    $th='';
+    foreach($columns as $col){ $th.='<th>'.$col['label'].'</th>'; }
+
+    $td='';
+    foreach($rows as $row){
+        $rowId=isset($row['id']) ? intval($row['id']) : 0;
+        $cells=isset($row['cells']) ? $row['cells'] : array();
+        $td.='<tr data-id="'.$rowId.'">';
+        foreach($columns as $col){
+            $fieldName=$col['field'];
+            $val=isset($cells[$fieldName]) ? $cells[$fieldName] : '';
+            $td.='<td>'.htmlspecialchars((string)$val,ENT_QUOTES).'</td>';
+        }
+        $td.='</tr>';
+    }
+
+    return '<script>
+
+$(document).ready(function() 
+{ 
+var table = $("#tbl_list").DataTable({"scrollX": true, "order": [[ 1, "desc" ]]});
+
+$("#tbl_list tbody").on("click", "tr", function () 
+{ 
+    var rowId = $(this).data("id");
+    if(rowId){ dep_edit(rowId); }
+});
+
+function dep_edit(id){   
+    $.ajax({url:"'.base_url('176/dashboard/edit/').'" + id,method:"POST",data:{
+        id:id
+        
+    },success:function(data) {  
+             $("#xsearch").hide(); 
+             $("#form_entry").empty();  
+             $("#form_entry").html(data); 
+             $("#add_form").hide();
+             $("#forms").hide();
+         } 
+        });        
+        
+}   
+
+});
+
+</script>
+
+<table id="tbl_list" class="display nowrap" style="width:100%" > <thead> <tr>'.$th.'</tr> </thead> <tbody>'.$td.'</tbody></table>';
+}
+
+function list() { 
+    echo $this->jv_render_list_response(
+        $this->input->post('ds'),
+        $this->input->post('de'),
+        $this->input->post('qs')
+    );
+}
+
+function list2() { 
+    echo $this->jv_render_list_response(
+        $this->input->post('ds'),
+        $this->input->post('de'),
+        $this->input->post('qs')
+    );
+} 
+    
+function del_rec() {
+    $id=$_POST['id'];
+    $this->db->where('id',$id)->delete('glh');
+}
+    
+function ddelrec() {
+    $id=$_POST['seq'];
+    $hdrId=intval($this->db->where('seq',$id)->get('gld')->row('id'));
+    $this->db->where('seq',$id)->delete('gld');
+    if($hdrId>0){ $this->sync_glh_amounts($hdrId); }
+} 
+
+function ddelrec_batch() {
+    $id=intval($this->input->post('id'));
+    $seqsRaw=$this->input->post('seqs');
+    $seqs=$seqsRaw;
+    if(!is_array($seqs)){
+        $seqs=json_decode((string)$seqsRaw,true);
+    }
+
+    if($id<=0){
+        echo json_encode(array('ok'=>0,'msg'=>'invalid record'));
+        return;
+    }
+
+    $hdr=$this->db->where('id',$id)->get('glh')->row();
+    if(!$hdr){
+        echo json_encode(array('ok'=>0,'msg'=>'record not found'));
+        return;
+    }
+    if(property_exists($hdr,'fin') && intval($hdr->fin)>0){
+        echo json_encode(array('ok'=>0,'msg'=>'transaction is finalized'));
+        return;
+    }
+    if(property_exists($hdr,'void') && intval($hdr->void)>0){
+        echo json_encode(array('ok'=>0,'msg'=>'transaction is void'));
+        return;
+    }
+
+    if(!is_array($seqs) || count($seqs)===0){
+        echo json_encode(array('ok'=>0,'msg'=>'no records selected'));
+        return;
+    }
+
+    $clean=array();
+    foreach($seqs as $seq){
+        $seq=intval($seq);
+        if($seq>0){ $clean[$seq]=$seq; }
+    }
+    $clean=array_values($clean);
+    if(count($clean)===0){
+        echo json_encode(array('ok'=>0,'msg'=>'no records selected'));
+        return;
+    }
+
+    $this->db->where('id',$id)->where('sw',1)->where_in('seq',$clean)->delete('gld');
+    $cnt=$this->db->affected_rows();
+    $this->sync_glh_amounts($id);
+    echo json_encode(array('ok'=>1,'count'=>$cnt));
+}
+
+function save() {
+    $tmp=$_POST['datas'];
+    
+    
+    $fld=$this->db->list_fields('glh');
+    
+    $data=array();
+    $id=$tmp[0];
+     $data['code']=$tmp[1];
+     $data['name']=$tmp[2];
+    
+    
+    if($id==0) {
+        $this->db->insert('glh', $data);
+        } 
+        else { 
+            $this->db->where('id', $id)->update('glh',$data); 
+            
+} 
+    
+    echo json_encode($data); 
+    
+} 
+
+private function jv_sequence_from_value($value) {
+    $value=strtoupper(trim((string)$value));
+    if($value===''){ return 0; }
+
+    if(preg_match('/^JV(\d+)$/', $value, $m)){
+        return intval($m[1]);
+    }
+
+    $digits=preg_replace('/\D+/', '', $value);
+    if($digits===''){ return 0; }
+
+    return intval($digits);
+}
+
+private function jv_max_sequence_in_table($table,$field) {
+    if(!$this->db->table_exists($table)){ return 0; }
+
+    $fields=$this->db->list_fields($table);
+    if(!in_array($field,$fields,true)){ return 0; }
+
+    $rows=$this->db
+        ->select($field)
+        ->like($field,'JV','after')
+        ->order_by('id','desc')
+        ->limit(50)
+        ->get($table)
+        ->result_array();
+
+    $maxSeq=0;
+    foreach($rows as $row){
+        $seq=$this->jv_sequence_from_value(isset($row[$field]) ? $row[$field] : '');
+        if($seq>$maxSeq){ $maxSeq=$seq; }
+    }
+
+    return $maxSeq;
+}
+
+private function next_jv_code() {
+    $seq=max(
+        $this->jv_max_sequence_in_table('glh','code'),
+        $this->jv_max_sequence_in_table('glh','doc_code'),
+        $this->jv_max_sequence_in_table('collh','jv_no')
+    ) + 1;
+
+    return 'JV'.str_pad($seq, 8, '0', STR_PAD_LEFT);
+}
+
+function add() {
+    
+    $data['code']=$this->next_jv_code(); 
+    $data['doc_code']=$data['code'];
+    $data['date_']=date('Y-m-d');
+    $data['ty_tran']='03';
+    $data['am_dr']=0;
+    $data['am_cr']=0;
+    $data['cancel']=0;
+    $this->db->insert('glh',$data);
+    
+    
+    $data['id']=$this->db->insert_id();
+    
+    echo json_encode($data);
+} 
+
+function add_save() {
+    $data=array();
+    $particulars=strtoupper(trim((string)$this->input->post('particulars')));
+    $no_ref=trim((string)$this->input->post('no_ref'));
+    $dt_refdoc=trim((string)$this->input->post('dt_refdoc'));
+    $no_refdoc=trim((string)$this->input->post('no_refdoc'));
+    $date_ = trim((string)$this->input->post('date_'));
+
+    $no_ref=strtoupper($no_ref);
+    $no_refdoc=strtoupper($no_refdoc);
+
+    $missing=array();
+    if($particulars===''){ $missing[]='Particulars'; }
+    if($no_ref===''){ $missing[]='Voucher No'; }
+    if($dt_refdoc===''){ $missing[]='Ref Date'; }
+    if($no_refdoc===''){ $missing[]='Ref No'; }
+
+    if(count($missing)>0){
+        echo json_encode(array("ok"=>0,"msg"=>"complete all the fields first"));
+        return;
+    }
+
+    $data['code']=$this->next_jv_code();
+    $data['doc_code']=$data['code'];
+    if($date_===''){ $date_=date('Y-m-d'); }
+    $data['date_']=$date_;
+    $data['ty_tran']='03';
+    $data['particulars']=$particulars;
+    $data['am_dr']=0;
+    $data['am_cr']=0;
+    $data['no_ref']=$no_ref;
+    $data['dt_refdoc']=$dt_refdoc;
+    $data['no_refdoc']=$no_refdoc;
+    $cancel=$this->input->post('cancel');
+    $void=$this->input->post('void');
+    $voidVal = ($cancel || $void) ? 1 : 0;
+    $data['cancel']=$voidVal ? 1 : 0;
+    $data['void']=$voidVal ? 1 : 0;
+    if($voidVal){
+        $voidBy=$this->current_user_display_name();
+        $data['void_by']=($voidBy!=='') ? $voidBy : null;
+    }
+    
+    $this->db->insert('glh',$data);
+    $data['id']=$this->db->insert_id();
+    
+    $data['ok']=1;
+    echo json_encode($data);
+}
+
+function ajax_upload(){
+if(isset($_FILES["image_file"]["name"]))
+{
+$config['upload_path'] = './uploads/';
+$config['allowed_types'] = 'jpg|jpeg|png|gif';
+$this->upload->initialize($config); $this->load->library('upload', $config);     
+
+$tmp_name = $_FILES["image_file"]["tmp_name"];  $new_file_name = basename($_FILES["image_file"]["name"]); 
+
+if(!$this->upload->do_upload('image_file'))
+{
+echo $this->upload->display_errors();
+}
+else
+{
+$data = $this->upload->data();
+$xdata['img']=  '<img src="'.base_url().'uploads/'.$data["file_name"].'" width="300" height="225" class="img-thumbnail" />';
+$xdata['fnm']=$data["file_name"];    
+echo json_encode($xdata);
+}
+}
+}     
+
+function mf($sw) {
+    
+$data=[];
+    
+if($sw=='yn') { 
+    
+    $data[]=array("id"=>0, "text"=>'No');
+    $data[]=array("id"=>1, "text"=>'Yes');  
+    
+}
+    
+else if($sw=='ttype') { 
+    
+    $data[]=array("id"=>1, "text"=>'Single Store');
+    $data[]=array("id"=>2, "text"=>'Multiple Store');  
+    
+}
+    
+else if($sw=='po_status') { 
+    
+    $data[]=array("id"=>0, "text"=>'New');
+    $data[]=array("id"=>1, "text"=>'WIP'); 
+    $data[]=array("id"=>2, "text"=>'Barcode Printing'); 
+    $data[]=array("id"=>3, "text"=>'Completed'); 
+    
+}
+    
+else if($sw=='size')    {
+    $xs=$this->input->post('searchTerm');  
+    $xt='size'; 
+    $rs = $this->db
+        -> like('concat(code,name)',$xs)
+        
+        ->order_by('name') 
+        ->limit(10) 
+        ->get($xt)->result_array(); 
+    $data[]=array("id"=>0, "text"=>'select size');
+
+    foreach($rs as $row)  {$data[]=array("id"=>$row['id'], "text"=> $row['name']);}
+    
+}
+    
+else if($sw=='color')    {
+    $xs=$this->input->post('searchTerm');  
+    $xt='color'; 
+    $rs = $this->db
+        -> like('concat(code,name)',$xs)
+        
+        ->order_by('name') 
+        ->limit(10) 
+        ->get($xt)->result_array(); 
+    $data[]=array("id"=>0, "text"=>'select color');
+
+    foreach($rs as $row)  {$data[]=array("id"=>$row['id'], "text"=>$row['code'].' - '.$row['name']);}
+    
+}
+    
+else if($sw=='item')    {
+    $xs=$this->input->post('searchTerm');  
+    $xt='item'; 
+    $rs = $this->db
+        -> like('concat(code,name)',$xs)
+        
+        ->order_by('name') 
+        ->limit(10) 
+        ->get($xt)->result_array(); 
+    $data[]=array("id"=>0, "text"=>'select item');
+
+    foreach($rs as $row)  {$data[]=array("id"=>$row['id'], "text"=>$row['code'].' - '.$row['name']);}
+    
+}
+    
+else if($sw=='cd_comp')    {
+    $xs=$this->input->post('searchTerm');  
+    $xt='company'; 
+    $rs = $this->db
+        -> like('concat(code,name)',$xs)
+        
+        ->order_by('name') 
+        ->limit(10) 
+        ->get($xt)->result_array(); 
+    $data[]=array("id"=>0, "text"=>'select company');
+
+foreach($rs as $row)  {$data[]=array("id"=>$row['id'], "text"=>$row['code'].' - '.$row['name']);}
+    
+}
+    
+else if($sw=='branch') {
+    
+    $xs=$this->input->post('searchTerm');  
+    $xt='gl_branch'; 
+    
+    $rs = $this->db
+        -> like('concat(code,name)',$xs)        
+        ->order_by('name') 
+        ->limit(10)
+        ->get($xt)->result_array(); 
+$data[]=array("id"=>0, "text"=>'select branch');
+
+foreach($rs as $row)  {
+    $label=$this->branch_display_label($row);
+    $data[]=array("id"=>$row['id'], "text"=>$label);
+}
+    
+}
+    
+else if($sw=='customer')    {
+    $xs=$this->input->post('searchTerm');  
+    $xt='customer'; 
+    $rs = $this->db
+        -> like('concat(code,name)',$xs)
+        
+        ->order_by('name') 
+        ->limit(10) 
+        ->get($xt)->result_array(); 
+    $data[]=array("id"=>0, "text"=>'select customer');
+
+foreach($rs as $row)  {$data[]=array("id"=>$row['id'], "text"=>$row['name']);}
+    
+}
+    
+else if($sw=='coa') {
+    $xs = trim((string)$this->input->post('searchTerm'));
+    $xt = 'coa';
+
+    $this->db->from($xt);
+
+    if($xs !== ''){
+        $this->db->group_start();
+        $this->db->like('code', $xs);
+        $this->db->or_like('name', $xs);
+        $this->db->group_end();
+    }
+
+    $rs = $this->db
+        ->order_by('code', 'asc')
+        ->limit(50)
+        ->get()
+        ->result_array();
+
+    $data[] = array("id"=>0, "text"=>'select Chart of Account');
+
+    foreach($rs as $row){
+        $data[] = array(
+            "id"   => $row['id'],
+            "text" => $row['code'].' - '.$row['name']
+        );
+    }
+}
+    
+else if($sw=='terms')    {
+    $xs=$this->input->post('searchTerm');  
+    $xt='terms'; 
+    $rs = $this->db
+        -> like('concat(code,name)',$xs)
+       // ->where('cd_scat','SUPP') 
+        ->order_by('name') 
+        ->limit(10) 
+        ->get($xt)->result_array(); 
+    $data[]=array("id"=>0, "text"=>'select terms');
+
+foreach($rs as $row)  {$data[]=array("id"=>$row['id'], "text"=>$row['name']);}
+    
+}
+
+else if($sw=='subsi')    {
+    $xs=$this->input->post('searchTerm');  
+    $xs=($xs===null) ? '' : trim((string)$xs);
+
+    $data[]=array("id"=>0, "text"=>'select subsi/employee');
+    $seen=array();
+
+    // Subsi records (display name only)
+    $xt='subsi';
+    $hasCode=method_exists($this->db,'field_exists') ? $this->db->field_exists('code',$xt) : true;
+    $hasName=method_exists($this->db,'field_exists') ? $this->db->field_exists('name',$xt) : true;
+    $hasCd=method_exists($this->db,'field_exists') ? $this->db->field_exists('cd_subsi',$xt) : false;
+    $hasNm=method_exists($this->db,'field_exists') ? $this->db->field_exists('nm_subsi',$xt) : false;
+
+    if($xs!==''){
+        $this->db->group_start();
+        if($hasName){ $this->db->like('name',$xs); }
+        if($hasNm){ $this->db->or_like('nm_subsi',$xs); }
+        if($hasCode){ $this->db->or_like('code',$xs); }
+        if($hasCd){ $this->db->or_like('cd_subsi',$xs); }
+        $this->db->group_end();
+    }
+    if($hasName){ $this->db->order_by('name'); }
+    else if($hasNm){ $this->db->order_by('nm_subsi'); }
+    else if($hasCode){ $this->db->order_by('code'); }
+    else if($hasCd){ $this->db->order_by('cd_subsi'); }
+
+    $rs = $this->db->limit(20)->get($xt)->result_array(); 
+    foreach($rs as $row){
+        $label=$this->subsi_search_label($row);
+        $norm=$this->normalized_selector_label($label);
+        if($norm!=='' && isset($seen[$norm])){ continue; }
+        if($norm!==''){ $seen[$norm]=1; }
+        $data[]=array("id"=>"sub:".$row['id'], "text"=>$label, "type"=>"subsi");
+    }
+
+    // Employee records (hr_mf_emp)
+    $empTable='hr_mf_emp';
+    $empTableExists=method_exists($this->db,'table_exists') ? $this->db->table_exists($empTable) : true;
+    if($empTableExists){
+        $empNoField='';
+        $fnameField='';
+        $mnameField='';
+        $lnameField='';
+        if(method_exists($this->db,'field_exists')){
+            if($this->db->field_exists('empno',$empTable)){ $empNoField='empno'; }
+            else if($this->db->field_exists('emp_no',$empTable)){ $empNoField='emp_no'; }
+            if($this->db->field_exists('fname',$empTable)){ $fnameField='fname'; }
+            else if($this->db->field_exists('first_name',$empTable)){ $fnameField='first_name'; }
+            if($this->db->field_exists('mname',$empTable)){ $mnameField='mname'; }
+            else if($this->db->field_exists('middle_name',$empTable)){ $mnameField='middle_name'; }
+            if($this->db->field_exists('lname',$empTable)){ $lnameField='lname'; }
+            else if($this->db->field_exists('last_name',$empTable)){ $lnameField='last_name'; }
+        } else {
+            $empNoField='empno';
+            $fnameField='fname';
+            $mnameField='mname';
+            $lnameField='lname';
+        }
+        $hasEmpNo=($empNoField!=='');
+        $hasFname=($fnameField!=='');
+        $hasMname=($mnameField!=='');
+        $hasLname=($lnameField!=='');
+
+        if($xs!==''){
+            $this->db->group_start();
+            if($hasEmpNo){ $this->db->like($empNoField,$xs); }
+            if($hasFname){ $this->db->or_like($fnameField,$xs); }
+            if($hasMname){ $this->db->or_like($mnameField,$xs); }
+            if($hasLname){ $this->db->or_like($lnameField,$xs); }
+            $this->db->group_end();
+        }
+        if($hasEmpNo){
+            $this->db->order_by($empNoField);
+        } else if($hasLname){
+            $this->db->order_by($lnameField);
+        }
+
+        $empRows=$this->db->limit(20)->get($empTable)->result_array();
+        foreach($empRows as $row){
+            $label=$this->emp_display_label($row);
+            if($label===''){ $label='employee '.$row['id']; }
+            $norm=$this->normalized_selector_label($label);
+            if($norm!=='' && isset($seen[$norm])){ continue; }
+            if($norm!==''){ $seen[$norm]=1; }
+            $data[]=array("id"=>"emp:".$row['id'], "text"=>$label, "type"=>"emp");
+        }
+    }
+    
+}
+    
+echo json_encode($data); 
+}    
+
+function fsave() {
+    $tmp=$_POST['datas'];
+    $id=intval($tmp[0]);
+    $fld=isset($tmp[1]) ? $tmp[1] : '';
+    $val=isset($tmp[2]) ? $tmp[2] : '';
+
+    $upperFields=array('particulars','no_ref','no_refdoc');
+    if(in_array($fld,$upperFields,true)){
+        $val=strtoupper(trim((string)$val));
+    }
+
+    $requiredFields=array(
+        'particulars'=>'Particulars',
+        'date_'=>'Date',
+        'no_ref'=>'Voucher No',
+        'dt_refdoc'=>'Ref Date',
+        'no_refdoc'=>'Ref No'
+    );
+    if(isset($requiredFields[$fld]) && trim((string)$val)===''){
+        echo json_encode(array('ok'=>0,'msg'=>$requiredFields[$fld].' is required.'));
+        return;
+    }
+
+    if($fld==='void'){
+        $hdr=$this->db->where('id',$id)->get('glh')->row();
+        $code=($hdr && property_exists($hdr,'code')) ? $hdr->code : '';
+        $approvedBy=$this->get_dvh_approved_by($id,$code);
+        if($this->has_approval($approvedBy)){
+            echo json_encode(array('ok'=>0,'msg'=>'this transaction is approved. unapprove first.'));
+            return;
+        }
+    }
+
+    $dat=array();
+    $dat[$fld]=$val;
+    if($fld==='void'){
+        $voidBy='';
+        if(intval($val)===1){
+            $voidBy=$this->current_user_display_name();
+        }
+        $dat['void_by']=($voidBy!=='') ? $voidBy : null;
+        if(intval($val)===0){ $dat['void_by']=null; }
+    }
+    $this->db->where('id',$id)->update('glh',$dat);
+    echo json_encode(array('ok'=>1));
+}
+
+private function get_dvh_approved_by($glhId,$glhCode='') {
+    if(intval($glhId)===0){ return 0; }
+    $row=$this->db->select('app,app_by')->where('id',$glhId)->get('glh')->row();
+    if($row){
+        $appVal=property_exists($row,'app') ? intval($row->app) : 0;
+        $appBy=property_exists($row,'app_by') ? $row->app_by : '';
+        if($appVal>0){
+            if($appBy!==null && trim((string)$appBy)!==''){ return $appBy; }
+            return 1;
+        }
+    }
+    return 0;
+}
+
+private function get_user_name_by_id($uid){
+    $uid=intval($uid);
+    if($uid<=0){ return ''; }
+    $row=$this->db->select('name')->where('id',$uid)->get('users')->row();
+    return $row ? (string)$row->name : '';
+}
+
+private function current_user_display_name(){
+    $uid=isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : 0;
+    if($uid<=0){ return ''; }
+    $name=$this->get_user_name_by_id($uid);
+    return $name!=='' ? $name : (string)$uid;
+}
+
+private function row_value($row,$keys){
+    foreach($keys as $key){
+        if(is_array($row) && isset($row[$key]) && trim((string)$row[$key])!==''){
+            return (string)$row[$key];
+        }
+        if(is_object($row) && property_exists($row,$key) && trim((string)$row->$key)!==''){
+            return (string)$row->$key;
+        }
+    }
+    return '';
+}
+
+private function emp_display_label($row){
+    $fname=$this->row_value($row,array('fname','first_name','firstname'));
+    $mname=$this->row_value($row,array('mname','middle_name','middlename'));
+    $lname=$this->row_value($row,array('lname','last_name','lastname'));
+    $full=trim(preg_replace('/\s+/', ' ', trim($fname.' '.$mname.' '.$lname)));
+    $label='';
+    if($lname!==''){
+        $label=$lname;
+        $tail=trim(preg_replace('/\s+/', ' ', trim($fname.' '.$mname)));
+        if($tail!==''){
+            $label.=', '.$tail;
+        }
+    } else {
+        $label=$full;
+    }
+    if($label===''){
+        $empNo=$this->row_value($row,array('empno','emp_no','emp_num','emp_number'));
+        if($empNo!==''){ $label=$empNo; }
+    }
+    if($label===''){
+        $idVal=$this->row_value($row,array('id'));
+        if($idVal!==''){ $label='employee '.$idVal; }
+    }
+    return $label;
+}
+
+private function subsi_search_label($row){
+    $name=$this->row_value($row,array('name','nm_subsi'));
+    if($name!==''){ return $name; }
+    $code=$this->row_value($row,array('code','cd_subsi'));
+    if($code!==''){ return $code; }
+    $idVal=$this->row_value($row,array('id'));
+    return $idVal!=='' ? 'subsi '.$idVal : '';
+}
+
+private function normalized_selector_label($text){
+    $text=trim((string)$text);
+    if($text===''){ return ''; }
+    $text=preg_replace('/^[A-Z0-9][A-Z0-9\-\s\/]*\s+\-\s+/i','',$text);
+    $text=strtoupper($text);
+    $text=str_replace(array(',', '.', '(', ')', '&'), ' ', $text);
+    $text=preg_replace('/[^A-Z0-9 ]+/', ' ', $text);
+    $tokens=preg_split('/\s+/', trim($text));
+    if(!is_array($tokens)){ return ''; }
+    $tokens=array_values(array_filter($tokens,function($token){
+        return $token!=='' && !in_array($token,array('JR','SR','II','III','IV'),true);
+    }));
+    sort($tokens, SORT_STRING);
+    return implode(' ', $tokens);
+}
+
+private function subsi_display_label($row){
+    $code=$this->row_value($row,array('code','cd_subsi'));
+    $name=$this->row_value($row,array('name','nm_subsi'));
+    if($code!=='' && $name!==''){ return $code.' - '.$name; }
+    if($name!==''){ return $name; }
+    if($code!==''){ return $code; }
+    $idVal=$this->row_value($row,array('id'));
+    return $idVal!=='' ? 'subsi '.$idVal : '';
+}
+
+private function parse_subsi_value($raw){
+    if($raw===null){ return array('id'=>0,'type'=>'','branch'=>0); }
+    $val=trim((string)$raw);
+    if($val===''){ return array('id'=>0,'type'=>'','branch'=>0); }
+    if(is_numeric($val)){
+        $id=intval($val);
+        return array('id'=>$id,'type'=>'subsi','branch'=>$id);
+    }
+    if(preg_match('/^(emp|e)[:\-](\d+)$/i',$val,$m)){
+        $id=intval($m[2]);
+        return array('id'=>$id,'type'=>'emp','branch'=>-$id);
+    }
+    if(preg_match('/^(sub|s)[:\-](\d+)$/i',$val,$m)){
+        $id=intval($m[2]);
+        return array('id'=>$id,'type'=>'subsi','branch'=>$id);
+    }
+    return array('id'=>0,'type'=>'','branch'=>0);
+}
+
+private function detail_id2_from_subsi_value($raw){
+    $info=$this->parse_subsi_value($raw);
+    $id=isset($info['id']) ? intval($info['id']) : 0;
+    if($id<=0){ return 0; }
+    return (isset($info['type']) && $info['type']==='emp') ? -$id : $id;
+}
+
+private function build_detail_particulars($subsiText,$remarks){
+    $subsiText=trim((string)$subsiText);
+    $remarks=strtoupper(trim((string)$remarks));
+    if($subsiText!=='' && $remarks!==''){ return $subsiText.' '.$remarks; }
+    if($remarks!==''){ return $remarks; }
+    return $subsiText;
+}
+
+private function detail_balance_state($id){
+    $id=intval($id);
+    $totalsMap=$this->glh_detail_totals_map(array($id));
+    $totals=isset($totalsMap[$id]) ? $totalsMap[$id] : array('am_dr'=>0,'am_cr'=>0);
+    $amDr=round(floatval(isset($totals['am_dr']) ? $totals['am_dr'] : 0),2);
+    $amCr=round(floatval(isset($totals['am_cr']) ? $totals['am_cr'] : 0),2);
+    $balance=round($amDr-$amCr,2);
+    return array(
+        'am_dr'=>$amDr,
+        'am_cr'=>$amCr,
+        'balance'=>$balance,
+        'balanced'=>(abs($balance) < 0.0001)
+    );
+}
+
+private function detail_subsi_meta($row){
+    $id2=0;
+    $particulars='';
+    $remarks='';
+
+    if(is_array($row)){
+        $id2=isset($row['id2']) ? intval($row['id2']) : 0;
+        $particulars=isset($row['particulars']) ? trim((string)$row['particulars']) : '';
+        $remarks=isset($row['remarks']) ? strtoupper(trim((string)$row['remarks'])) : '';
+    } else if(is_object($row)){
+        $id2=property_exists($row,'id2') ? intval($row->id2) : 0;
+        $particulars=property_exists($row,'particulars') ? trim((string)$row->particulars) : '';
+        $remarks=property_exists($row,'remarks') ? strtoupper(trim((string)$row->remarks)) : '';
+    }
+
+    $subsiId=0;
+    $subsiType='';
+    $subsiValue='0';
+    $subsiText='';
+
+    if($id2<0){
+        $subsiId=abs($id2);
+        $subsiType='emp';
+        $subsiValue='emp:'.$subsiId;
+        $empTable='hr_mf_emp';
+        $empTableExists=method_exists($this->db,'table_exists') ? $this->db->table_exists($empTable) : true;
+        if($empTableExists && $subsiId>0){
+            $empRow=$this->db->where('id',$subsiId)->get($empTable)->row();
+            if($empRow){ $subsiText=$this->emp_display_label($empRow); }
+        }
+    } else if($id2>0){
+        $subsiId=$id2;
+        $subsiType='subsi';
+        $subsiValue='sub:'.$subsiId;
+        $subsiRow=$this->db->where('id',$subsiId)->get('subsi')->row();
+        if($subsiRow){ $subsiText=$this->subsi_display_label($subsiRow); }
+    }
+
+    if($remarks!=='' && $particulars!==''){
+        $partUpper=strtoupper($particulars);
+        $remarksLen=strlen($remarks);
+        if($remarksLen>0 && strlen($partUpper)>=$remarksLen && substr($partUpper,-$remarksLen)===$remarks){
+            $prefix=trim(substr($particulars,0,strlen($particulars)-$remarksLen));
+            if($prefix!==''){ $subsiText=$prefix; }
+        }
+    }
+
+    if($remarks==='' && $subsiText!=='' && stripos($particulars,$subsiText)===0){
+        $remarks=trim(substr($particulars,strlen($subsiText)));
+    }
+    if($remarks===''){ $remarks=$particulars; }
+
+    return array(
+        'id'=>$subsiId,
+        'type'=>$subsiType,
+        'value'=>$subsiValue,
+        'text'=>$subsiText,
+        'remarks'=>$remarks
+    );
+}
+
+private function is_same_user($uid,$uname,$byVal){
+    if($byVal===null){ return false; }
+    if(is_numeric($byVal)){ return intval($byVal)===intval($uid); }
+    $byStr=trim((string)$byVal);
+    if($byStr===''){ return false; }
+    if($uname===''){ return false; }
+    return strcasecmp($byStr,$uname)===0;
+}
+
+private function has_approval($approvedVal){
+    if(is_numeric($approvedVal)){ return intval($approvedVal)>0; }
+    return is_string($approvedVal) && trim($approvedVal)!=='';
+}
+
+private function approved_display_name($approvedVal){
+    if(!$this->has_approval($approvedVal)){ return ''; }
+    if(is_numeric($approvedVal)){
+        $name=$this->get_user_name_by_id(intval($approvedVal));
+        return $name!=='' ? $name : (string)$approvedVal;
+    }
+    return trim((string)$approvedVal);
+}
+
+private function branch_display_label($branchData){
+    $code='';
+    $name='';
+    if(is_array($branchData)){
+        if(isset($branchData['cd_branch']) && trim((string)$branchData['cd_branch'])!==''){
+            $code=trim((string)$branchData['cd_branch']);
+        } else if(isset($branchData['code']) && trim((string)$branchData['code'])!==''){
+            $code=trim((string)$branchData['code']);
+        }
+        if(isset($branchData['name'])){
+            $name=trim((string)$branchData['name']);
+        }
+    } else if(is_object($branchData)){
+        if(property_exists($branchData,'cd_branch') && trim((string)$branchData->cd_branch)!==''){
+            $code=trim((string)$branchData->cd_branch);
+        } else if(property_exists($branchData,'code') && trim((string)$branchData->code)!==''){
+            $code=trim((string)$branchData->code);
+        }
+        if(property_exists($branchData,'name')){
+            $name=trim((string)$branchData->name);
+        }
+    }
+    if($code!=='' && $name!==''){ return $code.' - '.$name; }
+    if($code!==''){ return $code; }
+    return $name;
+}
+
+private function update_dvh_approval($glhId,$glhCode,$approvedBy,$unapproveBy=null){
+    $row=$this->db->select('id')->where('id',$glhId)->get('glh')->row();
+    if(!$row){ return false; }
+    if($approvedBy!==null && $approvedBy!==''){
+        $dat=array('app'=>1,'app_by'=>$approvedBy);
+    } else {
+        $dat=array('app'=>0,'app_by'=>null);
+    }
+    $this->db->where('id',$glhId)->update('glh',$dat);
+    return true;
+}
+
+function Approve() {
+    $id=intval($this->input->post('id'));
+    $sw=intval($this->input->post('sw'));
+    if($id<=0){
+        echo json_encode(array('ok'=>0,'msg'=>'invalid transaction'));
+        return;
+    }
+    if($sw!==0){ $sw=1; }
+
+    $hdr=$this->db->where('id',$id)->get('glh')->row();
+    if(!$hdr){
+        echo json_encode(array('ok'=>0,'msg'=>'transaction not found'));
+        return;
+    }
+    $fin=property_exists($hdr,'fin') ? intval($hdr->fin) : 0;
+    $voidVal=property_exists($hdr,'void') ? intval($hdr->void) : 0;
+    $code=property_exists($hdr,'code') ? $hdr->code : '';
+    $finBy=property_exists($hdr,'fin_by') ? $hdr->fin_by : '';
+    $uid=isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : 0;
+    $uname=$this->get_user_name_by_id($uid);
+    if($this->is_same_user($uid,$uname,$finBy)){
+        echo json_encode(array('ok'=>0,'msg'=>'approval must be done by other user'));
+        return;
+    }
+    if($sw==1){
+        if($fin<=0){
+            echo json_encode(array('ok'=>0,'msg'=>'transaction must be finalized first'));
+            return;
+        }
+        if($voidVal>0){
+            echo json_encode(array('ok'=>0,'msg'=>'cannot approve a voided transaction'));
+            return;
+        }
+        $ok=$this->update_dvh_approval($id,$code,$this->current_user_display_name(),null);
+    } else {
+        $ok=$this->update_dvh_approval($id,$code,'',null);
+    }
+    if(!$ok){
+        echo json_encode(array('ok'=>0,'msg'=>'approval record not found'));
+        return;
+    }
+    echo json_encode(array('ok'=>1));
+}
+
+function Fin() {
+    $id=intval($this->input->post('id'));
+    $sw=intval($this->input->post('sw'));
+    if($id<=0){
+        echo json_encode(array('ok'=>0,'msg'=>'invalid transaction'));
+        return;
+    }
+    $hdr=$this->db->where('id',$id)->get('glh')->row();
+    if(!$hdr){
+        echo json_encode(array('ok'=>0,'msg'=>'transaction not found'));
+        return;
+    }
+    $fin=property_exists($hdr,'fin') ? intval($hdr->fin) : 0;
+    $voidVal=property_exists($hdr,'void') ? intval($hdr->void) : 0;
+    $code=property_exists($hdr,'code') ? $hdr->code : '';
+    $approvedBy=$this->get_dvh_approved_by($id,$code);
+
+    if($sw==0 && $this->has_approval($approvedBy)){
+        echo json_encode(array('ok'=>0,'msg'=>'this transaction is approved. unapprove first.'));
+        return;
+    }
+    if($sw==1 && $voidVal>0){
+        echo json_encode(array('ok'=>0,'msg'=>'cannot finalize a voided transaction'));
+        return;
+    }
+    if($sw==1){
+        $balanceState=$this->detail_balance_state($id);
+        if(!$balanceState['balanced']){
+            echo json_encode(array(
+                'ok'=>0,
+                'msg'=>'balance must be 0 before finalizing',
+                'am_dr'=>$balanceState['am_dr'],
+                'am_cr'=>$balanceState['am_cr'],
+                'balance'=>$balanceState['balance']
+            ));
+            return;
+        }
+    }
+
+    $dat=array('fin'=>($sw==1 ? 1 : 0));
+    if($sw==1){
+        $finBy=$this->current_user_display_name();
+        $dat['fin_by']=($finBy!=='') ? $finBy : null;
+    } else {
+        $dat['fin_by']=null;
+    }
+    $this->db->where('id',$id)->update('glh',$dat);
+    $balanceState=$this->detail_balance_state($id);
+    echo json_encode(array(
+        'ok'=>1,
+        'am_dr'=>$balanceState['am_dr'],
+        'am_cr'=>$balanceState['am_cr'],
+        'balance'=>$balanceState['balance']
+    ));
+}
+    
+function edit($id) {
+$this->sync_glh_amounts($id);
+    
+$fld=$this->db->list_fields('glh');  
+
+$rs=$this->db->where('id',176)->get('scm_settings')->result(); foreach($rs as $row) { $title=$row->caption;} 
+
+$rs=$this->db->where('id',$id)->get('glh')->result_array();  
+
+{
+$info='';
+$cap= $this->db->list_fields('glh');
+$hdr=$this->db->where('id', $id)->get('glh')->row();
+$fin=($hdr && property_exists($hdr,'fin')) ? intval($hdr->fin) : 0;
+$glhCode=($hdr && property_exists($hdr,'code')) ? $hdr->code : '';
+$approvedBy=$this->get_dvh_approved_by($id,$glhCode);
+$isApproved=$this->has_approval($approvedBy);
+$approvedName=$this->approved_display_name($approvedBy);
+$currentUserId=isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : 0;
+$currentUserName=$this->get_user_name_by_id($currentUserId);
+$finByVal=($hdr && property_exists($hdr,'fin_by')) ? $hdr->fin_by : '';
+$canApprove = !$this->is_same_user($currentUserId,$currentUserName,$finByVal);
+echo ' 
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css">
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
+
+<style>
+div.small { font-size: 9px; }
+input.small { font-size: 9px; }
+span.small { font-size: 9px; }
+select.small { font-size: 9px; }
+option.small { font-size: 9px; } 
+.jv-top { margin-bottom: 10px; }
+.jv-top .input-group { width: 100%; }
+.jv-top .input-group-text { min-width: 110px; }
+.jv-top textarea { min-height: 96px; resize: vertical; }
+.jv-top .jv-col-mid .input-group-text,
+.jv-top .jv-col-right .input-group-text { min-width: 95px; }
+.jv-void { min-height: 31px; }
+.jv-void .custom-control {
+  display: flex;
+  align-items: center;
+  min-height: 31px;
+  margin-left: 10px;
+  margin-bottom: 0;
+  padding-left: 2.25rem;
+}
+.jv-void .custom-control-label {
+  min-height: 1rem;
+  margin-bottom: 0;
+}
+.jv-void .custom-control-label::before,
+.jv-void .custom-control-label::after {
+  top: 50%;
+  transform: translateY(-50%);
+}
+.uc-input { text-transform: uppercase; }
+@media (max-width: 991px) {
+  .jv-top .input-group-text { min-width: 90px; }
+}
+</style>
+
+<script>   
+
+var isApproved = '.($isApproved ? 'true' : 'false').';
+var canApprove = '.($canApprove ? 'true' : 'false').';
+
+$(document).on("focus", "#particulars, #date_, #no_ref, #dt_refdoc, #no_refdoc", function(){
+    $(this).data("prev", $(this).val());
+});
+
+$(document).on("input change", "#particulars, #date_, #no_ref, #dt_refdoc, #no_refdoc", function(){
+    $(this).removeClass("is-invalid");
+});
+
+function fsave(fld){
+var $el = $("#" + fld);
+var val = $el.val();
+if($el.is("input[type=\"text\"], textarea")){
+    val = String(val).toUpperCase();
+    $el.val(val);
+}
+var requiredLabels = {
+    particulars: "Particulars",
+    date_: "Date",
+    no_ref: "Voucher No",
+    dt_refdoc: "Ref Date",
+    no_refdoc: "Ref No"
+};
+if(requiredLabels[fld] && $.trim(val)===""){
+    alert(requiredLabels[fld] + " is required.");
+    $el.addClass("is-invalid").focus();
+    var prevVal = $el.data("prev");
+    if(prevVal !== undefined){ $el.val(prevVal); }
+    return;
+}
+var datas=['.$id.',fld,val];
+$.ajax({url:"'.base_url("176/dashboard/fsave").'", 
+method:"POST", dataType:"json", data:{datas:datas},success:function(data) {
+    if(!data || data.ok===0){
+        alert((data && data.msg) ? data.msg : "save failed");
+        var prevVal = $el.data("prev");
+        if(prevVal !== undefined){ $el.val(prevVal); }
+        $el.addClass("is-invalid").focus();
+        return;
+    }
+    $el.data("prev", $el.val());
+} }); 
+}
+
+function toggleVoid(){
+var $cb = $("#void");
+if(isApproved){
+    alert("this transaction is approved. unapprove first.");
+    $cb.prop("checked", false);
+    return;
+}
+if($cb.is(":checked")){
+    if(!confirm("are you sure to void?")){
+        $cb.prop("checked", false);
+        return;
+    }
+}
+var v = $cb.is(":checked") ? 1 : 0;
+var datas=['.$id.',"void",v];
+$.ajax({url:"'.base_url("176/dashboard/fsave").'", 
+method:"POST", dataType:"json", data:{datas:datas},success:function(data) {
+    if(!data || data.ok===0){
+        alert((data && data.msg) ? data.msg : "void failed");
+        $cb.prop("checked", !v);
+        return;
+    }
+    location.reload();
+} }); 
+}
+
+function toggle(){ 
+  var x = document.getElementById("topx");
+  if (x.style.display === "none") {
+    x.style.display = "block";
+  } else {
+    x.style.display = "none";
+  }
+}
+
+
+function approveAction(sw) {
+    if(!canApprove){
+        alert("approval must be done by other user");
+        return;
+    }
+    var msg = (sw==1) ? "are you sure to approve?" : "are you sure to unapprove?";
+    if(!confirm(msg)){ return; }
+    $.ajax({url:"'.base_url("176/dashboard/Approve").'", 
+    method:"POST", dataType:"json", data:{id:'.$id.',sw:sw},success:function(data) { 
+        if(!data || data.ok===0){
+            alert((data && data.msg) ? data.msg : "approval failed");
+            return;
+        }
+        location.reload();
+    } }); 
+}
+
+function get_tbl() {
+
+$.ajax({url:"'.base_url("176/dashboard/tbl").'", 
+method:"POST", data:{id:'.$id.'},success:function(data) { 
+    $("#tbl").html(data)
+} }); 
+
+}
+
+function setFinalizedState(isFinalized){
+    var $fields = $("#particulars, #date_, #no_ref, #dt_refdoc, #no_refdoc, #void");
+    $fields.prop("disabled", isFinalized);
+
+    $("#sub-branch, #sub-coa, #subsi-code, #subsi-remarks, #subsi-amount").prop("disabled", isFinalized);
+    $("#details-btns input, #subsi-btns input, #jv-delete-selected, #jv-delete-cancel").prop("disabled", isFinalized);
+    $("#subsi-section :input").prop("disabled", isFinalized);
+
+    var $finBtn = $("#Finx");
+    if($finBtn.length){
+        if(isApproved){
+            $finBtn.hide();
+        } else {
+            $finBtn.show();
+            if(isFinalized){
+                $finBtn.val("Unfinalize").attr("onclick","Fin(0)");
+            } else {
+                $finBtn.val("Finalize").attr("onclick","Fin(1)");
+            }
+        }
+    }
+
+    var $appBtn = $("#app");
+    var $unappBtn = $("#unapp");
+    if(!canApprove){
+        if($appBtn.length){ $appBtn.hide(); }
+        if($unappBtn.length){ $unappBtn.hide(); }
+        return;
+    }
+    if(isFinalized){
+        if(isApproved){
+            if($appBtn.length){ $appBtn.hide(); }
+            if($unappBtn.length){ $unappBtn.prop("disabled", false).show(); }
+        } else {
+            if($appBtn.length){ $appBtn.prop("disabled", false).show(); }
+            if($unappBtn.length){ $unappBtn.hide(); }
+        }
+    } else {
+        if($appBtn.length){ $appBtn.hide(); }
+        if($unappBtn.length){ $unappBtn.hide(); }
+    }
+}
+
+function Fin(sw) {
+var msg = (sw==1) ? "are you sure to finalize?" : "are you sure to unfinalize?";
+if(!confirm(msg)){ return; }
+if(sw==1){
+    var balance = typeof jvCalcBalance === "function" ? jvCalcBalance() : 0;
+    if(Math.abs(balance) > 0.0001){
+        alert("balance must be 0 to finalize");
+        return;
+    }
+}
+$.ajax({url:"'.base_url("176/dashboard/Fin").'", 
+method:"POST", dataType:"json", data:{id:'.$id.',sw:sw},success:function(data) { 
+    if(!data || data.ok===0){
+        alert((data && data.msg) ? data.msg : "finalize failed");
+        return;
+    }
+    if(sw===1){
+        canApprove = false;
+    } else {
+        canApprove = true;
+    }
+    setFinalizedState(sw===1);
+    if(typeof info === "function"){ info(1); }
+} }); 
+}
+
+function prints(id) {
+var fnm="'.base_url('176/dashboard/prints/').'" + id;
+window.open(fnm);
+}
+
+function totals(){ 
+
+let w=($("#tamt").val());
+let x=($("#sfee").val());
+let y=($("#tdamt").val());
+let z=w - x - y;
+
+$("#ttamt").html(w);
+$("#vttdamt").html(y);
+$("#vttsf").html(x);
+$("#gtamt").html(z);
+}
+
+</script> 
+
+';
+
+}
+
+$fld=$this->db->list_fields('glh');   //print_r($fld);
+
+$left=$mid=$right=''; 
+
+foreach($rs as $row) {    
+     for($a=0;$a<count($fld);$a++) { $datafld[$fld[$a]]=$row[$fld[$a]]; } 
+   // $datafld['fin']=$row['fin'];      
+} 
+
+$fin = isset($datafld['fin']) ? intval($datafld['fin']) : 0;
+$datafld['fin'] = $fin;
+$pt=0; 
+
+$voidVal = isset($datafld['void']) ? intval($datafld['void']) : 0;
+$disabled = ($fin>0 || $voidVal>0) ? ' disabled' : '';
+$dtl=$top2=$top3=$top4=$top=$left=$right=$btn=' '; 
+$top=' ';
+$legt=' ';
+    $div1=$div2='';
+
+$voidChecked = ($voidVal>0) ? ' checked' : '';
+$voidToggleDisabled = ($voidVal>0 || $fin>0 || $isApproved) ? ' disabled' : '';
+
+$left='
+<div class="col-lg-4 col-md-12 col-sm-12 jv-col-left">
+    <div class="input-group mb-1 input-group-sm">
+        <div class="input-group-prepend"><span class="input-group-text">Particulars</span></div>
+        <textarea id="particulars" rows="4" class="form-control uc-input" data-upper="1"'.$disabled.'>'.$datafld['particulars'].'</textarea>
+    </div>
+</div>
+<div class="col-lg-4 col-md-6 col-sm-12 jv-col-mid">
+    <div class="input-group mb-1 input-group-sm">
+        <div class="input-group-prepend"><span class="input-group-text">Doc No</span></div>
+        <input type="text" class="form-control" value="'.$datafld['code'].'" readonly>
+        <input type="date" class="form-control" id="date_" value="'.$datafld['date_'].'" onchange="fsave(this.id);"'.$disabled.'>
+    </div>
+    <div class="input-group mb-1 input-group-sm">
+        <div class="input-group-prepend"><span class="input-group-text">Voucher No</span></div>
+        <input type="text" class="form-control uc-input" data-upper="1" id="no_ref" value="'.$datafld['no_ref'].'" onchange="fsave(this.id);"'.$disabled.'>
+    </div>
+    <div class="input-group mb-1 input-group-sm">
+        <div class="input-group-prepend"><span class="input-group-text">Ref Date</span></div>
+        <input type="date" class="form-control" id="dt_refdoc" value="'.$datafld['dt_refdoc'].'" onchange="fsave(this.id);"'.$disabled.'>
+    </div>
+</div>
+<div class="col-lg-4 col-md-6 col-sm-12 jv-col-right">
+    <div class="input-group mb-1 input-group-sm">
+        <div class="input-group-prepend"><span class="input-group-text">Ref No</span></div>
+        <input type="text" class="form-control uc-input" data-upper="1" id="no_refdoc" value="'.$datafld['no_refdoc'].'" onchange="fsave(this.id);"'.$disabled.'>
+    </div>
+    <div class="input-group mb-1 input-group-sm align-items-center jv-void">
+        <div class="input-group-prepend"><span class="input-group-text">Void</span></div>
+        <div class="custom-control custom-switch ml-2">
+            <input type="checkbox" class="custom-control-input" id="void"'.$voidChecked.$voidToggleDisabled.' onchange="toggleVoid()">
+            <label class="custom-control-label" for="void"></label>
+        </div>
+    </div>
+    <div class="input-group mb-1 input-group-sm" id="btnx">  
+        <input type="hidden" id="id" value="'.$id.'">
+        <input type="hidden" id="dfin" value="'.$datafld['fin'].'">';
+
+    if($voidVal==0){
+        $isFinalized = ($fin>0);
+        $finLabel = $isFinalized ? 'Unfinalize' : 'Finalize';
+        $finSw = $isFinalized ? 0 : 1;
+        $finStyle = $isApproved ? ' style="display:none"' : '';
+        $left.='<input type="button" class="form-control btn btn-outline-dark btn-sm" value="'.$finLabel.'" onclick="Fin('.$finSw.')" id="Finx"'.$finStyle.'>';
+
+        if($canApprove){
+            $approveStyle = ($isFinalized && !$isApproved) ? '' : ' style="display:none"';
+            $unapproveStyle = ($isFinalized && $isApproved) ? '' : ' style="display:none"';
+            $unapproveTitle = '';
+            if($isApproved && $approvedName!==''){
+                $unapproveTitle = ' title="Approved: '.htmlspecialchars($approvedName,ENT_QUOTES).'"';
+            }
+
+            $left.='<input type="button" class="form-control btn btn-outline-dark btn-sm" value="Approve" onclick="approveAction(1)" id="app"'.$approveStyle.'>';
+            $left.='<input type="button" class="form-control btn btn-outline-dark btn-sm" value="Unapprove" onclick="approveAction(0)" id="unapp"'.$unapproveStyle.$unapproveTitle.'>';
+        }
+    }
+
+    $left.='
+    <input type="button" class="form-control btn btn-outline-dark btn-sm" value="Close" onclick="closeRecordEntry()"> 
+    </div>  
+    </div>  
+    ';
+
+{
+echo '  
+
+            <div class="container-fluid">   
+
+                <div class="card-body jv-header-card" id="topx" >
+                    <div class="container-fluid"> 
+                        <div class="row jv-top">  
+                            '.$left.'  
+                        </div>
+                        <div class="row jv-panels">
+                            <div class="col-xl-7 col-lg-7 col-md-12 jv-panel">   
+                                <div class="jv-panel-card">
+                                    <div class="jv-panel-title">Details</div>
+                                    <div id="fcon"></div> 
+                                </div>
+                            </div>  
+                            
+                            <div class="col-xl-5 col-lg-5 col-md-12 jv-panel">           
+                                <div class="jv-panel-card">
+                                    <div class="jv-panel-title">Subsidiary</div>
+                                    <div id="subs"></div> 
+                                </div>
+                            </div>  
+                        </div>
+                    
+                </div>
+
+            </div>  
+
+<script>
+
+$("#item").select2({ajax: { url: "'.base_url("176/dashboard/mf/item").'" ,
+type: "post", dataType: "json",  delay: 250,  data: function (params) 
+{ return { searchTerm: params.term,source:$("#source").val()};  },
+processResults: function (response) {  return { results: response  };  },  cache: true   }});  
+
+$("#size").select2({ajax: { url: "'.base_url("176/dashboard/mf/size").'" ,
+type: "post", dataType: "json",  delay: 250,  data: function (params) 
+{ return { searchTerm: params.term,source:$("#source").val()};  },
+processResults: function (response) {  return { results: response  };  },  cache: true   }});   
+
+$("#color").select2({ajax: { url: "'.base_url("176/dashboard/mf/color").'" ,
+type: "post", dataType: "json",  delay: 250,  data: function (params) 
+{ return { searchTerm: params.term,source:$("#source").val()};  },
+processResults: function (response) {  return { results: response  };  },  cache: true   }});   
+
+$("#supplier").select2({ajax: { url: "'.base_url("176/dashboard/mf/supplier").'" ,
+type: "post", dataType: "json",  delay: 250,  data: function (params) 
+{ return { searchTerm: params.term,source:$("#source").val()};  },
+processResults: function (response) {  return { results: response  };  },  cache: true   }});    
+function info(sw){
+var datas=['.$id.',sw];
+
+    $.ajax({url:"'.base_url("176/dashboard/info").'"
+    , method:"POST"
+    , data:{datas:datas},success:function(data) {  
+    
+        if(sw==1){$("#fcon").html(data); }
+        if(sw==2){$("#subs").html(data); }
+
+    } });  
+
+}
+
+info(1);
+info(2);
+
+
+</script>
+'; 
+
+}  
+
+}  
+    
+function info() {
+    $tmp=$_POST['datas'];
+    $id=isset($tmp[0]) ? intval($tmp[0]) : 0;
+    $sw=isset($tmp[1]) ? intval($tmp[1]) : 0;
+
+    $coa_opts='<option value="0">select COA</option>';
+
+    $hdr=$this->db->where('id',$id)->get('glh')->row();
+    $fin=0;
+    $voidVal=0;
+    if($hdr){
+        if(property_exists($hdr,'fin')){ $fin=intval($hdr->fin); }
+        if(property_exists($hdr,'void')){ $voidVal=intval($hdr->void); }
+    }
+    $isReadOnly = ($fin>0 || $voidVal>0);
+    $detDisabled = $isReadOnly ? ' disabled' : '';
+
+echo '<br> <style>
+div.dt-container, .dataTables_wrapper { width: 100% !important; }
+table.dataTable { width: 100% !important; }
+.dataTables_scrollBody { overflow-x: auto; }
+</style>
+
+<script src="https://office.transferit.store/new/jquery.dataTables.min.js"></script>
+<link rel="stylesheet" href="https://office.transferit.store/new/jquery.dataTables.min.css">
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script> ';
+
+    if($sw==1){
+        $rs=$this->db
+            ->where('id',$id)
+            ->where('sw',1)
+            ->get('gld')->result_array();
+
+        $thlx=array(
+            'Select',
+            '#',
+            'Branch',
+            'Code - Account Title',
+            'Particulars',
+            'Debit',
+            'Credit'
+        );
+
+        $balanceState=$this->detail_balance_state($id);
+        $balanceClass=$balanceState['balanced'] ? ' is-balanced' : ' is-unbalanced';
+        $deleteDisabled=$isReadOnly ? ' disabled' : '';
+
+        echo '<div class="container-fluid"><div class="row"><div class="col-sm-12 jv-section jv-details-section">';
+
+        echo '<div id="jv-detail-status'.$sw.'" class="jv-detail-status">
+            <div class="jv-balance-strip">
+                <div class="jv-balance-pill"><strong>Debit</strong><span id="jv-total-debit" data-raw="'.htmlspecialchars((string)$balanceState['am_dr'],ENT_QUOTES).'">'.number_format($balanceState['am_dr'],2).'</span></div>
+                <div class="jv-balance-pill"><strong>Credit</strong><span id="jv-total-credit" data-raw="'.htmlspecialchars((string)$balanceState['am_cr'],ENT_QUOTES).'">'.number_format($balanceState['am_cr'],2).'</span></div>
+                <div class="jv-balance-pill'.$balanceClass.'"><strong>Balance</strong><span id="jv-balance-value" data-balance="'.htmlspecialchars((string)$balanceState['balance'],ENT_QUOTES).'">'.number_format($balanceState['balance'],2).'</span></div>
+            </div>
+            <div class="jv-detail-actions">
+                <input type="button" id="jv-delete-selected" class="btn btn-outline-danger btn-sm" value="Delete" onclick="jvDeleteSelectedRows()"'.$deleteDisabled.' data-readonly="'.($isReadOnly ? '1' : '0').'">
+                <input type="button" id="jv-delete-cancel" class="btn btn-outline-secondary btn-sm" value="Cancel" onclick="jvSetDetailDeleteMode(false)"'.$deleteDisabled.' data-readonly="'.($isReadOnly ? '1' : '0').'" style="display:none;">
+            </div>
+        </div>';
+
+        echo '<div class="col-sm-12">
+        <table id="tbl_listd'.$sw.'" class="display nowrap jv-table" style="width:100%">
+        <thead><tr>';
+        for($a=0;$a<count($thlx);$a++){ echo '<th>'.$thlx[$a].'</th>'; }
+        echo '</tr></thead><tbody>';
+
+        foreach($rs as $row){
+            $dr='';
+            $cr='';
+            $amt=floatval($row['amount']);
+            if($amt>0){ $dr=number_format($amt,2); }
+            else if($amt<0){ $cr=number_format(abs($amt),2); }
+
+            $branchLabel='';
+            $branchRow=$this->db->where('id',$row['branch'])->get('gl_branch')->row();
+            if($branchRow){ $branchLabel=$this->branch_display_label($branchRow); }
+
+            $coaLabel='';
+            $coaRow=$this->db->where('id',$row['coa'])->get('coa')->row();
+            if($coaRow){
+                $coaLabel=trim((string)$coaRow->code).' - '.trim((string)$coaRow->name);
+            }
+
+            $seq=intval($row['seq']);
+            $branchId=isset($row['branch']) ? intval($row['branch']) : 0;
+            $coaId=isset($row['coa']) ? intval($row['coa']) : 0;
+            $particulars=isset($row['particulars']) ? (string)$row['particulars'] : '';
+            $subsiMeta=$this->detail_subsi_meta($row);
+            $amtRaw=isset($row['amount']) ? (string)$row['amount'] : '0';
+            echo '<tr class="jv-detail-row" data-seq="'.$seq.'" data-branch="'.$branchId.'" data-coa="'.$coaId.'" data-particulars="'.htmlspecialchars($particulars,ENT_QUOTES).'" data-remarks="'.htmlspecialchars($subsiMeta['remarks'],ENT_QUOTES).'" data-subsi-id="'.intval($subsiMeta['id']).'" data-subsi-type="'.htmlspecialchars($subsiMeta['type'],ENT_QUOTES).'" data-subsi-value="'.htmlspecialchars($subsiMeta['value'],ENT_QUOTES).'" data-subsi-text="'.htmlspecialchars($subsiMeta['text'],ENT_QUOTES).'" data-amount="'.htmlspecialchars($amtRaw,ENT_QUOTES).'" data-branch-text="'.htmlspecialchars($branchLabel,ENT_QUOTES).'" data-coa-text="'.htmlspecialchars($coaLabel,ENT_QUOTES).'">';
+            echo '<td class="jv-detail-check-cell jv-detail-delete-col"><input type="checkbox" class="jv-detail-check" value="'.$seq.'"'.($isReadOnly ? ' disabled' : '').'></td>';
+            echo '<td>'.$seq.'</td>';
+            echo '<td>'.htmlspecialchars($branchLabel,ENT_QUOTES).'</td>';
+            echo '<td>'.htmlspecialchars($coaLabel,ENT_QUOTES).'</td>';
+            echo '<td>'.htmlspecialchars($row['particulars'],ENT_QUOTES).'</td>';
+            echo '<td>'.$dr.'</td>';
+            echo '<td>'.$cr.'</td>';
+            echo '</tr>';
+        }
+
+        echo '</tbody></table></div></div></div></div>
+
+<script>
+$(document).ready(function(){
+    if(typeof jvSyncHeaderId === "function"){ jvSyncHeaderId(); }
+    var table = $("#tbl_listd'.$sw.'").DataTable({
+        "scrollX": true,
+        "order": [[ 1, "desc" ]],
+        "columnDefs": [{ "targets": 0, "orderable": false, "searchable": false, "visible": false }]
+    });
+    window.jvDetailTable = table;
+    var $wrapper = $("#tbl_listd'.$sw.'_wrapper");
+    var $status = $("#jv-detail-status'.$sw.'");
+    if($status.length){
+        if($wrapper.find(".dataTables_filter").length){
+            $status.insertAfter($wrapper.find(".dataTables_filter"));
+        } else {
+            $wrapper.prepend($status);
+        }
+    }
+    if(typeof jvSetDetailDeleteMode === "function"){ jvSetDetailDeleteMode(false, true); }
+    if(typeof jvUpdateSelectedDeleteState === "function"){ jvUpdateSelectedDeleteState(); }
+    $("#tbl_listd'.$sw.' tbody").off("click", "tr").on("click", "tr", function(e){
+        if($(e.target).closest("button,label,a").length){ return; }
+        if(window.jvDetailDeleteMode){
+            if($(e.target).is("input")){ return; }
+            var $chk = $(this).find(".jv-detail-check");
+            if($chk.length && !$chk.prop("disabled")){
+                $chk.prop("checked", !$chk.prop("checked")).trigger("change");
+            }
+            return;
+        }
+        if($(e.target).closest("input").length){ return; }
+        if(typeof jvEditDetailRow === "function"){ jvEditDetailRow(this); }
+    });
+    $("#tbl_listd'.$sw.' tbody").off("change", ".jv-detail-check").on("change", ".jv-detail-check", function(e){
+        e.stopPropagation();
+        if(typeof jvUpdateSelectedDeleteState === "function"){ jvUpdateSelectedDeleteState(); }
+    });
+});
+</script>';
+    }
+
+    if($sw==2){
+        echo '<div class="container-fluid"><div class="row"><div class="col-sm-12 jv-section jv-subs-section">';
+        echo '<input type="hidden" id="subs-hdr-id" value="'.$id.'">';
+
+        echo '<div class="input-group mb-1 input-group-sm col-sm-12">
+            <select class="form-control" id="sub-branch"'.$detDisabled.'>
+                <option value="0">select branch</option>
+            </select>
+        </div>';
+
+        echo '<div class="input-group mb-1 input-group-sm col-sm-12">
+            <select class="form-control" id="sub-coa"'.$detDisabled.'>'.$coa_opts.'</select>
+        </div>';
+
+
+
+
+
+        echo '</div>';
+
+        echo '<div class="col-sm-12 mt-2 jv-section jv-subsi-section" id="subsi-section">
+            <div class="mb-1" style="font-weight:700;color:#c00;">Subsidiary Acc. Code Entry</div>
+            <div class="input-group mb-1 input-group-sm">
+                <select class="form-control" id="subsi-code"'.$detDisabled.'>
+                    <option value="0">select subsi/employee</option>
+                </select>
+            </div>
+            <div class="input-group mb-1 input-group-sm">
+                <div class="input-group-prepend"><span class="input-group-text">Remarks</span></div>
+                <input type="text" class="form-control uc-input" data-upper="1" id="subsi-remarks" value=""'.$detDisabled.'>
+            </div>
+            <div class="input-group mb-1 input-group-sm">
+                <div class="input-group-prepend"><span class="input-group-text">Amount</span></div>
+                <input type="number" class="form-control" id="subsi-amount" value="0"'.$detDisabled.'>
+            </div>
+            <div class="jv-amount-note">Positive amount goes to debit. Negative amount goes to credit.</div>
+            <div class="input-group mb-1 input-group-sm" id="subsi-btns">
+                <input type="button" id="subsi-save" class="form-control btn btn-outline-dark btn-sm" value="Save" onclick="subsiSave()"'.($isReadOnly ? ' disabled' : '').' data-readonly="'.($isReadOnly ? '1' : '0').'">
+                <input type="button" id="subsi-clear" class="form-control btn btn-outline-dark btn-sm" value="Clear" onclick="jvClearSubsFields()"'.($isReadOnly ? ' disabled' : '').' data-readonly="'.($isReadOnly ? '1' : '0').'">
+                <input type="button" id="subsi-print" class="form-control btn btn-outline-dark btn-sm" value="Print" onclick="subsiPrint()"'.($isReadOnly ? ' disabled' : '').' data-readonly="'.($isReadOnly ? '1' : '0').'">
+            </div>
+        </div>
+        </div></div>
+
+<script>
+$(document).ready(function(){
+    $("#sub-branch").select2({ajax: { url: "'.base_url("176/dashboard/mf/branch").'" ,
+    type: "post", dataType: "json",  delay: 250,  data: function (params) 
+    { return { searchTerm: params.term,source:$("#source").val()};  },
+    processResults: function (response) {  return { results: response  };  },  cache: true   }});
+
+    $("#sub-coa").select2({ajax: { url: "'.base_url("176/dashboard/mf/coa").'" ,
+    type: "post", dataType: "json",  delay: 250,  data: function (params) 
+    { return { searchTerm: params.term };  },
+    processResults: function (response) {  return { results: response  };  },  cache: true   }});
+
+    var isReadOnly = '.($isReadOnly ? 'true' : 'false').';
+    var isFinalized = '.(($fin>0) ? 'true' : 'false').';
+    if(isReadOnly){
+        $("#sub-branch").prop("disabled", true);
+        $("#sub-coa").prop("disabled", true);
+        $("#subs-btns input").prop("disabled", true);
+    }
+    if(isFinalized && typeof setFinalizedState === "function"){
+        setFinalizedState(true);
+    }
+
+    if(typeof jvRenderTempRows === "function"){
+        jvRenderTempRows();
+    }
+
+    if(typeof initSubsiSection === "function"){
+        initSubsiSection();
+    }
+
+    if(isReadOnly){
+        $("#subsi-code").prop("disabled", true);
+        $("#subsi-remarks").prop("disabled", true);
+        $("#subsi-amount").prop("disabled", true);
+        $("#subsi-btns input").prop("disabled", true);
+    }
+});
+</script>';
+    }
+
+}
+    
+function saved() {
+    
+    $tmp=$_POST['datas'];
+    
+    $seq=$tmp[0];
+    
+    $dat['sw']=$sw=$tmp[1];
+    $dat['id']=$id=$tmp[2];
+    
+    if($sw==1){
+        //$fldd=explode(',','seq,branch,coa,particulars,amount');
+        $dat['branch']=$tmp[3];
+        $dat['coa']=$tmp[4];
+        $dat['particulars']=strtoupper(trim((string)$tmp[5]));
+        $dat['amount']=$tmp[6];
+    }
+    
+    if($sw==2){ 
+        $dat['coa']=$tmp[3];
+        $dat['particulars']=strtoupper(trim((string)$tmp[4]));
+        $dat['amount']=$tmp[5];
+    }
+    
+    if(intval($seq)>0){  $this->db ->where('seq',$seq) ->update('gld',$dat);  }
+    else {  $this->db->insert('gld',$dat);  }
+    if($sw==1 && intval($id)>0){ $this->sync_glh_amounts($id); }
+    
+    print_r($tmp);
+    
+}
+
+function save_batch() {
+    $id=intval($this->input->post('id'));
+    $rowsJson=$this->input->post('rows');
+
+    if($id<=0){
+        echo json_encode(array('ok'=>0,'msg'=>'invalid record'));
+        return;
+    }
+
+    $hdr=$this->db->where('id',$id)->get('glh')->row();
+    if(!$hdr){
+        echo json_encode(array('ok'=>0,'msg'=>'record not found'));
+        return;
+    }
+    if(property_exists($hdr,'fin') && intval($hdr->fin)>0){
+        echo json_encode(array('ok'=>0,'msg'=>'transaction is finalized'));
+        return;
+    }
+    if(property_exists($hdr,'void') && intval($hdr->void)>0){
+        echo json_encode(array('ok'=>0,'msg'=>'transaction is void'));
+        return;
+    }
+
+    $rows=json_decode($rowsJson,true);
+    if(!is_array($rows) || count($rows)==0){
+        echo json_encode(array('ok'=>0,'msg'=>'no entries to save'));
+        return;
+    }
+
+    $sum=0;
+    $insertRows=array();
+    foreach($rows as $row){
+        $branch=isset($row['branch_id']) ? intval($row['branch_id']) : 0;
+        $coa=isset($row['coa_id']) ? intval($row['coa_id']) : 0;
+        $remarks=isset($row['remarks']) ? strtoupper(trim((string)$row['remarks'])) : '';
+        if($remarks==='' && isset($row['particulars'])){
+            $remarks=strtoupper(trim((string)$row['particulars']));
+        }
+        $subsiText=isset($row['subsi_text']) ? trim((string)$row['subsi_text']) : '';
+        $subsiRaw=isset($row['subsi_value']) ? trim((string)$row['subsi_value']) : '';
+        if($subsiRaw==='' && isset($row['subsi_id']) && intval($row['subsi_id'])>0){
+            $tmpType=isset($row['subsi_type']) ? strtolower(trim((string)$row['subsi_type'])) : 'sub';
+            $subsiRaw=(($tmpType==='emp' || $tmpType==='e') ? 'emp:' : 'sub:').intval($row['subsi_id']);
+        }
+        $id2=$this->detail_id2_from_subsi_value($subsiRaw);
+        $part=$this->build_detail_particulars($subsiText,$remarks);
+        $amt=isset($row['amount']) ? floatval($row['amount']) : 0;
+
+        if($branch<=0 || $coa<=0 || $remarks==='' || $amt==0 || $id2===0){
+            continue;
+        }
+        $sum+=$amt;
+        $insertRows[]=array(
+            'sw'=>1,
+            'id'=>$id,
+            'branch'=>$branch,
+            'coa'=>$coa,
+            'remarks'=>$remarks,
+            'id2'=>$id2,
+            'particulars'=>$part,
+            'amount'=>$amt
+        );
+    }
+
+    if(count($insertRows)==0){
+        echo json_encode(array('ok'=>0,'msg'=>'no valid entries to save'));
+        return;
+    }
+    if(abs($sum) > 0.0001){
+        echo json_encode(array('ok'=>0,'msg'=>'balance must be 0'));
+        return;
+    }
+
+    $this->db->insert_batch('gld',$insertRows);
+    $totals=$this->sync_glh_amounts($id);
+    $balanceState=$this->detail_balance_state($id);
+    echo json_encode(array(
+        'ok'=>1,
+        'count'=>count($insertRows),
+        'am_dr'=>$totals['am_dr'],
+        'am_cr'=>$totals['am_cr'],
+        'balance'=>$balanceState['balance']
+    ));
+}
+
+function update_detail() {
+    $id=intval($this->input->post('id'));
+    $seq=intval($this->input->post('seq'));
+    $branch=intval($this->input->post('branch'));
+    $coa=intval($this->input->post('coa'));
+    $subsiRaw=trim((string)$this->input->post('subsi'));
+    $subsiText=trim((string)$this->input->post('subsi_text'));
+    $remarks=strtoupper(trim((string)$this->input->post('remarks')));
+    $particulars=trim((string)$this->input->post('particulars'));
+    $amtRaw=$this->input->post('amount');
+    $amount=is_numeric($amtRaw) ? floatval($amtRaw) : 0;
+    $id2=$this->detail_id2_from_subsi_value($subsiRaw);
+
+    if($remarks==='' && $particulars!==''){
+        $remarks=strtoupper($particulars);
+    }
+    $particulars=$this->build_detail_particulars($subsiText,$remarks);
+
+    if($id<=0 || $seq<=0){
+        echo json_encode(array('ok'=>0,'msg'=>'invalid record'));
+        return;
+    }
+
+    $hdr=$this->db->where('id',$id)->get('glh')->row();
+    if(!$hdr){
+        echo json_encode(array('ok'=>0,'msg'=>'record not found'));
+        return;
+    }
+    if(property_exists($hdr,'fin') && intval($hdr->fin)>0){
+        echo json_encode(array('ok'=>0,'msg'=>'transaction is finalized'));
+        return;
+    }
+    if(property_exists($hdr,'void') && intval($hdr->void)>0){
+        echo json_encode(array('ok'=>0,'msg'=>'transaction is void'));
+        return;
+    }
+
+    $row=$this->db->where('seq',$seq)->where('id',$id)->where('sw',1)->get('gld')->row();
+    if(!$row){
+        echo json_encode(array('ok'=>0,'msg'=>'detail record not found'));
+        return;
+    }
+    if($id2===0 && property_exists($row,'id2')){
+        $id2=intval($row->id2);
+    }
+    if($branch<=0 || $coa<=0 || $remarks==='' || $amount==0 || $id2===0){
+        echo json_encode(array('ok'=>0,'msg'=>'complete all the fields first'));
+        return;
+    }
+
+    $dat=array(
+        'branch'=>$branch,
+        'coa'=>$coa,
+        'remarks'=>$remarks,
+        'id2'=>$id2,
+        'particulars'=>$particulars,
+        'amount'=>$amount
+    );
+    $this->db->where('seq',$seq)->update('gld',$dat);
+    $totals=$this->sync_glh_amounts($id);
+    $balanceState=$this->detail_balance_state($id);
+    echo json_encode(array(
+        'ok'=>1,
+        'am_dr'=>$totals['am_dr'],
+        'am_cr'=>$totals['am_cr'],
+        'balance'=>$balanceState['balance']
+    ));
+}
+
+function save_subsi() {
+    $id=intval($this->input->post('id'));
+    $branch=intval($this->input->post('branch'));
+    $subsiRaw=trim((string)$this->input->post('subsi'));
+    $subsiText=trim((string)$this->input->post('subsi_text'));
+    $remarks=strtoupper(trim((string)$this->input->post('remarks')));
+    $amtRaw=$this->input->post('amount');
+    $amount=is_numeric($amtRaw) ? floatval($amtRaw) : 0;
+    $coa=intval($this->input->post('coa'));
+    $id2=$this->detail_id2_from_subsi_value($subsiRaw);
+    $particulars=$this->build_detail_particulars($subsiText,$remarks);
+
+    if($id<=0){
+        echo json_encode(array('ok'=>0,'msg'=>'invalid record'));
+        return;
+    }
+
+    $hdr=$this->db->where('id',$id)->get('glh')->row();
+    if(!$hdr){
+        echo json_encode(array('ok'=>0,'msg'=>'record not found'));
+        return;
+    }
+    if(property_exists($hdr,'fin') && intval($hdr->fin)>0){
+        echo json_encode(array('ok'=>0,'msg'=>'transaction is finalized'));
+        return;
+    }
+    if(property_exists($hdr,'void') && intval($hdr->void)>0){
+        echo json_encode(array('ok'=>0,'msg'=>'transaction is void'));
+        return;
+    }
+
+    if($branch<=0 || $coa<=0 || $id2===0 || $remarks==='' || $amount==0){
+        echo json_encode(array('ok'=>0,'msg'=>'complete all the fields first'));
+        return;
+    }
+
+    $dat=array(
+        'sw'=>1,
+        'id'=>$id,
+        'branch'=>$branch,
+        'coa'=>$coa,
+        'remarks'=>$remarks,
+        'id2'=>$id2,
+        'particulars'=>$particulars,
+        'amount'=>$amount
+    );
+
+    $this->db->insert('gld',$dat);
+    $seq=$this->db->insert_id();
+    $totals=$this->sync_glh_amounts($id);
+    $balanceState=$this->detail_balance_state($id);
+    echo json_encode(array(
+        'ok'=>1,
+        'seq'=>$seq,
+        'am_dr'=>$totals['am_dr'],
+        'am_cr'=>$totals['am_cr'],
+        'balance'=>$balanceState['balance']
+    ));
+}
+
+function subsi_list() {
+    $id=intval($this->input->post('id'));
+    $coa=intval($this->input->post('coa'));
+
+    if($id<=0){
+        echo json_encode(array('ok'=>0,'rows'=>array(),'total'=>0));
+        return;
+    }
+
+    $this->db->where('id',$id)->where('sw',1);
+    if($coa>0){ $this->db->where('coa',$coa); }
+    $rows=$this->db->order_by('seq','asc')->get('gld')->result_array();
+
+    $out=array();
+    $total=0;
+    foreach($rows as $row){
+        $amt=isset($row['amount']) ? floatval($row['amount']) : 0;
+        $total+=$amt;
+
+        $branchLabel='';
+        $branchVal=isset($row['branch']) ? intval($row['branch']) : 0;
+        if($branchVal>0){
+            $branchRow=$this->db->where('id',$branchVal)->get('gl_branch')->row();
+            if($branchRow){ $branchLabel=$this->branch_display_label($branchRow); }
+        }
+
+        $coaLabel='';
+        $coaId=isset($row['coa']) ? intval($row['coa']) : 0;
+        if($coaId>0){
+            $coaRow=$this->db->where('id',$coaId)->get('coa')->row();
+            if($coaRow){
+                $ccode=property_exists($coaRow,'code') ? trim((string)$coaRow->code) : '';
+                $cname=property_exists($coaRow,'name') ? trim((string)$coaRow->name) : '';
+                $coaLabel=$ccode;
+                if($cname!==''){ $coaLabel=($coaLabel!=='') ? $coaLabel.' - '.$cname : $cname; }
+            }
+        }
+        if($coaLabel==='' && $coaId>0){ $coaLabel='COA '.$coaId; }
+
+        $subsiMeta=$this->detail_subsi_meta($row);
+
+        $out[]=array(
+            'seq'=>isset($row['seq']) ? intval($row['seq']) : 0,
+            'branch'=>$branchLabel,
+            'coa'=>$coaLabel,
+            'particulars'=>isset($row['particulars']) ? (string)$row['particulars'] : '',
+            'remarks'=>$subsiMeta['remarks'],
+            'subsi_id'=>$subsiMeta['id'],
+            'subsi_type'=>$subsiMeta['type'],
+            'subsi_value'=>$subsiMeta['value'],
+            'subsi_text'=>$subsiMeta['text'],
+            'amount'=>$amt
+        );
+    }
+
+    echo json_encode(array('ok'=>1,'rows'=>$out,'total'=>$total));
+}
+
+function prints($id) {
+    $id=intval($id);
+    $hdr=$this->db->where('id',$id)->get('glh')->row();
+    if(!$hdr){
+        echo 'Record not found.';
+        return;
+    }
+
+    $company='FIRST UNITY TEXTILE MILLS';
+    if(isset($_SESSION['location']) && intval($_SESSION['location'])>0){
+        $locnm=(string)$this->db->where('id',intval($_SESSION['location']))->get('location')->row('name');
+        if($locnm!=''){
+            $company=strtoupper($locnm);
+        }
+    }
+
+    $dispDate=date('F d, Y');
+    if(isset($hdr->date_) && $hdr->date_!=''){
+        $d=date_create($hdr->date_);
+        if($d){ $dispDate=date_format($d,'F d, Y'); }
+    }
+
+    $rows=$this->db
+        ->where('id',$id)
+        ->where('sw',1)
+        ->order_by('seq','asc')
+        ->get('gld')
+        ->result();
+
+    $groups=array();
+    $current=array();
+    $running=0;
+    foreach($rows as $row){
+        $current[]=$row;
+        $running+=floatval($row->amount);
+        if(abs($running) < 0.0001){
+            $groups[]=$current;
+            $current=array();
+            $running=0;
+        }
+    }
+    if(count($current)>0){ $groups[]=$current; }
+
+    $tdebit=0;
+    $tcredit=0;
+    $rowItems=array();
+
+    foreach($groups as $gidx=>$group){
+        if($gidx>0){
+            $rowItems[]='<tr class="section-break"><td colspan="5"></td></tr>';
+        }
+
+        $debits=array();
+        $credits=array();
+        foreach($group as $row){
+            $amt=floatval($row->amount);
+            if($amt>=0){ $debits[]=$row; }
+            else { $credits[]=$row; }
+        }
+        $ordered=array_merge($debits,$credits);
+        $prevCoaKey=null;
+
+        foreach($ordered as $row){
+            $coacode='';
+            $coaname='';
+            $branch='';
+            $part='';
+
+            if(intval($row->coa)>0){
+                $coar=$this->db->where('id',intval($row->coa))->get('coa')->row();
+                if($coar){
+                    if(property_exists($coar,'code')){ $coacode=(string)$coar->code; }
+                    if(property_exists($coar,'name')){ $coaname=(string)$coar->name; }
+                }
+            }
+
+            if(intval($row->branch) > 0){
+                $br = $this->db->where('id', intval($row->branch))->get('gl_branch')->row();
+                if($br){
+                    if(property_exists($br, 'cd_branch') && trim((string)$br->cd_branch) !== ''){
+                        $branch = trim((string)$br->cd_branch);
+                    } else if(property_exists($br, 'code') && trim((string)$br->code) !== ''){
+                        $branch = trim((string)$br->code);
+                    } else {
+                        $branch = '';
+                    }
+                }
+            }
+
+            $amt=floatval($row->amount);
+
+            $part=trim((string)$row->particulars);
+            $title=trim($coaname);
+            if($title=='' && $part!=''){ $title=$part; $part=''; }
+            if($title==''){ $title='Entry '.$row->seq; }
+
+            $coaKey=intval($row->coa);
+            $isRepeat=($coaKey>0 && $prevCoaKey!==null && $prevCoaKey===$coaKey);
+            $debit='';
+            $credit='';
+            if($amt>=0){
+                $debit=number_format($amt,2);
+                $tdebit+=$amt;
+            } else {
+                $credit=number_format(abs($amt),2);
+                $tcredit+=abs($amt);
+            }
+
+            $titleHtml='<div class="acct-title">'.htmlspecialchars($title,ENT_QUOTES).'</div>';
+            $partHtml='';
+            if($part!==''){
+                $partHtml='<div class="acct-sub">'.htmlspecialchars($part,ENT_QUOTES).'</div>';
+            }
+
+            if(!$isRepeat){
+                // Header row (COA line) - no amount shown unless there is no remark part
+                $hdrDebit = ($part==='' ? $debit : '');
+                $hdrCredit = ($part==='' ? $credit : '');
+                $rowItems[]='<tr>'
+                    .'<td class="col-title">'.$titleHtml.'</td>'
+                    .'<td class="col-code">'.htmlspecialchars($coacode,ENT_QUOTES).'</td>'
+                    .'<td class="col-branch">'.htmlspecialchars($branch,ENT_QUOTES).'</td>'
+                    .'<td class="col-num">'.($hdrDebit!=='' ? htmlspecialchars($hdrDebit,ENT_QUOTES) : '').'</td>'
+                    .'<td class="col-num">'.($hdrCredit!=='' ? htmlspecialchars($hdrCredit,ENT_QUOTES) : '').'</td>'
+                    .'</tr>';
+
+                // Remark/detail row (if present)
+                if($part!==''){
+                    $rowItems[]='<tr>'
+                        .'<td class="col-title">'.$partHtml.'</td>'
+                        .'<td class="col-code"></td>'
+                        .'<td class="col-branch">'.htmlspecialchars($branch,ENT_QUOTES).'</td>'
+                        .'<td class="col-num">'.($debit!=='' ? htmlspecialchars($debit,ENT_QUOTES) : '').'</td>'
+                        .'<td class="col-num">'.($credit!=='' ? htmlspecialchars($credit,ENT_QUOTES) : '').'</td>'
+                        .'</tr>';
+                }
+            } else {
+                // Repeated (detail) rows: show remark + amount
+                $rowItems[]='<tr>'
+                    .'<td class="col-title">'.$partHtml.'</td>'
+                    .'<td class="col-code"></td>'
+                    .'<td class="col-branch">'.htmlspecialchars($branch,ENT_QUOTES).'</td>'
+                    .'<td class="col-num">'.($debit!=='' ? htmlspecialchars($debit,ENT_QUOTES) : '').'</td>'
+                    .'<td class="col-num">'.($credit!=='' ? htmlspecialchars($credit,ENT_QUOTES) : '').'</td>'
+                    .'</tr>';
+            }
+
+            if($coaKey>0){ $prevCoaKey=$coaKey; } else { $prevCoaKey=null; }
+        }
+    }
+
+    $totalDebit=number_format($tdebit,2);
+    $totalCredit=number_format($tcredit,2);
+    $totalRow='<tr class="total-row">'
+        .'<td colspan="3" class="total-label">TOTAL</td>'
+        .'<td class="col-num">'.htmlspecialchars($totalDebit,ENT_QUOTES).'</td>'
+        .'<td class="col-num">'.htmlspecialchars($totalCredit,ENT_QUOTES).'</td>'
+        .'</tr>';
+
+    $printBy='';
+    if(isset($_SESSION['user_id']) && intval($_SESSION['user_id'])>0){
+        $printBy=(string)$this->db->where('id',intval($_SESSION['user_id']))->get('users')->row('name');
+    }
+    $printedOn=date('m/d/Y h:i:s A');
+
+    $headerHtml='
+  <div class="header">
+    <div class="left">
+      <div class="title">JOURNAL VOUCHER ENTRIES</div>
+      <div class="company">'.htmlspecialchars(strtoupper($company),ENT_QUOTES).'</div>
+    </div>
+    <div class="date">'.htmlspecialchars($dispDate,ENT_QUOTES).'</div>
+  </div>';
+
+    $footerHtml='
+  <div class="print-footer">
+    <div class="signatories">
+      <div class="sig">
+        <div class="sig-line"></div>
+        <div class="sig-name">REMY</div>
+      </div>
+      <div class="sig">
+        <div class="sig-line"></div>
+        <div class="sig-name">LOIDA/ ELISE</div>
+      </div>
+      <div class="sig">
+        <div class="sig-line"></div>
+        <div class="sig-name">NANCY</div>
+      </div>
+      <div class="sig">
+        <div class="sig-line"></div>
+        <div class="sig-name">AC/ RT.</div>
+      </div>
+    </div>
+    <div class="printed">PRINTED AT: <span id="printedOn">'.htmlspecialchars($printedOn,ENT_QUOTES).'</span> PRINTED BY: '.htmlspecialchars($printBy,ENT_QUOTES).'</div>
+  </div>';
+
+    $allRows=$rowItems;
+    $allRows[]=$totalRow;
+
+    $headerJson=json_encode($headerHtml, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+    $footerJson=json_encode($footerHtml, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+    $rowsJson=json_encode($allRows, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+
+    echo '<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Journal Voucher Entries</title>
+<style>
+body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 0; padding: 0; background: #fff; font-size: 12px; line-height: 1.2; }
+#jv-pages { padding: 12px 0; }
+#jv-measure { position: absolute; left: -99999px; top: 0; visibility: hidden; pointer-events: none; }
+.page { width: 8.5in; height: 11in; padding: 0.35in; margin: 0 auto 16px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: #fff; }
+.page.last { margin-bottom: 0; }
+.header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+.header .left { font-size: 11px; line-height: 1.2; }
+.header .title { font-weight: 700; font-size: 24px; letter-spacing: 0.4px; }
+.header .company { font-weight: 700; font-size: 18px; margin-top: 2px; }
+.header .date { font-size: 16px; font-weight: 700; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+thead th { text-align: left; font-size: 11px; padding: 4px 8px; border-top: 1px solid #000; border-bottom: 1px solid #000; letter-spacing: 0.3px; }
+tbody td { font-size: 11px; padding: 4px 8px; vertical-align: top; }
+.col-num, .col-branch, .col-code {
+  text-align: right !important;
+  white-space: nowrap;
+  width: 15%;
+}
+.col-code { width: 18%; }
+.col-branch { width: 10%; }
+.col-title { width: 57%; overflow: hidden; }
+.acct-title {
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acct-sub {
+  font-weight: normal;
+  font-size: 12px;
+  margin-top: 2px;
+  padding-left: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acct-sub-only { margin-top: 0; }
+.section-break td { border-top: 1px solid #000; padding: 2px 0; }
+.total-row td { border-top: 1px solid #000; font-weight: 700; padding-top: 6px; }
+.total-label { text-align: right; }
+.print-footer { margin-top: auto; padding-top: 14px; }
+.signatories { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; text-align: center; }
+.sig-line { border-top: 1px solid #000; height: 16px; }
+.sig-name { margin-top: 4px; font-weight: 700; font-size: 12px; letter-spacing: 0.3px; }
+.printed { font-size: 10px; margin-top: 6px; }
+@page { size: Letter; margin: 0; }
+@media print {
+  body { margin: 0; }
+  #jv-pages { padding: 0; }
+  .page { margin: 0; page-break-after: always; }
+  .page.last { page-break-after: auto; }
+  tr { page-break-inside: avoid; break-inside: avoid; }
+  .total-row, .print-footer { page-break-inside: avoid; break-inside: avoid; }
+}
+</style>
+<script>
+var jvHeaderHtml='.$headerJson.';
+var jvFooterHtml='.$footerJson.';
+var jvRowHtmls='.$rowsJson.';
+var jvBuildTimer=null;
+var jvTableShell="<table><thead><tr><th class=\"col-title\">ACCOUNT TITLE</th><th class=\"col-code\">ACCT. CODE</th><th class=\"col-branch\">BRANCH</th><th class=\"col-num\">DEBIT</th><th class=\"col-num\">CREDIT</th></tr></thead><tbody></tbody></table>";
+
+function jvPad(n){ return (n < 10) ? ("0" + n) : String(n); }
+function jvFormatPrintedOn(d){
+  var hours = d.getHours();
+  var ampm = (hours >= 12) ? "PM" : "AM";
+  var hh = hours % 12;
+  if(hh === 0){ hh = 12; }
+  return jvPad(d.getMonth()+1) + "/" + jvPad(d.getDate()) + "/" + d.getFullYear() + " " +
+         jvPad(hh) + ":" + jvPad(d.getMinutes()) + ":" + jvPad(d.getSeconds()) + " " + ampm;
+}
+function jvUpdatePrintedOn(){
+  var el = document.getElementById("printedOn");
+  if(!el){ return; }
+  el.textContent = jvFormatPrintedOn(new Date());
+}
+function jvCreatePage(isLast){
+  var page = document.createElement("div");
+  page.className = "page" + (isLast ? " last" : "");
+  page.innerHTML = jvHeaderHtml + jvTableShell + (isLast ? jvFooterHtml : "");
+  return page;
+}
+function jvRenderPage(rows, isLast){
+  var page = jvCreatePage(isLast);
+  var body = page.querySelector("tbody");
+  if(rows.length > 0){
+    body.insertAdjacentHTML("beforeend", rows.join(""));
+  }
+  return page;
+}
+function jvPageFits(host, rows, isLast){
+  host.innerHTML = "";
+  var page = jvRenderPage(rows, isLast);
+  host.appendChild(page);
+  return page.scrollHeight <= (page.clientHeight + 1);
+}
+function jvSplitLastPage(host, pages){
+  var carry = pages.pop().slice();
+  var newLast = [];
+
+  while(carry.length > 0){
+    var candidate = carry[carry.length - 1];
+    newLast.unshift(candidate);
+    if(jvPageFits(host, newLast, true)){
+      carry.pop();
+    } else {
+      newLast.shift();
+      break;
+    }
+  }
+
+  if(newLast.length === 0 && carry.length > 0){
+    newLast.unshift(carry.pop());
+  }
+
+  if(carry.length > 0){
+    pages.push(carry);
+  }
+  pages.push(newLast);
+}
+function jvBuildPages(){
+  var pagesHost = document.getElementById("jv-pages");
+  var measureHost = document.getElementById("jv-measure");
+  if(!pagesHost || !measureHost){ return; }
+
+  var pages = [[]];
+  for(var i = 0; i < jvRowHtmls.length; i++){
+    var current = pages[pages.length - 1];
+    current.push(jvRowHtmls[i]);
+    if(!jvPageFits(measureHost, current, false)){
+      current.pop();
+      if(current.length === 0){
+        current.push(jvRowHtmls[i]);
+      } else {
+        pages.push([jvRowHtmls[i]]);
+      }
+    }
+  }
+
+  if(pages.length === 0){
+    pages = [[]];
+  }
+
+  if(!jvPageFits(measureHost, pages[pages.length - 1], true)){
+    jvSplitLastPage(measureHost, pages);
+  }
+
+  while(pages.length > 1 && pages[0].length === 0){
+    pages.shift();
+  }
+
+  pagesHost.innerHTML = "";
+  var fragment = document.createDocumentFragment();
+  for(var p = 0; p < pages.length; p++){
+    fragment.appendChild(jvRenderPage(pages[p], p === pages.length - 1));
+  }
+  pagesHost.appendChild(fragment);
+  measureHost.innerHTML = "";
+  jvUpdatePrintedOn();
+}
+function jvScheduleBuild(){
+  if(jvBuildTimer !== null){
+    window.clearTimeout(jvBuildTimer);
+  }
+  jvBuildTimer = window.setTimeout(function(){
+    jvBuildTimer = null;
+    jvBuildPages();
+  }, 40);
+}
+window.addEventListener("load", jvScheduleBuild);
+window.addEventListener("resize", jvScheduleBuild);
+window.addEventListener("beforeprint", function(){
+  jvBuildPages();
+  jvUpdatePrintedOn();
+});
+</script>
+</head>
+<body>
+<div id="jv-pages"></div>
+<div id="jv-measure" aria-hidden="true"></div>
+</body>
+</html>';
+
+}
+    
+}
+
+?>

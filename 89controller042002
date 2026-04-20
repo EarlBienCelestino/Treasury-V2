@@ -3407,6 +3407,8 @@ if($mode==1){
     $dat['dated_']=$tmp[19];
     $dat['branch']=intval(isset($tmp[20]) ? $tmp[20] : 0);
     $dat['particulars']=$particulars;
+    $dat['cv_payee']=$this->dvh_sanitize_text(isset($tmp[22]) ? $tmp[22] : '', false);
+    $dat['cv_subsi']=intval(isset($tmp[23]) ? $tmp[23] : 0);
 
     if($coa_id==90){
         $xdat['cash_amt']=$amount;
@@ -7782,7 +7784,9 @@ function edit_rec() {
     ,datedval 
     ,$("#branch").val()
     ,$("#chk_particular").val()
-    ];  
+    ,$("#cv_payee").val()
+    ,$("#cv_subsi").val()
+    ];
 
     }
         $.ajax({url:"'.base_url("89/dashboard/dsave").'", method:"POST",  dataType:"json",     
@@ -8706,20 +8710,42 @@ function t1m1($id) {
 
     function del_rec(dat, rowNode) { 
 
-        var seq = dat[1];
-        var $row = $(rowNode);
-        $("#t1seq").val(seq);
-        setCvCoaValue($row.attr("data-coa-id") || "", $row.attr("data-coa-label") || dat[2] || "");
-        $("#chk_particular").val($row.attr("data-particular") || dat[3] || "").trigger("input");
-        $("#chk_no").val($row.attr("data-chk-no") || "");
-        $("#chk_date").val($row.attr("data-chk-date") || "");
-        var rawAmount = parseFloat($(rowNode).attr("data-amount") || "0");
-        if (isNaN(rawAmount)) { rawAmount = 0; }
-        $("#chk_amt").val(rawAmount);
-        
-        dtl2_entry(seq);
-        
+    var seq = dat[1];
+    var $row = $(rowNode);
+    $("#t1seq").val(seq);
+    setCvCoaValue($row.attr("data-coa-id") || "", $row.attr("data-coa-label") || dat[2] || "");
+    $("#chk_particular").val($row.attr("data-particular") || dat[3] || "").trigger("input");
+    $("#chk_no").val($row.attr("data-chk-no") || "");
+    $("#chk_date").val($row.attr("data-chk-date") || "");
+    var rawAmount = parseFloat($(rowNode).attr("data-amount") || "0");
+    if (isNaN(rawAmount)) { rawAmount = 0; }
+    $("#chk_amt").val(rawAmount);
+
+    $("#cv_payee").val($row.attr("data-cv-payee") || "");
+
+    var cvSubsiId = $row.attr("data-cv-subsi-id") || "";
+    var cvSubsiLabel = $row.attr("data-cv-subsi-label") || "";
+    if(cvSubsiId){
+        $("#cv_subsi").find("option").remove();
+        var opt = new Option(cvSubsiLabel || cvSubsiId, cvSubsiId, true, true);
+        $("#cv_subsi").append(opt).trigger("change");
+    }else{
+        $("#cv_subsi").val(null).trigger("change");
     }
+    $("#cv_payee").val($row.attr("data-cv-payee") || "");
+
+    var cvSubsiId = $row.attr("data-cv-subsi-id") || "";
+    var cvSubsiLabel = $row.attr("data-cv-subsi-label") || "";
+    if(cvSubsiId){
+        $("#cv_subsi").find("option").remove();
+        var opt = new Option(cvSubsiLabel || cvSubsiId, cvSubsiId, true, true);
+        $("#cv_subsi").append(opt).trigger("change");
+    }else{
+        $("#cv_subsi").val(null).trigger("change");
+    }
+    dtl2_entry(seq);
+    
+}
     
     });
 
@@ -8795,7 +8821,7 @@ echo '      </select>
     <th class="del-col"><input type="checkbox" id="chklst_chk_all"></th>
     <th>#</th>
     <th>Chart of Account</th>
-    <th>Particular</th> 
+    <th>Particular</th>
     <th>Payee</th>
     <th>Subsi</th>
     <th style="text-align:right;"><b>Debit</b></th>
@@ -8838,34 +8864,36 @@ echo '      </select>
         //<td>'.htmlspecialchars($bank,ENT_QUOTES).'</td>
 
         $cv_subsi_name = '';
-$cv_subsi_id = intval($row->cv_subsi);
-if($cv_subsi_id <= 0){
-    $cv_subsi_id = intval($this->db->where('id',$id)->get('dvh')->row('subsi'));
-}
-if($cv_subsi_id > 0){
-    $cv_subsi_name = (string)$this->db->where('id',$cv_subsi_id)->get('subsi')->row('name');
+if(intval($row->cv_subsi) > 0){
+    $cv_subsi_name = (string)$this->db->where('id',$row->cv_subsi)->get('subsi')->row('name');
 }
 
-    echo '
-    <tr data-seq="'.$row->seq.'"
-        data-amount="'.htmlspecialchars((string)$amt,ENT_QUOTES).'"
-        data-coa-id="'.htmlspecialchars((string)$row->coa,ENT_QUOTES).'"
-        data-coa-label="'.htmlspecialchars($bank,ENT_QUOTES).'"
-        data-particular="'.htmlspecialchars((string)$row->particulars,ENT_QUOTES).'"
-        data-chk-no="'.htmlspecialchars((string)$row->check_no,ENT_QUOTES).'"
-        data-chk-date="'.htmlspecialchars((string)$row->date_,ENT_QUOTES).'"> 
-    <td class="del-col"><input type="checkbox" class="chklst-select" value="'.$row->seq.'"></td>
-    <td>'.$row->seq.'</td>
-    <td>'.htmlspecialchars($bank,ENT_QUOTES).'</td>
+    $cv_subsi_name = '';
+if(intval($row->cv_subsi) > 0){
+    $cv_subsi_name = (string)$this->db->where('id',$row->cv_subsi)->get('subsi')->row('name');
+}
 
-    <td>'.htmlspecialchars((string)$row->particulars,ENT_QUOTES).'</td> 
-    <td>'.htmlspecialchars((string)($row->cv_payee !== '' ? $row->cv_payee : $this->db->where('id',$id)->get('dvh')->row('payee')),ENT_QUOTES).'</td>
-    <td>'.htmlspecialchars($cv_subsi_name,ENT_QUOTES).'</td>
-    <td align="right">'.number_format($dr,2,'.','').'</td>
-    <td align="right">'.number_format(abs($cr),2,'.','').'</td>
-
-    </tr>
-    ';
+echo '
+<tr data-seq="'.$row->seq.'"
+    data-amount="'.htmlspecialchars((string)$amt,ENT_QUOTES).'"
+    data-coa-id="'.htmlspecialchars((string)$row->coa,ENT_QUOTES).'"
+    data-coa-label="'.htmlspecialchars($bank,ENT_QUOTES).'"
+    data-particular="'.htmlspecialchars((string)$row->particulars,ENT_QUOTES).'"
+    data-cv-payee="'.htmlspecialchars((string)$row->cv_payee,ENT_QUOTES).'"
+    data-cv-subsi-id="'.htmlspecialchars((string)$row->cv_subsi,ENT_QUOTES).'"
+    data-cv-subsi-label="'.htmlspecialchars((string)$cv_subsi_name,ENT_QUOTES).'"
+    data-chk-no="'.htmlspecialchars((string)$row->check_no,ENT_QUOTES).'"
+    data-chk-date="'.htmlspecialchars((string)$row->date_,ENT_QUOTES).'"> 
+<td class="del-col"><input type="checkbox" class="chklst-select" value="'.$row->seq.'"></td>
+<td>'.$row->seq.'</td>
+<td>'.htmlspecialchars($bank,ENT_QUOTES).'</td>
+<td>'.htmlspecialchars((string)$row->particulars,ENT_QUOTES).'</td> 
+<td>'.htmlspecialchars((string)$row->cv_payee,ENT_QUOTES).'</td>
+<td>'.htmlspecialchars($cv_subsi_name,ENT_QUOTES).'</td>
+<td align="right">'.number_format($dr,2,'.','').'</td>
+<td align="right">'.number_format(abs($cr),2,'.','').'</td>
+</tr>
+';
 
     }
 

@@ -8838,9 +8838,13 @@ echo '      </select>
         //<td>'.htmlspecialchars($bank,ENT_QUOTES).'</td>
 
         $cv_subsi_name = '';
-    if(intval($row->cv_subsi) > 0){
-        $cv_subsi_name = (string)$this->db->where('id',$row->cv_subsi)->get('subsi')->row('name');
-    }
+$cv_subsi_id = intval($row->cv_subsi);
+if($cv_subsi_id <= 0){
+    $cv_subsi_id = intval($this->db->where('id',$id)->get('dvh')->row('subsi'));
+}
+if($cv_subsi_id > 0){
+    $cv_subsi_name = (string)$this->db->where('id',$cv_subsi_id)->get('subsi')->row('name');
+}
 
     echo '
     <tr data-seq="'.$row->seq.'"
@@ -8855,7 +8859,7 @@ echo '      </select>
     <td>'.htmlspecialchars($bank,ENT_QUOTES).'</td>
 
     <td>'.htmlspecialchars((string)$row->particulars,ENT_QUOTES).'</td> 
-    <td>'.htmlspecialchars((string)$row->cv_payee,ENT_QUOTES).'</td>
+    <td>'.htmlspecialchars((string)($row->cv_payee !== '' ? $row->cv_payee : $this->db->where('id',$id)->get('dvh')->row('payee')),ENT_QUOTES).'</td>
     <td>'.htmlspecialchars($cv_subsi_name,ENT_QUOTES).'</td>
     <td align="right">'.number_format($dr,2,'.','').'</td>
     <td align="right">'.number_format(abs($cr),2,'.','').'</td>

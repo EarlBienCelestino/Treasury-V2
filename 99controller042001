@@ -1580,7 +1580,6 @@ foreach ($gl_lines as $line) {
         'amount' => $amt
     );
 }
-$this->db->where('id', $id)->update('ac_rfph', ['amount' => $tamt]);
 $details_right = '';
 foreach ($all_entries as $e) {
 }
@@ -1618,7 +1617,8 @@ if($pt == 4 && !empty($dath['payment_others'])){
 }
 
 $payee = isset($dath['payee']) ? strtoupper($dath['payee']) : '';
-$amount_print = number_format($tamt,2);
+$amount_field_print = isset($dath['amount']) ? floatval($dath['amount']) : 0;
+$amount_print = number_format($amount_field_print,2);
 
 $remarks_print = isset($dath['remarks']) ? strtoupper(trim($dath['remarks'])) : '';
 $remarks_print = nl2br(htmlspecialchars($remarks_print, ENT_QUOTES));
@@ -1635,7 +1635,7 @@ $details_table_print = '<table class="details-table-print">
         <tr>
             <td style="width:80%; text-align:left; font-weight:bold; padding:6px 6px 0 6px;">
                 <span class="label">TOTAL :</span>
-                <span style="margin-left:6px; color:#000 !important;">'.number_format($tamt, 2).'</span>
+                <span style="margin-left:6px; color:#000 !important;">'.number_format($amount_field_print, 2).'</span>
             </td>
         </tr>
     </tbody>
@@ -1971,53 +1971,173 @@ $prepared_by_print = !empty($preparednm) ? strtoupper($preparednm) : '';
 </table>
 </div>';
 
-$photo_b64_print  = isset($dath['photo_b64'])  ? trim($dath['photo_b64'])  : '';
-$photo_mime_print = isset($dath['photo_mime']) ? trim($dath['photo_mime']) : 'image/jpeg';
-$photo_name_print = isset($dath['photo'])      ? trim($dath['photo'])      : '';
+$attachments_print = array();
 
-if ($photo_b64_print !== '') {
-    if ($photo_mime_print === 'application/pdf') {
-        echo '
-        <div class="attachment-page pdf-attachment">
-            <div class="attachment-title"></div>
-            <iframe
-                id="attached_pdf"
-                src="data:application/pdf;base64,'.$photo_b64_print.'"
-                style="width:100%;height:1000px;border:1px solid #000;background:#fff;"
-            ></iframe>
-        </div>';
-    } else {
-        echo '
-        <div class="attachment-page image-attachment">
-            <div class="attachment-title"></div>
-            <img
-                id="attached_img"
-                src="data:'.$photo_mime_print.';base64,'.$photo_b64_print.'"
-                alt="'.htmlspecialchars($photo_name_print, ENT_QUOTES).'"
-                style="max-width:100%;max-height:1000px;object-fit:contain;border:1px solid #000;background:#fff;"
-            />
-        </div>';
+$photo_b64_raw  = isset($dath['photo_b64'])  ? trim((string)$dath['photo_b64'])  : '';
+$photo_mime_raw = isset($dath['photo_mime']) ? trim((string)$dath['photo_mime']) : '';
+$photo_name_raw = isset($dath['photo'])      ? trim((string)$dath['photo'])      : '';
+
+$photo_b64_list  = array();
+$photo_mime_list = array();
+$photo_name_list = array();
+
+$tmp_b64  = json_decode($photo_b64_raw, true);
+$tmp_mime = json_decode($photo_mime_raw, true);
+$tmp_name = json_decode($photo_name_raw, true);
+
+if(is_array($tmp_b64) || is_array($tmp_name)){
+    $photo_b64_list  = is_array($tmp_b64)  ? $tmp_b64  : array();
+    $photo_mime_list = is_array($tmp_mime) ? $tmp_mime : array();
+    $photo_name_list = is_array($tmp_name) ? $tmp_name : array();
+}
+elseif(strpos($photo_name_raw, ',') !== false){
+    $photo_name_list = array_filter(array_map('trim', explode(',', $photo_name_raw)));
+    if($photo_b64_raw !== ''){
+        $photo_b64_list = array_pad(array(), count($photo_name_list), $photo_b64_raw);
+    }
+    if($photo_mime_raw !== ''){
+        $photo_mime_list = array_pad(array(), count($photo_name_list), $photo_mime_raw);
+    }
+}
+elseif($photo_b64_raw !== '' || $photo_name_raw !== ''){
+    $photo_b64_list[]  = $photo_b64_raw;
+    $photo_mime_list[] = $photo_mime_raw;
+    $photo_name_list[] = $photo_name_raw;
+}
+
+for($i=0; $i<count($photo_name_list) || $i<count($photo_b64_list); $i++){
+    $b64  = isset($photo_b64_list[$i])  ? trim((string)$photo_b64_list[$i])  : '';
+    $mime = isset($photo_mime_list[$i]) ? trim((string)$photo_mime_list[$i]) : '';
+    $name = isset($photo_name_list[$i]) ? trim((string)$photo_name_list[$i]) : '';
+
+    if($mime === '') $mime = 'image/jpeg';
+
+    $attachments_print[] = array(
+        'b64'  => $b64,
+        'mime' => $mime,
+        'name' => $name
+    );
+}
+
+foreach($attachments_print as $att){
+    $att_b64  = isset($att['b64'])  ? trim((string)$att['b64'])  : '';
+    $att_mime = isset($att['mime']) ? trim((string)$att['mime']) : 'image/jpeg';
+    $att_name = isset($att['name']) ? trim((string)$att['name']) : '';
+
+    if($att_b64 !== ''){
+        if($att_mime === 'application/pdf'){
+            echo '
+            <div class="attachment-page pdf-attachment">
+                <div class="attachment-title"></div>
+                <iframe
+                    class="attached-pdf"
+                    src="data:application/pdf;base64,'.$att_b64.'"
+                    style="width:100%;height:1000px;border:1px solid #000;background:#fff;"
+                ></iframe>
+            </div>';
+        }else{
+            echo '
+            <div class="attachment-page image-attachment">
+                <div class="attachment-title"></div>
+                <img
+                    class="attached-img"
+                    src="data:'.$att_mime.';base64,'.$att_b64.'"
+                    alt="'.htmlspecialchars($att_name, ENT_QUOTES).'"
+                    style="display:block;width:100%;max-width:100%;max-height:1000px;object-fit:contain;border:1px solid #000;background:#fff;"
+                />
+            </div>';
+        }
+        continue;
+    }
+
+    if($att_name !== ''){
+        $att_url = '';
+        $att_ext = strtolower(pathinfo($att_name, PATHINFO_EXTENSION));
+
+        if(strpos($att_name, 'http://') === 0 || strpos($att_name, 'https://') === 0){
+            $att_url = $att_name;
+        }else{
+            $clean_name = ltrim(str_replace('\\','/',$att_name), '/');
+            $try1 = FCPATH.$clean_name;
+            $try2 = FCPATH.'uploads/'.$clean_name;
+            $try3 = FCPATH.'upload/'.$clean_name;
+            $try4 = FCPATH.'assets/uploads/'.$clean_name;
+
+            if(file_exists($try1)){
+                $att_url = base_url($clean_name);
+            }elseif(file_exists($try2)){
+                $att_url = base_url('uploads/'.$clean_name);
+            }elseif(file_exists($try3)){
+                $att_url = base_url('upload/'.$clean_name);
+            }elseif(file_exists($try4)){
+                $att_url = base_url('assets/uploads/'.$clean_name);
+            }
+        }
+
+        if($att_url !== ''){
+            if($att_ext === 'pdf'){
+                echo '
+                <div class="attachment-page pdf-attachment">
+                    <div class="attachment-title"></div>
+                    <iframe
+                        class="attached-pdf"
+                        src="'.$att_url.'"
+                        style="width:100%;height:1000px;border:1px solid #000;background:#fff;"
+                    ></iframe>
+                </div>';
+            }else{
+                echo '
+                <div class="attachment-page image-attachment">
+                    <div class="attachment-title"></div>
+                    <img
+                        class="attached-img"
+                        src="'.$att_url.'"
+                        alt="'.htmlspecialchars($att_name, ENT_QUOTES).'"
+                        style="display:block;width:100%;max-width:100%;max-height:1000px;object-fit:contain;border:1px solid #000;background:#fff;"
+                    />
+                </div>';
+            }
+        }
     }
 }
 
     echo '
 <script>
 window.onload = function() {
-    var img = document.getElementById("attached_img");
-    var pdf = document.getElementById("attached_pdf");
+    var imgs = document.querySelectorAll(".attached-img");
+    var pdfs = document.querySelectorAll(".attached-pdf");
 
-    if(img){
-        if(img.complete){
-            setTimeout(function(){ window.print(); }, 500);
-        }else{
-            img.onload = function(){ setTimeout(function(){ window.print(); }, 500); };
-            img.onerror = function(){ setTimeout(function(){ window.print(); }, 500); };
+    if(imgs.length > 0){
+        var loaded = 0;
+        var done = false;
+
+        function triggerPrint(){
+            if(done) return;
+            done = true;
+            setTimeout(function(){ window.print(); }, 700);
         }
+
+        imgs.forEach(function(img){
+            if(img.complete){
+                loaded++;
+                if(loaded === imgs.length) triggerPrint();
+            }else{
+                img.onload = function(){
+                    loaded++;
+                    if(loaded === imgs.length) triggerPrint();
+                };
+                img.onerror = function(){
+                    loaded++;
+                    if(loaded === imgs.length) triggerPrint();
+                };
+            }
+        });
+
         return;
     }
 
-    if(pdf){
-        setTimeout(function(){ window.print(); }, 900);
+    if(pdfs.length > 0){
+        setTimeout(function(){ window.print(); }, 1200);
         return;
     }
 

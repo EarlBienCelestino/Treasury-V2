@@ -180,7 +180,14 @@ function getsubsi()
 {
     var subsi=$("#subsi").val(); var st=$("#stype").val();
     $.ajax({url:"'.base_url("89/dashboard/getsubsi").'", method:"POST", dataType:"json", data:{id:subsi,st:st},success:function(data) 
-    { var acctName=$.trim($("#subsi option:selected").text()); if(acctName.toLowerCase()=="select account name"){acctName="";} if(acctName.length===0 && data.payee){acctName=data.payee;} $("#payeex").val(acctName); if(data.stype!==undefined && data.stype!==null && data.stype!==""){ $("#stype").val(data.stype); } $("#address").val(data.address || ""); $("#phone").val(data.phone || ""); saveh(); } });  
+    { 
+        if(data.stype!==undefined && data.stype!==null && data.stype!==""){ 
+            $("#stype").val(data.stype); 
+        } 
+        $("#address").val(data.address || ""); 
+        $("#phone").val(data.phone || ""); 
+        saveh(); 
+    } });  
 }
 
 $(document).ready(function() 
@@ -283,7 +290,14 @@ function getsubsi()
 {
     var subsi=$("#subsi").val(); var st=$("#stype").val();
     $.ajax({url:"'.base_url("89/dashboard/getsubsi").'", method:"POST", dataType:"json", data:{id:subsi,st:st},success:function(data) 
-    { var acctName=$.trim($("#subsi option:selected").text()); if(acctName.toLowerCase()=="select account name"){acctName="";} if(acctName.length===0 && data.payee){acctName=data.payee;} $("#payeex").val(acctName); if(data.stype!==undefined && data.stype!==null && data.stype!==""){ $("#stype").val(data.stype); } $("#address").val(data.address || ""); $("#phone").val(data.phone || ""); saveh(); } });  
+    { 
+        if(data.stype!==undefined && data.stype!==null && data.stype!==""){ 
+            $("#stype").val(data.stype); 
+        } 
+        $("#address").val(data.address || ""); 
+        $("#phone").val(data.phone || ""); 
+        saveh(); 
+    } });  
 }
 
 $(document).ready(function() 
@@ -498,7 +512,14 @@ function getsubsi()
 {
     var subsi=$("#subsi").val(); var st=$("#stype").val();
     $.ajax({url:"'.base_url("89/dashboard/getsubsi").'", method:"POST", dataType:"json", data:{id:subsi,st:st},success:function(data) 
-    { var acctName=$.trim($("#subsi option:selected").text()); if(acctName.toLowerCase()=="select account name"){acctName="";} if(acctName.length===0 && data.payee){acctName=data.payee;} $("#payeex").val(acctName); if(data.stype!==undefined && data.stype!==null && data.stype!==""){ $("#stype").val(data.stype); } $("#address").val(data.address || ""); $("#phone").val(data.phone || ""); saveh(); } });  
+    { 
+        if(data.stype!==undefined && data.stype!==null && data.stype!==""){ 
+            $("#stype").val(data.stype); 
+        } 
+        $("#address").val(data.address || ""); 
+        $("#phone").val(data.phone || ""); 
+        saveh(); 
+    } });  
 }
 
 $(document).ready(function() 
@@ -635,7 +656,14 @@ echo ' <script>
 function getsubsi(){
     var subsi=$("#subsi").val(); var st=$("#stype").val();
     $.ajax({url:"'.base_url("89/dashboard/getsubsi").'", method:"POST", dataType:"json", data:{id:subsi,st:st},success:function(data) 
-    { var payeeName=(data && data.payee) ? data.payee : ""; if(payeeName.length===0){ var acctName=$.trim($("#subsi option:selected").text()); if(acctName.toLowerCase()=="select account name"){acctName="";} payeeName=acctName; } $("#payeex").val(payeeName); if(data.stype!==undefined && data.stype!==null && data.stype!==""){ $("#stype").val(data.stype); } $("#address").val(data.address || ""); $("#phone").val(data.phone || ""); saveh(); } });  
+    { 
+        if(data.stype!==undefined && data.stype!==null && data.stype!==""){ 
+            $("#stype").val(data.stype); 
+        } 
+        $("#address").val(data.address || ""); 
+        $("#phone").val(data.phone || ""); 
+        saveh(); 
+    } });  
 }
 
 $(document).ready(function() 
@@ -1423,22 +1451,24 @@ $("#e6").focus();
 function savedtlp() {
 
     $tmp=$_POST['datas'];
-    $dat['trntype']=$tmp[0];
-    $dat['id']=$id=$tmp[1];
-    $dat['phot']=$photo=$tmp[2];
-    $dat['particulars']=$part=$tmp[3];
-    $seq=$tmp[4];
+    $dat['trntype']    = $tmp[0];
+    $dat['id']         = $id = $tmp[1];
+    $dat['phot']       = $photo = $tmp[2];
+    $dat['particulars']= $part = $tmp[3];
+    $dat['cv_payee']   = $this->dvh_sanitize_text(isset($tmp[4]) ? $tmp[4] : '');
+    $dat['cv_subsi']   = intval(isset($tmp[5]) ? $tmp[5] : 0);
+    $seq               = intval(isset($tmp[6]) ? $tmp[6] : 0);
 
     $msg='record saved';
     if($seq==0){
-        $this->db ->insert('dvd',$dat);
+        $this->db->insert('dvd',$dat);
     }
     else {
-        $this->db ->where('seq',$seq) ->update('dvd',$dat);    
+        $this->db->where('seq',$seq)->update('dvd',$dat);    
     }
 
     echo $msg;
-} 
+}
 
 function save_dtl_rec() {
     $tmp=$_POST['datas'];
@@ -4461,6 +4491,8 @@ function del_rec(dat){
 <th>#</th> 
 <th>Chart of Account</th>
 <th>Particulars</th>
+<th>Payee</th>
+<th>Subsi</th>
 <th>Branch</th>
 <th>Amount</th>
 <th>Debit</th>
@@ -7317,42 +7349,39 @@ function edit_rec() {
     }
 
     function syncRfpFields(data) {
-        if(!data){ return; }
+    if(!data){ return; }
 
-        function upperText(value) {
-            return (value === undefined || value === null) ? "" : String(value).toUpperCase();
-        }
-
-        if (data.payee !== undefined && data.payee !== "NULL") {
-            $("#payeex").val(upperText(data.payee || ""));
-        }
-        if (data.remarks !== undefined && data.remarks !== "NULL") {
-            $("#remarks").val(upperText(data.remarks || ""));
-        }
-        if (data.cash !== undefined) {
-            $("#cash").val(data.cash || 0);
-        }
-        if (data.address !== undefined) {
-            $("#address").val(upperText(data.address || ""));
-        }
-        if (data.phone !== undefined) {
-            $("#phone").val(data.phone || "");
-        }
-        if (data.stype !== undefined) {
-            $("#stype").val(data.stype || 0);
-        }
-        if (data.ca !== undefined) {
-            var isCa = parseInt(data.ca, 10) === 1;
-            $("#ca").prop("checked", isCa).val(isCa ? 1 : 0);
-        }
-        if (parseInt(data.subsi_id || 0, 10) > 0) {
-            var subsiText = upperText(data.subsi_text || data.payee || "select account name");
-            var newOption = new Option(subsiText, data.subsi_id, true, true);
-            $("#subsi").empty().append(newOption).trigger("change.select2");
-        } else {
-            $("#subsi").empty().trigger("change");
-        }
+    function upperText(value) {
+        return (value === undefined || value === null) ? "" : String(value).toUpperCase();
     }
+
+    if (data.remarks !== undefined && data.remarks !== "NULL") {
+        $("#remarks").val(upperText(data.remarks || ""));
+    }
+    if (data.cash !== undefined) {
+        $("#cash").val(data.cash || 0);
+    }
+    if (data.address !== undefined) {
+        $("#address").val(upperText(data.address || ""));
+    }
+    if (data.phone !== undefined) {
+        $("#phone").val(data.phone || "");
+    }
+    if (data.stype !== undefined) {
+        $("#stype").val(data.stype || 0);
+    }
+    if (data.ca !== undefined) {
+        var isCa = parseInt(data.ca, 10) === 1;
+        $("#ca").prop("checked", isCa).val(isCa ? 1 : 0);
+    }
+    if (parseInt(data.subsi_id || 0, 10) > 0) {
+        var subsiText = upperText(data.subsi_text || data.payee || "select account name");
+        var newOption = new Option(subsiText, data.subsi_id, true, true);
+        $("#subsi").empty().append(newOption).trigger("change.select2");
+    } else {
+        $("#subsi").empty().trigger("change");
+    }
+}
 
     function validateFinalizeFields() {
         var missing = [];
@@ -7647,12 +7676,11 @@ function edit_rec() {
     });
 
     $("#stype").on("change", function() {
-        $("#subsi").empty().trigger("change");
-        $("#payeex").val("");
-        $("#address").val("");
-        $("#phone").val("");
-        saveh();
-    });
+    $("#subsi").empty().trigger("change");
+    $("#address").val("");
+    $("#phone").val("");
+    saveh();
+});
 
     $("#dv_amt, #approved_by, #photo_sign, #reason").prop("disabled", true);
 
@@ -8271,7 +8299,9 @@ foreach($rs as $row){
     echo '
     <tr data-seq="'.$row->seq.'"> 
     <td>'.$row->seq.'</td>
-    <td> '.$row->particulars.' </td>    
+    <td> '.$row->particulars.' </td> 
+    <td>'.$row->cv_payee.'</td>
+    <td>'.$row->cv_subsi.'</td>
     <td> '.$row->check_no.' </td>    
     <td> '.$row->date_.' </td>     
     <td align="right">'.number_format($row->amount,2,'.','').'</td> 
@@ -8462,10 +8492,40 @@ function t1m1($id) {
         $("#btnChklstDelete").prop("disabled", true);
         $("#btnChklstCancel").prop("disabled", true);
         $("#chklst_chk_all").prop("disabled", true);
+        $("#cv_payee").prop("disabled", true);
+        $("#cv_subsi").prop("disabled", true);
     }
 
-    $("#chk_coa").select2({width:"100%",ajax: { url: "'.base_url("89/dashboard/chk_coa").'" ,type: "post", dataType: "json",  delay: 250,  data: function (params)
+    $("#chk_coa").select2({width:"100%",ajax: { url: "'.base_url("89/dashboard/chk_coa").'", type: "post", dataType: "json",  delay: 250,  data: function (params)
     { return { searchTerm: params.term  };  },processResults: function (response) {  return { results: response  };  },  cache: true   }});
+
+    $("#cv_subsi").select2({
+        width: "100%",
+        ajax: {
+            url: "'.base_url("89/dashboard/subsi").'",
+            type: "POST",
+            dataType: "json",
+            delay: 250,
+            data: function (params) {
+                return {
+                    searchTerm: params.term || "",
+                    id: $("#id").val(),
+                    st: $("#stype").val()
+                };
+            },
+            processResults: function (response) {
+                return { results: response };
+            },
+            cache: true
+        }
+    });
+
+    $("#cv_payee").on("input blur", function(){
+});
+
+    $("#cv_subsi").on("change", function() {
+    var subsiVal = $(this).val() || "";
+});
 
     function setCvCoaValue(value, text) {
         var $select = $("#chk_coa");
@@ -8660,7 +8720,7 @@ function t1m1($id) {
         dtl2_entry(seq);
         
     }
-
+    
     });
 
     </script> 
@@ -8673,6 +8733,32 @@ function t1m1($id) {
         <div class="col-sm-12">
             <div id="cheques"></div>
         </div>
+    </div>
+
+    <div class="row">
+
+        <div class="input-group mb-1 input-group-sm col-sm-6">
+            <div class="input-group-prepend"><span class="input-group-text">Payee</span></div>
+            <input type="text" class="form-control dashboard89-uppercase" id="cv_payee" value="'.htmlspecialchars($this->db->where('id',$id)->get('dvh')->row('payee'), ENT_QUOTES).'" '.$xdis.'>
+        </div>
+
+        <div class="input-group mb-1 input-group-sm col-sm-6">
+            <div class="input-group-prepend"><span class="input-group-text">Subsi</span></div>
+            <select class="form-control" id="cv_subsi">';
+
+            $cv_subsi = intval($this->db->where('id',$id)->get('dvh')->row('subsi'));
+            if($cv_subsi > 0){
+                $subsi_row = $this->db->where('id',$cv_subsi)->get('subsi')->row_array();
+                $subsi_text = '';
+                if($subsi_row){
+                    $subsi_text = $subsi_row['code'].' - '.$subsi_row['name'];
+                }
+                echo '<option value="'.$cv_subsi.'" selected>'.htmlspecialchars($subsi_text, ENT_QUOTES).'</option>';
+            }
+
+echo '      </select>
+        </div>
+
     </div>
 
     <div class="row">
@@ -8692,7 +8778,7 @@ function t1m1($id) {
         
                 <button type="button" id="dsave1" class="btn btn-outline-dark btn-sm" onclick="dsave(1)">Save</button>
                 <button type="button" id="cvPreviewBtn" class="btn btn-outline-secondary btn-sm allow-final" onclick="cvPreview('.$id.')">Preview</button>
-                <button type="button" id="cvPrintBtn" class="btn btn-outline-dark btn-sm allow-final" onclick="cvPrint('.$id.')">Print</button> </div>  
+                <button type="button" id="cvPrintBtn" class="btn btn-outline-dark btn-sm allow-final" onclick="cvPrint('.$id.')">Print</button> </div>   
     <div class="col-sm-12 dashboard89-amount-note">Positive amount goes to debit. Negative amount goes to credit.</div>
 
     <div class="col-sm-6">
@@ -8710,6 +8796,8 @@ function t1m1($id) {
     <th>#</th>
     <th>Chart of Account</th>
     <th>Particular</th> 
+    <th>Payee</th>
+    <th>Subsi</th>
     <th style="text-align:right;"><b>Debit</b></th>
     <th style="text-align:right;"><b>Credit</b></th>
     </tr>
@@ -8749,24 +8837,31 @@ function t1m1($id) {
         $tamt+=$amt;
         //<td>'.htmlspecialchars($bank,ENT_QUOTES).'</td>
 
-        echo '
-        <tr data-seq="'.$row->seq.'"
-            data-amount="'.htmlspecialchars((string)$amt,ENT_QUOTES).'"
-            data-coa-id="'.htmlspecialchars((string)$row->coa,ENT_QUOTES).'"
-            data-coa-label="'.htmlspecialchars($bank,ENT_QUOTES).'"
-            data-particular="'.htmlspecialchars((string)$row->particulars,ENT_QUOTES).'"
-            data-chk-no="'.htmlspecialchars((string)$row->check_no,ENT_QUOTES).'"
-            data-chk-date="'.htmlspecialchars((string)$row->date_,ENT_QUOTES).'"> 
-        <td class="del-col"><input type="checkbox" class="chklst-select" value="'.$row->seq.'"></td>
-        <td>'.$row->seq.'</td>
-        <td>'.htmlspecialchars($bank,ENT_QUOTES).'</td>
-        
-        <td>'.htmlspecialchars((string)$row->particulars,ENT_QUOTES).'</td> 
-        <td align="right">'.number_format($dr,2,'.','').'</td>
-        <td align="right">'.number_format(abs($cr),2,'.','').'</td>
+        $cv_subsi_name = '';
+    if(intval($row->cv_subsi) > 0){
+        $cv_subsi_name = (string)$this->db->where('id',$row->cv_subsi)->get('subsi')->row('name');
+    }
 
-        </tr>
-        ';
+    echo '
+    <tr data-seq="'.$row->seq.'"
+        data-amount="'.htmlspecialchars((string)$amt,ENT_QUOTES).'"
+        data-coa-id="'.htmlspecialchars((string)$row->coa,ENT_QUOTES).'"
+        data-coa-label="'.htmlspecialchars($bank,ENT_QUOTES).'"
+        data-particular="'.htmlspecialchars((string)$row->particulars,ENT_QUOTES).'"
+        data-chk-no="'.htmlspecialchars((string)$row->check_no,ENT_QUOTES).'"
+        data-chk-date="'.htmlspecialchars((string)$row->date_,ENT_QUOTES).'"> 
+    <td class="del-col"><input type="checkbox" class="chklst-select" value="'.$row->seq.'"></td>
+    <td>'.$row->seq.'</td>
+    <td>'.htmlspecialchars($bank,ENT_QUOTES).'</td>
+
+    <td>'.htmlspecialchars((string)$row->particulars,ENT_QUOTES).'</td> 
+    <td>'.htmlspecialchars((string)$row->cv_payee,ENT_QUOTES).'</td>
+    <td>'.htmlspecialchars($cv_subsi_name,ENT_QUOTES).'</td>
+    <td align="right">'.number_format($dr,2,'.','').'</td>
+    <td align="right">'.number_format(abs($cr),2,'.','').'</td>
+
+    </tr>
+    ';
 
     }
 

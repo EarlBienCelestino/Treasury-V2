@@ -1,0 +1,472 @@
+<?php
+defined('BASEPATH') OR exit('No direct script access allowed');
+
+class Dashboard extends CI_Controller {
+
+public function __construct() {
+parent::__construct();$this->load->helper('form'); $this->load->helper('url', 'form');$this->load->model('user_model');
+if(!$this->session->userdata('user_id'))  { redirect('user/login');  }    
+}
+
+function index() { 
+    $data['fld']=$this->db->list_fields('futm_apr'); 
+    //if($this->user_model->chk_group($a)==true) 
+    //{ $this->load->view("header"); $this->load->view("163/view",$data); } 
+    // else { redirect(base_url()); }
+    
+    $uid=$_SESSION['user_id'];
+    if($uid==139 or $uid==1049 or $uid==3837 or $uid==143 or $uid==144 or $uid==141 or $uid==142 or $uid==166){
+        $this->load->view("header"); 
+        $this->load->view("163/view",$data);
+    }
+    else {
+        redirect(base_url());
+    }
+    
+}  
+
+function list() {
+$str=$_POST['search']; 
+
+$rs=$this->db 
+->like('name',$str)     
+//->limit(10)     
+->get('futm_apr') 
+->result_array();
+
+$fld=$this->db->list_fields('futm_apr'); 
+$th=''; for($a=0;$a < 3 ;$a++) 
+{  
+     
+    {$th.='<th>'.strtoupper($fld[$a]).'</th>'; }
+    
+    
+    
+}
+$td=''; 
+foreach($rs as $row) 
+{ 
+    
+$td.='<tr>' ;     
+for($a=0;$a<3;$a++) {
+
+$datafld=$row[$fld[$a]];  
+
+$yesno = explode(',', 'NO, YES');
+
+if($a==3){$datafld=number_format($datafld);}
+if($a==4){$datafld=number_format($datafld);}
+
+if($a > 2){
+    $datafld = $yesno[$datafld];
+}
+$td.='<td>'.$datafld.'</td>'; 
+
+}
+$td.='</tr>' ;
+}
+
+echo '
+<script>
+
+$(document).ready(function() { 
+
+var table = $("#tbl_list").DataTable( {
+
+"columnDefs": [ { "targets": [ 0 ], "visible": false } ],
+
+"scrollX": true, 
+"order": [[ 1, "desc" ]]
+        
+}
+);
+
+$("#tbl_list tbody").on("click", "tr", function () { 
+    var data = table.row( this ).data();  
+    edit_rec(data); 
+});
+
+function edit_rec(dat) 
+{ 
+var id=dat[0];
+
+    //$("#id").val(dat[0]);     
+    //$("#name").val(dat[1]); 
+    
+$.ajax({url:"'.base_url('163/dashboard/editform/').'" + id ,
+    method:"POST",
+    data:{
+        name: dat[2],
+        userid: dat[1],
+    },
+    success:function(data) {  
+    
+    $("#editform").html(data);    
+} 
+}); 
+
+
+} 
+
+});
+
+</script>
+
+<table id="tbl_list" class="display nowrap" style="width:100%" > <thead> <tr>'.$th.'</tr> </thead> <tbody>'.$td.'</tbody></table>';
+}     
+
+function editform($id) {
+
+$xapp=explode(',',
+'
+,
+,
+,Dispatch
+,JOS
+,Expense
+,Stock Request
+,Stock Return to Warehouse 
+,Stock Receiving from Warehouse
+,Stock Requisition
+,RFP Verifier
+,RFP Approver
+');
+    
+$fld=$this->db->list_fields('futm_apr'); 
+for($a=0;$a<count($fld);$a++) { $datafld[$fld[$a]]=null; if($a>2){$datafld[$fld[$a]]=0; } }
+
+$rs=$this->db->where('id',$id)->get('futm_apr')->result_array();
+//for($a=0;$a<count($fld);$a++) {     $datafld[$fld[$a]]=null; } 
+
+foreach($rs as $row) {  for($a=0;$a<count($fld);$a++) { $datafld[$fld[$a]]=$row[$fld[$a]];  } 
+} 
+
+$name = isset($_POST['name']) ? $_POST['name'] : '';
+$userid = isset($_POST['userid']) ? $_POST['userid'] : '';
+
+$getUser = $this->db->where('id', $id)->get('futm_apr')->result_array();
+
+echo '<script>
+    $(document).ready(function(){';
+
+$x=0;   
+$sa=$cb=$xsw='';   
+$sa='
+id:'.$id.',
+userid: $("#userid").val(),
+name: $("#id").val(),
+';    
+$in=[
+    3
+    ,4
+    ,5
+    ,6
+    ,7
+    ,8
+    ,9
+    ,10
+    ,11
+    
+];    
+$datax=[];    
+for($a=3;$a<count($fld);$a++) {
+    
+    if(in_array($a,$in)) {
+        $datax[$a][0]=$xapp[$a];
+        $datax[$a][1]=$datafld[$fld[$a]];
+        $datax[$a][2]=$fld[$a];
+        
+    }
+}
+sort($datax);
+$a=1;    
+foreach($datax as $row)    { 
+    
+{
+$dataf=$row[1]; //$datafld[$fld[$a]];
+$fldnm=$row[2];
+$val=$row[0];
+if($dataf==1) { echo '$("#'.$fldnm.'").val(0);$("#'.$fldnm.'").attr("checked", "checked");$("#'.$fldnm.'").val(1);  '; } 
+if($a==1)    {
+$xsw.='
+<div class="container-fluid">
+<div class="row">
+<div class="col-sm-4">
+';
+}
+if($a==11 or $a==21)    {
+$xsw.='
+</div>
+<div class="col-sm-4">
+';
+}
+    
+$xsw.='
+<div class="custom-control custom-switch">
+<input type="checkbox" onclick="'.$fldnm.'()" class="custom-control-input" id="'.$fldnm.'"  value="0">
+<label class="custom-control-label" for="'.$fldnm.'"> '.$a.'. '.$val.'</label> </div>
+
+<script>
+function '.$fldnm.'() { 
+    var x = document.getElementById("'.$fldnm.'").checked;  if(x)  {$("#'.$fldnm.'").val(1);}  else {$("#'.$fldnm.'").val(0);} 
+}
+</script>'; 
+
+$sa.=$fldnm.': $("#'.$fldnm.'").val(),';    
+    
+} 
+    $a++;
+} 
+
+echo '    })
+</script>
+';
+
+echo '
+
+<div class="card"> 
+    <div class="card-body> 
+         <input type="hidden" id="xid" value='.$id.' /> 
+        <div class="input-group mb-3 input-group-sm">
+        <div class="input-group-prepend"><span class="input-group-text">User ID</span></div>
+                 <select class="form-control" id="userid" onchange="userName()">
+                    <option value='.$userid.'>'.$name.'</option>
+                 </select>
+        </div> 
+        
+        <div class="input-group mb-3 input-group-sm"><div class="input-group-prepend"><span class="input-group-text">Name</span></div>
+                <input type="text" class="form-control" id="id"  value="'.$datafld['name'].'" /></div>   
+        '.$xsw.'        
+        
+    </div> 
+    
+
+    <button type="button" class="btn btn-outline-dark btn-sm" onclick="saveAppr()">Save Entry</button>
+
+</div>
+
+
+';
+//js
+{
+echo '
+<script>
+$("#userid").select2({ajax: { url: "'.base_url("163/dashboard/eid").'",
+     type: "post",
+     dataType: "json",  
+     delay: 250,  
+     data: function (params) { 
+         return { 
+             searchTerm: params.term 
+            };  
+        },
+    processResults: function (response) {  
+        return { results: response  };  
+    },  
+    cache: true   
+}}); 
+
+function userName(){
+    let user = $("#userid").val();
+
+    $.ajax({
+        url:"'.base_url('163/dashboard/getName').'",
+        method: "POST",
+        data: {user: user},
+        success: function(data){
+            $("#id").val(data.trim());
+        }
+    })
+}
+
+function saveAppr(){
+    let appr = {'.$sa.'}
+    $.ajax({
+        url:"'.base_url('163/dashboard/saveAppr').'",
+        method: "POST",
+        data: {appr},
+        success: (data)=>{
+        alert("record saved...");
+            list();
+        }
+    })
+}
+
+function approveRec(){
+    let id = $("#xid").val();
+    if(confirm("Approve this record?")){
+        $.ajax({
+            url:"'.base_url('163/dashboard/approveRec').'",
+            method: "POST",
+            data: {id: id},
+            success: (data)=>{
+                alert("Record Approved.");
+                list();
+                $("#editform").empty();
+            }
+        })
+    }
+}
+
+function rejectRec(){
+    let id = $("#xid").val();
+    if(confirm("Reject this record?")){
+        $.ajax({
+            url:"'.base_url('163/dashboard/rejectRec').'",
+            method: "POST",
+            data: {id: id},
+            success: (data)=>{
+                alert("Record Rejected.");
+                list();
+                $("#editform").empty();
+            }
+        })
+    }
+}
+
+function  list()
+{
+$.ajax({url:"'.base_url('163/dashboard/list').'",method:"POST",data:{search:$("#search").val()},
+success:function(data) { $("#lists").empty(); $("#lists").html(data); } }); 
+}   
+
+
+function save_rec()
+{
+var id=$("#xid").val() ;
+var datas=[
+$("#xid").val() 
+,$("#name").val()
+,$("#ti").val() 
+,$("#ts").val() 
+,$("#code").val() 
+];
+alert(id);
+$.ajax({url:"'.base_url('163/dashboard/save_rec').'",  method:"POST",  data:{datas:datas},
+success:function(data) 
+{ 
+
+alert("record saved...");list()
+    
+} });  
+
+}
+
+function target()
+{
+var id=$("#id").val();
+
+$.ajax({url:"'.base_url('163/dashboard/target').'",  method:"POST",  data:{id:id},
+success:function(data) 
+{ 
+
+$("#target").html(data); 
+document.getElementById("dsaved").disabled = true;
+var id=$("#id").val();
+
+if(id>0){document.getElementById("dsaved").disabled = false;}
+
+} });  
+
+}
+
+$(document).ready(function(){ 
+
+
+ 
+
+});  
+function getoff()
+{
+    var off=$("#office").val();
+    document.getElementById("division").disabled = true;
+    if(off==1)
+    {
+        document.getElementById("division").disabled = false;
+
+    }
+}
+
+function getname()
+{
+var eid=$("#eid").val();
+var id=$("#id").val();
+$.ajax({url:"'.base_url('163/dashboard/getname/').'" + eid,  method:"POST", dataType:"json", data:{},
+success:function(data) 
+{ 
+
+$("#name").val(data.name);
+$("#branch").html(data.branch); 
+if(id>0){document.getElementById("dsaved").disabled = false;} else {document.getElementById("dsaved").disabled = true;}
+    
+} });     
+}
+
+</script> ';
+    
+}   
+    
+}
+
+function save_rec() {
+    $tmp=$_POST['datas'];
+    // $id=intval($tmp[0]);
+    // $dat['name']=$tmp[1];
+    // $dat['ti']=$tmp[2];
+    // $dat['ts']=$tmp[3];
+    // $dat['code']=$tmp[4];
+    
+    // if($id==0) {$this->db->insert('futm_apr',$dat);} else {$this->db->where('id',$id)->update('futm_apr',$dat);}
+    // echo json_encode($tmp);
+
+    print_r($tmp);
+}
+
+function eid() {
+ 
+    $xs = $this->input->post('searchTerm');  
+    
+    $rs = $this->db
+        ->select('a.name, a.username, a.id')
+        ->from('users as a')
+        ->join('futm_apr as b', 'a.id = b.userid', 'left')
+        ->join('hr_mf_emp as c','a.id=c.userid')
+        ->where('c.active>',0)
+        ->where('b.userid IS NULL')
+        ->like('concat(a.name, a.username)', $xs)
+        ->order_by('a.name')
+        ->limit(10)
+        ->get()->result_array();
+
+    $data[] = array("id" => 0, "text" => 'Select User');
+    foreach($rs as $row){ $data[] = array("id" => $row['id'], "text" => $row['username'] . ' - ' . $row['name']); }
+
+    echo json_encode($data); 
+}
+
+function saveAppr(){
+    $postData = $_POST['appr'];    $id = $postData['id'];
+
+    if($postData['id'] == 0){        $this->db->insert('futm_apr',$postData);    }    
+    else{        $this->db->where('id', $id)->update('futm_apr', $postData);    }
+}
+
+function getName(){
+    $getID = $_POST['user'];
+
+    $id = $this->db->where('id', $getID)->get('users')->row('name');
+
+    echo $id;
+}
+
+function approveRec() {
+    $id = $_POST['id'];
+    $this->db->where('id', $id)->update('sr', ['status' => 1]);
+}
+
+function rejectRec() {
+    $id = $_POST['id'];
+    $this->db->where('id', $id)->update('sr', ['status' => 2]);
+}
+}
+?>

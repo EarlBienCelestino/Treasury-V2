@@ -4278,13 +4278,18 @@ function closef() {
             request_by: $("#request_by").val()
         },
         success: function(res){
-            if(res.sw == 1){ list(); }
-            else { alert(res.msg ? res.msg : "Save failed"); }
+            if(res.sw == 1){
+                exits();
+            }
+            else{
+                alert(res.msg ? res.msg : "Save failed");
+            }
         },
-        error: function(){ alert("Save failed"); }
+        error: function(){
+            alert("Save failed");
+        }
     });
 }
-
 function info(sw) { 
     var datas = [sw,'.$id.'];
     $.ajax({

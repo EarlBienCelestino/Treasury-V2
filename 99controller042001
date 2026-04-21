@@ -1351,25 +1351,150 @@ function liq_tab() {
     </div>';
 }
 
+private function _rfp_vap_rights($uid){
+    $ret = array(
+        'can_verify'  => false,
+        'can_approve' => false,
+        'verify_col'  => '',
+        'approve_col' => ''
+    );
+
+    $apr_fld = $this->db->list_fields('futm_apr');
+
+    $verify_col  = isset($apr_fld[10]) ? $apr_fld[10] : '';
+    $approve_col = isset($apr_fld[11]) ? $apr_fld[11] : '';
+
+    $ret['verify_col']  = $verify_col;
+    $ret['approve_col'] = $approve_col;
+
+    if($uid <= 0 || empty($verify_col) || empty($approve_col)){
+        return $ret;
+    }
+
+    $row = $this->db->where('userid', $uid)->get('futm_apr')->row_array();
+    if(!$row){
+        return $ret;
+    }
+
+    $ret['can_verify']  = !empty($row[$verify_col])  ? true : false;
+    $ret['can_approve'] = !empty($row[$approve_col]) ? true : false;
+
+    return $ret;
+}    
+
+private function get_rfp_vap_access($uid){
+    $ret = array(
+        'verify'  => 0,
+        'approve' => 0
+    );
+
+    if(intval($uid) <= 0){
+        return $ret;
+    }
+
+    $apr_fields = $this->db->list_fields('futm_apr');
+    if(!isset($apr_fields[10]) || !isset($apr_fields[11])){
+        return $ret;
+    }
+
+    $verify_col  = $apr_fields[10];
+    $approve_col = $apr_fields[11];
+
+    $row = $this->db->where('userid', $uid)->get('futm_apr')->row_array();
+    if(!$row){
+        return $ret;
+    }
+
+    $ret['verify']  = !empty($row[$verify_col])  ? 1 : 0;
+    $ret['approve'] = !empty($row[$approve_col]) ? 1 : 0;
+
+    return $ret;
+}
+ 
+function verify() {
+    $id  = intval($this->input->post('id'));
+    $sw  = intval($this->input->post('sw'));
+    $uid = intval($_SESSION['user_id']);
+
+    $ret = array('sw'=>0, 'msg'=>'');
+
+    if($id <= 0){
+        $ret['msg'] = 'Invalid record';
+        echo json_encode($ret);
+        return;
+    }
+
+    $access = $this->get_rfp_vap_access($uid);
+
+    if($access['verify'] != 1 && $access['approve'] != 1){
+        $ret['msg'] = 'No verifier access';
+        echo json_encode($ret);
+        return;
+    }
+
+    $row = $this->db->where('id',$id)->get('ac_rfph')->row();
+    if(!$row){
+        $ret['msg'] = 'Record not found';
+        echo json_encode($ret);
+        return;
+    }
+
+    $dat = array();
+
+    if($sw == 2){
+        if(intval($row->approved_by) > 0){
+            $ret['msg'] = 'Already approved';
+            echo json_encode($ret);
+            return;
+        }
+        $dat['checked_by'] = 0;
+    } else {
+        $dat['checked_by'] = $uid;
+    }
+
+    $this->db->where('id',$id)->update('ac_rfph',$dat);
+
+    $ret['sw'] = 1;
+    echo json_encode($ret);
+}
+    
 function app() { 
-    $id = intval($this->input->post('id'));
-    $sw = intval($this->input->post('sw'));
+    $id  = intval($this->input->post('id'));
+    $sw  = intval($this->input->post('sw'));
+    $uid = intval($_SESSION['user_id']);
+
+    $ret = array('sw'=>0, 'msg'=>'');
+
+    if($id <= 0){
+        $ret['msg'] = 'Invalid record';
+        echo json_encode($ret);
+        return;
+    }
+
+    $access = $this->get_rfp_vap_access($uid);
+    if($access['approve'] != 1){
+        $ret['msg'] = 'No approver access';
+        echo json_encode($ret);
+        return;
+    }
 
     $dat = array();
 
     if($sw==2){
-        $dat['unapprove_by'] = $_SESSION['user_id'];
+        $dat['unapprove_by'] = $uid;
         $dat['approved_by']  = 0;
     }
     else{
-        $dat['approved_by']  = $_SESSION['user_id'];
+        $dat['approved_by']  = $uid;
         $dat['unapprove_by'] = 0;
+        $dat['checked_by']   = $uid;
     }
 
     $this->db->where('id', $id)->update('ac_rfph', $dat);
-    echo json_encode($dat);
-}
 
+    $ret['sw'] = 1;
+    echo json_encode($ret);
+}
 function print_rfp($id) {
     $rs=$this->db->where('id',$id)->get('ac_rfph')->result_array();
     $fld=$this->db->list_fields('ac_rfph'); 
@@ -1395,13 +1520,12 @@ function print_rfp($id) {
     if(!$preparednm) $preparednm = $this->db->where('id',$dath['created_by'])->get('users')->row('name');
 
     $requesting_unit = '';
-    if(!empty($dath['request_by']) && intval($dath['request_by']) > 0) {
-        $nm = $this->db->where('id',$dath['request_by'])->get('users')->row('name');
+    if(!empty($dath['dept']) && intval($dath['dept']) > 0) {
+        $nm = $this->db->where('id',$dath['dept'])->get('dept')->row('name');
         $requesting_unit = !empty($nm) ? strtoupper($nm) : '';
     }
 
     $requesting_head = $requesting_unit;
-
     $printed_by = $this->db->where('id',$dath['created_by'])->get('users')->row('name');
     $left_details = '';
     $purpose_label = (isset($dath['purpose']) && intval($dath['purpose'])>0) ? strtoupper(trim($purpose[$dath['purpose']])) : '';
@@ -1437,7 +1561,12 @@ foreach ($rr_lines as $line) {
         ? date('m/d/Y', strtotime($rr['date_'])) : '';
     $amt          = floatval($line['amount']);
     $tamt        += $amt;
-    $all_entries[] = ['type' => 'RR', 'code' => $rr['code'], 'date' => $rr_date, 'amount' => $amt];
+    $all_entries[] = [
+    'type' => 'RR',
+    'date' => $rr_date,
+    'particulars' => !empty($line['description']) ? $line['description'] : $rr['code'],
+    'amount' => $amt
+];
 }
 
 $rr_saved    = $dath['rr'];
@@ -1455,7 +1584,12 @@ if (!empty($saved_ids)) {
             ? date('m/d/Y', strtotime($rr['date_'])) : '';
         $amt          = floatval($rr['amt_rr']);
         $tamt        += $amt;
-        $all_entries[] = ['type' => 'RR', 'code' => $rr['code'], 'date' => $rr_date, 'amount' => $amt];
+        $all_entries[] = [
+    'type' => 'RR',
+    'date' => $rr_date,
+    'particulars' => $rr['code'],
+    'amount' => $amt
+];
     }
 }
 
@@ -1467,7 +1601,12 @@ foreach ($po_lines as $line) {
     $po_date = ($po && !empty($po['date_'])) ? date('m/d/Y', strtotime($po['date_'])) : '';
     $amt          = floatval($line['amount']);
     $tamt        += $amt;
-    $all_entries[] = ['type' => 'PO', 'code' => $po_code, 'date' => $po_date, 'amount' => $amt];
+    $all_entries[] = [
+    'type' => 'PO',
+    'date' => $po_date,
+    'particulars' => !empty($line['description']) ? $line['description'] : $po_code,
+    'amount' => $amt
+];
 }
 
 $printed_liq_ids = array();
@@ -1488,10 +1627,10 @@ if($liq_id > 0){
 
         $tamt += $liq_total;
         $all_entries[] = array(
-            'type'   => 'LIQ',
-            'code'   => $liq_code,
-            'date'   => $liq_date,
-            'amount' => $liq_total
+            'type'        => 'LIQ',
+            'date'        => $liq_date,
+            'particulars' => !empty($liqh['remarks']) ? $liqh['remarks'] : $liq_code,
+            'amount'      => $liq_total
         );
 
         $printed_liq_ids[] = $liq_id;
@@ -1523,10 +1662,10 @@ foreach($liq_lines as $line){
 
     $tamt += $liq_total;
     $all_entries[] = array(
-        'type'   => 'LIQ',
-        'code'   => $liq_code,
-        'date'   => $liq_date,
-        'amount' => $liq_total
+        'type'        => 'LIQ',
+        'date'        => $liq_date,
+        'particulars' => !empty($liqh['remarks']) ? $liqh['remarks'] : $liq_code,
+        'amount'      => $liq_total
     );
 
     $printed_liq_ids[] = $line_liq_id;
@@ -3171,8 +3310,8 @@ elseif($a==13){
              <input type="text" class="form-control" id="accounting" onchange="fsave(this.id)" value="'.$acc_val.'" />
         </div>
         <div class="input-group mb-1 input-group-sm">
-             <div class="input-group-prepend"> <span class="input-group-text">Checked By</span></div>
-             <input type="text" class="form-control" id="checked_by" onchange="fsave(this.id)" value="'.$chk_val.'" />
+             <div class="input-group-prepend"> <span class="input-group-text">Verified By</span></div>
+             <input type="text" class="form-control" id="checked_by" value="'.$chk_val.'" disabled style="background-color:#e9ecef;color:#333;cursor:not-allowed;" />
         </div>
         <div class="input-group mb-1 input-group-sm">
              <div class="input-group-prepend"> <span class="input-group-text">Treasury</span></div>
@@ -3694,8 +3833,8 @@ if($fld[$a] == 'fin') {
          <input type="text" class="form-control" id="accounting" onchange="fsave(this.id)" value="'.$acc_val.'" />
     </div>
     <div class="input-group mb-1 input-group-sm">
-         <div class="input-group-prepend"> <span class="input-group-text">Checked By</span></div>
-         <input type="text" class="form-control" id="checked_by" onchange="fsave(this.id)" value="'.$chk_val.'" />
+         <div class="input-group-prepend"> <span class="input-group-text">Verified By</span></div>
+         <input type="text" class="form-control" id="checked_by" value="'.$chk_val.'" disabled style="background-color:#e9ecef;color:#333;cursor:not-allowed;" />
     </div>
     <div class="input-group mb-1 input-group-sm">
          <div class="input-group-prepend"> <span class="input-group-text">Treasury</span></div>
@@ -3703,55 +3842,37 @@ if($fld[$a] == 'fin') {
     </div>';
 }    
     
-$_uid_ap  = $_SESSION['user_id'];
-$_ap_row  = $this->db->where('userid', $_uid_ap)->get('dsr_approver')->row();
-$_fin_now = $this->db->where('id', $id)->get('ac_rfph')->row('fin');
-$_can_ap  = false;
-if($_ap_row){
-    $_ap_arr = (array)$_ap_row;
-    $c25 = isset($_ap_arr['rfp10k'])  ? $_ap_arr['rfp10k']  : (isset($_ap_arr['rpf10k'])  ? $_ap_arr['rpf10k']  : 0);
-    $c26 = isset($_ap_arr['rfp500'])  ? $_ap_arr['rfp500']  : (isset($_ap_arr['rpf500'])  ? $_ap_arr['rpf500']  : 0);
-    $c27 = isset($_ap_arr['rfp5k'])   ? $_ap_arr['rfp5k']   : (isset($_ap_arr['rpf5k'])   ? $_ap_arr['rpf5k']   : 0);
-    if(!empty($c25) || !empty($c26) || !empty($c27)){
-        $_can_ap = true;
-    }
-}
-if($_can_ap && intval($_fin_now) > 0){
-    $_appr_val = intval($datafld['approved_by']);
-    $_appr_chk = ($_appr_val > 0) ? 'checked' : '';
-    $_appr_nm  = '';
-    if($_appr_val > 0){
-        $_nm = $this->db->where('id', $_appr_val)->get('users')->row('name');
-        $_appr_nm = $_nm ? $_nm : '';
-    }
-    $_cur_nm = $this->db->where('id', $_uid_ap)->get('users')->row('name');
-    $_cur_nm = $_cur_nm ? $_cur_nm : '';
-    $left .= '
-    <div class="input-group mb-1 input-group-sm">
-        <div class="input-group-prepend"><span class="input-group-text">Approve</span></div>
-        <div class="form-control" style="display:flex;align-items:center;gap:8px;height:auto;padding:4px 8px;">
-            <input type="checkbox" id="approve_chk" '.$_appr_chk.'
-                onchange="toggle_approve(this)" style="width:18px;height:18px;cursor:pointer;" />
-            <span id="approve_name_lbl" style="font-size:12px;color:#555;">'.htmlspecialchars($_appr_nm,ENT_QUOTES).'</span>
-        </div>
-    </div>
-    <script>
-    function toggle_approve(el){
-        var sw = el.checked ? 1 : 2;
-        if(!confirm(sw==1 ? "Approve this record?" : "Unapprove this record?")){ el.checked=!el.checked; return; }
-        $.ajax({
-            url: "'.base_url("99/dashboard/app").'",
-            method: "POST",
-            dataType: "json",
-            data: {id:'.$id.', sw:sw},
-            success: function(){
-                $("#approve_name_lbl").text(sw==1 ? '.json_encode($_cur_nm).' : "");
-                exits();
+$_uid_ap  = intval($_SESSION['user_id']);
+$_fin_now = intval($this->db->where('id', $id)->get('ac_rfph')->row('fin'));
+$_vap     = $this->get_rfp_vap_access($_uid_ap);
+
+if($_fin_now > 0){
+    if($_vap['verify'] == 1 || $_vap['approve'] == 1){
+        $left .= '
+        <div class="input-group mb-1 input-group-sm">
+            <div class="input-group-prepend"><span class="input-group-text">Verify / Approve</span></div>
+            <div class="form-control" style="display:flex;align-items:center;gap:8px;height:auto;padding:4px 8px;">';
+
+        if($_vap['verify'] == 1){
+            if(intval($datafld['checked_by']) > 0 && intval($datafld['approved_by']) == 0){
+                $left .= '<input type="button" class="btn btn-outline-dark btn-sm mr-1" value="Unverify" onclick="verify_rec(2)">';
+            } else if(intval($datafld['checked_by']) == 0){
+                $left .= '<input type="button" class="btn btn-outline-dark btn-sm mr-1" value="Verify" onclick="verify_rec(1)">';
             }
-        });
+        }
+
+        if($_vap['approve'] == 1){
+            if(intval($datafld['approved_by']) > 0){
+                $left .= '<input type="button" class="btn btn-outline-dark btn-sm mr-1" value="Unapprove" onclick="app(2)">';
+            } else {
+                $left .= '<input type="button" class="btn btn-outline-dark btn-sm mr-1" value="Approve" onclick="app(1)">';
+            }
+        }
+
+        $left .= '
+            </div>
+        </div>';
     }
-    </script>
-    ';
 }
 
     // ── gather field values needed for the new flat layout ──────────────
@@ -3935,10 +4056,13 @@ if($_can_ap && intval($_fin_now) > 0){
         <input type="text" class="form-control" id="payment_others" onchange="fsave(this.id)" value="'.$pay_others_new.'" placeholder="Specify Others" />
     </div>';
 
-    // ── approve checkbox (for approvers) ───────────────────────────────
     $approve_checkbox_html = '';
-    if($_can_ap && intval($_fin_now) > 0){
-        $_appr_val2 = intval($datafld['approved_by']);
+    $_uid_ap  = intval($_SESSION['user_id']);
+    $_fin_now = intval($this->db->where('id', $id)->get('ac_rfph')->row('fin'));
+    $_vap     = $this->get_rfp_vap_access($_uid_ap);
+    
+    if(($_vap['verify'] == 1 || $_vap['approve'] == 1) && $_fin_now > 0){
+            $_appr_val2 = intval($datafld['approved_by']);
         $_appr_chk2 = ($_appr_val2 > 0) ? 'checked' : '';
         $_appr_nm2  = '';
         if($_appr_val2 > 0){
@@ -4225,11 +4349,21 @@ $(document).ready(function(){
     // $("#r_type").on("change", function(){ apply_tabs(parseInt($(this).val()||0)); });
 });
 
-// ── printx hide/show ──────────────────────────────────────────────────
 $("#printx").hide();
 if('.intval($dvid).'>0){ $("#printx").show(); }
 
-// ── app (approve/disapprove) ──────────────────────────────────────────
+function verify_rec(sw){
+    var msg = (sw==2) ? "Unverify this record?" : "Verify this record?";
+    if(confirm(msg)){
+        $.ajax({
+            url: "'.base_url("99/dashboard/verify").'",
+            method: "POST",
+            data: {id:'.$id.',sw:sw},
+            success: function(data){ exits(); }
+        });
+    }
+}
+
 function app(sw){
     var msg = (sw==2) ? "Unapprove this record?" : "Approve this record?";
     if(confirm(msg)){

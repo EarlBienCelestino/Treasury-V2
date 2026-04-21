@@ -1370,7 +1370,7 @@ function app() {
     echo json_encode($dat);
 }
 
-function print($id) {
+function print_rfp($id) {
     $rs=$this->db->where('id',$id)->get('ac_rfph')->result_array();
     $fld=$this->db->list_fields('ac_rfph'); 
 
@@ -1630,20 +1630,87 @@ $print_fill = function($value, $class=''){
     }
     return '<span class="fill-line '.$class.'">&nbsp;</span>';
 };
-$details_table_print = '<table class="details-table-print">
-    <tbody>
+$details_rows_print = '';
+
+if(!empty($all_entries)){
+    foreach($all_entries as $e){
+        $details_rows_print .= '
         <tr>
-            <td style="width:80%; text-align:left; font-weight:bold; padding:6px 6px 0 6px;">
-                <span class="label">TOTAL :</span>
-                <span style="margin-left:6px; color:#000 !important;">'.number_format($amount_field_print, 2).'</span>
-            </td>
+            <td style="width:12%;">'.htmlspecialchars($e['type'], ENT_QUOTES).'</td>
+            <td style="width:48%;">'.htmlspecialchars($e['code'], ENT_QUOTES).'</td>
+            <td style="width:20%;">'.htmlspecialchars($e['date'], ENT_QUOTES).'</td>
+            <td style="width:20%; text-align:right;">'.number_format(floatval($e['amount']), 2).'</td>
+        </tr>';
+    }
+} else {
+    $details_rows_print .= '
+        <tr>
+            <td colspan="4" style="height:24px;">&nbsp;</td>
+        </tr>';
+}
+
+$details_table_print = '
+<table class="details-table-print">
+    <thead>
+        <tr>
+            <th style="width:12%;">TYPE</th>
+            <th style="width:48%;">REFERENCE / PARTICULARS</th>
+            <th style="width:20%;">DATE</th>
+            <th style="width:20%; text-align:right;">AMOUNT</th>
         </tr>
+    </thead>
+    <tbody>
+        '.$details_rows_print.'
     </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="3" style="text-align:right; font-weight:bold; padding-top:6px;">TOTAL :</td>
+            <td style="text-align:right; font-weight:bold; padding-top:6px;">'.number_format($amount_field_print, 2).'</td>
+        </tr>
+    </tfoot>
 </table>';
 $dept_head_approval = '';
 $checked_by_print = isset($dath['checked_by']) ? strtoupper($dath['checked_by']) : '';
 $approved_by_print = !empty($dvappbynm) ? strtoupper($dvappbynm) : '';
 $prepared_by_print = !empty($preparednm) ? strtoupper($preparednm) : '';
+$attachments_html = '';
+
+$attach_rs = $this->db
+    ->where('rfp_id', $id)
+    ->order_by('id', 'asc')
+    ->get('ac_rfp_attach')
+    ->result_array();
+
+foreach($attach_rs as $ar){
+    $att_name = !empty($ar['filename']) ? $ar['filename'] : 'Attachment';
+    $att_mime = !empty($ar['mime']) ? strtolower(trim($ar['mime'])) : '';
+    $att_b64  = !empty($ar['b64']) ? trim($ar['b64']) : '';
+
+    if($att_b64 == ''){ continue; }
+
+    $att_src = 'data:'.$att_mime.';base64,'.$att_b64;
+    $att_body = '';
+
+    if(strpos($att_mime, 'image/') === 0){
+        $att_body = '<img src="'.$att_src.'" style="width:100%; max-width:100%; height:auto;">';
+    }
+    elseif($att_mime == 'application/pdf'){
+        $att_body = '<iframe src="'.$att_src.'" style="width:100%; height:1200px; border:none;"></iframe>';
+    }
+    else{
+        $att_body = '
+        <div style="padding:20px; font-size:14px;">
+            <strong>Attachment:</strong> '.htmlspecialchars($att_name, ENT_QUOTES).'<br>
+            <strong>File type:</strong> '.htmlspecialchars($att_mime, ENT_QUOTES).'
+        </div>';
+    }
+
+    $attachments_html .= '
+    <div class="attachment-page">
+        <div class="attachment-title">'.htmlspecialchars($att_name, ENT_QUOTES).'</div>
+        '.$att_body.'
+    </div>';
+}
     echo '<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2144,6 +2211,7 @@ window.onload = function() {
     setTimeout(function(){ window.print(); }, 500);
 };
 </script>
+'.$attachments_html.'
 </body>
 </html>';
 } 
@@ -3715,7 +3783,7 @@ if($_can_ap && intval($_fin_now) > 0){
         if($appby>0){
             $sww=0;
             if($ca==1){    
-                $btn_block.='<input type="button" class="btn btn-outline-dark btn-sm mr-1" value="Print CA" onclick="print('.$id.')" id="printx">';
+                $btn_block.='<input type="button" class="btn btn-outline-dark btn-sm mr-1" value="Print CA" onclick="print_rfp('.$id.')" id="printx">';
             }              
         } 
         if($sww==1){    
@@ -3728,7 +3796,7 @@ if($_can_ap && intval($_fin_now) > 0){
         $btn_block.='<input type="button" class="btn btn-outline-dark btn-sm mr-1" value="Finalize" onclick="fin()" id="finx">';
     }
     $btn_block.='
-    <input type="button" class="btn btn-outline-dark btn-sm mr-1" value="Print" onclick="window.open(\''.base_url('99/dashboard/print/').$id.'\')">
+    <input type="button" class="btn btn-outline-dark btn-sm mr-1" value="Print" onclick="window.open(\''.base_url('99/dashboard/print_rfp/').$id.'\')">
     <input type="button" class="btn btn-outline-dark btn-sm" value="Close" onclick="closef()">';
 
     $dvid = $this->db->where('rfp', $id)->order_by('id', 'desc')->limit(1)->get('dvh')->row('id');
@@ -4174,8 +4242,8 @@ function app(sw){
     }
 }
 
-function print(id){ 
-    var xurl = "'.base_url('99/dashboard/print/').'" + id;
+function print_rfp(id){ 
+    var xurl = "'.base_url('99/dashboard/print_rfp/').'" + id;
     if(confirm("Print this record?")){ window.open(xurl); } 
 }
 

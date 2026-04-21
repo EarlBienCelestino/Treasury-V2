@@ -897,6 +897,7 @@ private function build_rfp_link_payload($rfp) {
         'amount' => 0,
         'cash' => 0,
         'ca' => 0,
+        'payment_type' => 0,
         'subsi_id' => 0,
         'subsi_text' => '',
         'stype' => 0,
@@ -913,6 +914,7 @@ private function build_rfp_link_payload($rfp) {
     $payload['amount'] = isset($rfp['amount']) ? floatval($rfp['amount']) : 0;
     $payload['cash'] = $payload['amount'];
     $payload['ca'] = isset($rfp['ca']) ? intval($rfp['ca']) : 0;
+    $payload['payment_type'] = isset($rfp['payment_type']) ? intval($rfp['payment_type']) : 0;
 
     $matched = $this->match_subsi_by_label($payload['payee']);
     if (!empty($matched)) {
@@ -2043,32 +2045,35 @@ function xsave() {
     }
 
     if ($fld == 'rfp' && intval($val) > 0) {
-        $rfp = $this->db->where('id', $val)->get('ac_rfph')->row_array();
-        
-        if ($rfp) {
-            $payload = $this->build_rfp_link_payload($rfp);
-            $dat['payee'] = $payload['payee'];
-            $dat['remarks'] = $payload['remarks'];
-            $dat['cash'] = $payload['cash'];
-            $dat['ca'] = $payload['ca'];
-            $dat['subsi'] = $payload['subsi_id'];
-            $dat['st'] = $payload['stype'];
-            $dat['address'] = $payload['address'];
-            $dat['phone'] = $payload['phone'];
-            $dat['subsi_text'] = $payload['subsi_text'];
-            if (isset($rfp['approved_by']) && intval($rfp['approved_by']) > 0) {
-                $dat['approved_by'] = intval($rfp['approved_by']);
-            }
+    $rfp = $this->db->where('id', $val)->get('ac_rfph')->row_array();
+    
+    if ($rfp) {
+        $payload = $this->build_rfp_link_payload($rfp);
+        $dat['payee'] = $payload['payee'];
+        $dat['remarks'] = $payload['remarks'];
+        $dat['cash'] = $payload['cash'];
+        $dat['ca'] = $payload['ca'];
+        $dat['subsi'] = $payload['subsi_id'];
+        $dat['st'] = $payload['stype'];
+        $dat['address'] = $payload['address'];
+        $dat['phone'] = $payload['phone'];
+        $dat['subsi_text'] = $payload['subsi_text'];
+        if (isset($rfp['approved_by']) && intval($rfp['approved_by']) > 0) {
+            $dat['approved_by'] = intval($rfp['approved_by']);
         }
-    } elseif ($fld == 'rfp' && intval($val) <= 0) {
-        $dat['ca'] = 0;
     }
+} elseif ($fld == 'rfp' && intval($val) <= 0) {
+    $dat['ca'] = 0;
+}
 
-    $response = $dat;
-    unset($dat['subsi_text']);
+$response = $dat;
+if ($fld == 'rfp' && isset($payload['payment_type'])) {
+    $response['payment_type'] = $payload['payment_type'];
+}
+unset($dat['subsi_text']);
 
-    $this->db->where('id', $id)->update('dvh', $dat); 
-    echo json_encode($response);
+$this->db->where('id', $id)->update('dvh', $dat); 
+echo json_encode($response);
 }
 
 function rrdid($id,$sw) {
@@ -7345,40 +7350,42 @@ function edit_rec() {
     }
 
     function syncRfpFields(data) {
-    if(!data){ return; }
+if(!data){ return; }
 
-    function upperText(value) {
-        return (value === undefined || value === null) ? "" : String(value).toUpperCase();
-    }
-
-    if (data.remarks !== undefined && data.remarks !== "NULL") {
-        $("#remarks").val(upperText(data.remarks || ""));
-    }
-    if (data.cash !== undefined) {
-        $("#cash").val(data.cash || 0);
-    }
-    if (data.address !== undefined) {
-        $("#address").val(upperText(data.address || ""));
-    }
-    if (data.phone !== undefined) {
-        $("#phone").val(data.phone || "");
-    }
-    if (data.stype !== undefined) {
-        $("#stype").val(data.stype || 0);
-    }
-    if (data.ca !== undefined) {
-        var isCa = parseInt(data.ca, 10) === 1;
-        $("#ca").prop("checked", isCa).val(isCa ? 1 : 0);
-    }
-    if (parseInt(data.subsi_id || 0, 10) > 0) {
-        var subsiText = upperText(data.subsi_text || data.payee || "select account name");
-        var newOption = new Option(subsiText, data.subsi_id, true, true);
-        $("#subsi").empty().append(newOption).trigger("change.select2");
-    } else {
-        $("#subsi").empty().trigger("change");
-    }
+function upperText(value) {
+    return (value === undefined || value === null) ? "" : String(value).toUpperCase();
 }
 
+if (data.payee !== undefined && data.payee !== "NULL") {
+    $("#payee").val(upperText(data.payee || ""));
+}
+if (data.remarks !== undefined && data.remarks !== "NULL") {
+    $("#remarks").val(upperText(data.remarks || ""));
+}
+if (data.cash !== undefined) {
+    $("#cash").val(data.cash || 0);
+}
+if (data.address !== undefined) {
+    $("#address").val(upperText(data.address || ""));
+}
+if (data.phone !== undefined) {
+    $("#phone").val(data.phone || "");
+}
+if (data.stype !== undefined) {
+    $("#stype").val(data.stype || 0);
+}
+if (data.ca !== undefined) {
+    var isCa = parseInt(data.ca, 10) === 1;
+    $("#ca").prop("checked", isCa).val(isCa ? 1 : 0);
+}
+if (parseInt(data.subsi_id || 0, 10) > 0) {
+    var subsiText = upperText(data.subsi_text || data.payee || "select account name");
+    var newOption = new Option(subsiText, data.subsi_id, true, true);
+    $("#subsi").empty().append(newOption).trigger("change.select2");
+} else {
+    $("#subsi").empty().trigger("change");
+}
+}
     function validateFinalizeFields() {
         var missing = [];
         if($.trim($("#date_").val()) === ""){ missing.push("Date"); }
@@ -7388,7 +7395,109 @@ function edit_rec() {
         if($.trim($("#remarks").val()) === ""){ missing.push("Details"); }
         return missing;
     }
+    function applyRfpToCashDisbursement(data){
+    var id = $("#id").val();
+    var partText = (data.remarks === undefined || data.remarks === null) ? "" : String(data.remarks).toUpperCase();
+    var amtVal = parseFloat(data.amount || data.cash || 0);
+    if (isNaN(amtVal) || amtVal <= 0) { return; }
 
+    loadCashDisb(id);
+
+    setTimeout(function(){
+        var seqVal = 0;
+        var $firstRow = $("#tbl_cashdisb tbody tr:first");
+        if($firstRow.length){
+            seqVal = parseInt($firstRow.attr("data-seq") || 0, 10);
+            if(isNaN(seqVal)){ seqVal = 0; }
+        }
+
+        var datas = [
+            1,
+            id,
+            90,
+            "",
+            "",
+            amtVal,
+            0, 0, 0, 0, 0, amtVal, 0, 0, 0, 0, 0,
+            partText,
+            seqVal,
+            "",
+            0,
+            partText
+        ];
+
+        $.ajax({
+            url:"'.base_url("89/dashboard/dsave").'",
+            method:"POST",
+            dataType:"json",
+            data:{datas:datas},
+            success:function(res){
+                loadCashDisb(id);
+                getbalance();
+            }
+        });
+    }, 400);
+}
+
+function applyRfpToCvEntry(data){
+    var id = $("#id").val();
+    var partText = (data.remarks === undefined || data.remarks === null) ? "" : String(data.remarks).toUpperCase();
+    var amtVal = parseFloat(data.amount || data.cash || 0);
+    if (isNaN(amtVal) || amtVal === 0) { return; }
+
+    t1m1(id);
+
+    setTimeout(function(){
+        var seqVal = 0;
+        if($("#chklst").length && $.fn.DataTable.isDataTable("#chklst")){
+            var tbl = $("#chklst").DataTable();
+            var rowData = tbl.row($("#chklst tbody tr:first")).data();
+            if(rowData && rowData[1]){
+                seqVal = parseInt(rowData[1], 10) || 0;
+            }
+        }
+
+        var coaVal = $("#chk_coa").val() || 0;
+
+        var datas = [
+            1,
+            id,
+            coaVal,
+            $("#chk_date").val() || "",
+            $("#chk_no").val() || "",
+            amtVal,
+            $("#rrno").val() || 0,
+            $("#gl_coa").val() || 0,
+            $("#gl_amt").val() || 0,
+            $("#due").val() || "",
+            $("#subsi").val() || 0,
+            $("#adj_amt").val() || 0,
+            $("#pono").val() || 0,
+            $("#po_amt").val() || 0,
+            $("#scno").val() || 0,
+            $("#dloc").val() || 0,
+            $("#scano").val() || 0,
+            $("#part").val() || "",
+            seqVal,
+            ($("#dated").length ? $("#dated").val() : 0),
+            $("#branch").val() || 0,
+            partText,
+            (data.payee || "").toUpperCase(),
+            (data.subsi_id || 0)
+        ];
+
+        $.ajax({
+            url:"'.base_url("89/dashboard/dsave").'",
+            method:"POST",
+            dataType:"json",
+            data:{datas:datas},
+            success:function(res){
+                t1m1(id);
+                getbalance();
+            }
+        });
+    }, 400);
+}
     function xsave(fld){
 
         if(isVoided() && fld !== "void"){
@@ -7422,11 +7531,22 @@ function edit_rec() {
             dataType: "json",
             data: {datas:datas},
             success: function(data) {
-                if (fld === "rfp" && data) {
-                    syncRfpFields(data);
-                    saveh();
-                }
-            } 
+    if (fld === "rfp" && data) {
+        syncRfpFields(data);
+
+        var ptype = parseInt(data.payment_type || 0, 10);
+
+        if (ptype === 2) {
+            applyRfpToCashDisbursement(data);
+        }
+
+        if (ptype === 1) {
+            applyRfpToCvEntry(data);
+        }
+
+        saveh();
+    }
+}
         });    
     }
 

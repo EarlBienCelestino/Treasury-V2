@@ -3115,70 +3115,64 @@ $rs = $this->db
 }
     
 function rfp() {
-    $xs = $this->input->post('searchTerm') ? $this->input->post('searchTerm') : "";  
-    $id = $this->input->post('id'); 
-    $data = [];
-    $data[] = array(
-        "id"=>0,
-        "text"=>"select rfp",
-        "payee"=>"",
-        "remarks"=>"",
-        "amount"=>0,
-        "cash"=>0,
-        "ca"=>0,
-        "subsi_id"=>0,
-        "subsi_text"=>"",
-        "stype"=>0,
-        "address"=>"",
-        "phone"=>""
-    );    
+    header('Content-Type: application/json');
 
-    if($xs !== ''){
-        $this->db->group_start()
-            ->like('code', $xs)
-            ->or_like('payee', $xs);
-        if(is_numeric($xs)){
-            $this->db->or_where('id', intval($xs));
-        }
+    $xs = trim((string)$this->input->post('searchTerm', TRUE));
+    $id = intval($this->input->post('id'));
+
+    $data = array();
+    $data[] = array(
+        "id"   => 0,
+        "text" => "select rfp"
+    );
+
+    if ($xs !== '') {
+        $this->db->group_start();
+            $this->db->like('code', $xs);
+            $this->db->or_like('payee', $xs);
+            if (is_numeric($xs)) {
+                $this->db->or_where('id', intval($xs));
+            }
         $this->db->group_end();
     }
 
-    $rs = $this->db 
-        ->select('id,code,payee,remarks,amount,ca,approved_by')
+    $rs = $this->db
+        ->select('id, code, payee')
+        ->from('ac_rfph')
         ->order_by('id', 'DESC')
-        ->limit(20) 
-        ->get('ac_rfph')
-        ->result_array(); 
+        ->limit(50)
+        ->get()
+        ->result_array();
 
-    foreach($rs as $row) {
-        $this->db->where('rfp', $row['id']);
-        if (intval($id) > 0) {
+    foreach ($rs as $row) {
+        $rfpId = intval($row['id']);
+
+        $this->db->where('rfp', $rfpId);
+        if ($id > 0) {
             $this->db->where('id !=', $id);
         }
         $check_rs = $this->db->get('dvh')->result();
 
-        if(count($check_rs) == 0){
-            $payload = $this->build_rfp_link_payload($row);
+        if (count($check_rs) == 0) {
+            $label = trim((string)$row['code']);
+            if ($label === '') {
+                $label = 'RFP-' . $rfpId;
+            }
+
+            if (!empty($row['payee'])) {
+                $label .= ' - ' . trim((string)$row['payee']);
+            }
+
             $data[] = array(
-                "id"      => $row['id'], 
-                "text"    => $row['code'],
-                "payee"   => $payload['payee'],
-                "remarks" => $payload['remarks'],
-                "amount"  => $payload['amount'],
-                "cash"    => $payload['cash'],
-                "ca"      => $payload['ca'],
-                "approved_by" => isset($row['approved_by']) ? intval($row['approved_by']) : 0,
-                "subsi_id"=> $payload['subsi_id'],
-                "subsi_text"=> $payload['subsi_text'],
-                "stype"   => $payload['stype'],
-                "address" => $payload['address'],
-                "phone"   => $payload['phone']
+                "id"   => $rfpId,
+                "text" => $label
             );
         }
     }
 
-    echo json_encode($data); 
-}  
+    echo json_encode($data);
+    exit;
+}
 
 function dsig($id) {
 
@@ -7587,29 +7581,34 @@ function edit_rec() {
     $(document).ready(function() {
 
     $("#rfp").select2({
-        width: "100%",
-        placeholder: "select RFP",
-        ajax: { 
-            url: "'.base_url("89/dashboard/rfp").'", 
-            type: "post", 
-            dataType: "json",  
-            delay: 250,  
-            data: function (params) { 
-                return { searchTerm: params.term || "", id: '.$id.' };  
-            },
-            processResults: function (response) {  
-                return { results: response };  
-            },  
-            cache: true   
-        }
-    }).on("select2:select", function (e) {
-        var data = e.params.data;
-        
-        if (data && parseInt(data.id || 0, 10) > 0) {
-            syncRfpFields(data);
-            saveh();
-        }
-    }); 
+    width: "100%",
+    placeholder: "select RFP",
+    ajax: { 
+        url: "'.base_url("89/dashboard/rfp").'", 
+        type: "post", 
+        dataType: "json",  
+        delay: 250,  
+        data: function (params) { 
+            return { searchTerm: params.term || "", id: $("#id").val() };  
+        },
+        processResults: function (response) {  
+            return { results: response };  
+        },  
+        cache: true   
+    }
+}).on("select2:select", function (e) {
+    xsave("rfp");
+}).on("select2:clear", function () {
+    $("#remarks").val("");
+    $("#cash").val(0);
+    $("#address").val("");
+    $("#phone").val("");
+    $("#stype").val(0);
+    $("#subsi").empty().trigger("change");
+    $("#ca").prop("checked", false).val(0);
+    xsave("rfp");
+    saveh();
+});
 
     $("#trnid").select2({
         ajax: { 

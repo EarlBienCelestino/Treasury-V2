@@ -3924,14 +3924,12 @@ $ca_now_btn      = !empty($rfp_btn_row['ca']) ? intval($rfp_btn_row['ca']) : 0;
 
 if($fin_now_btn > 0){
 
-    if($approved_now == 0 && $disapproved_now == 0){
-        $btn_block .= '
-        <input type="button"
-               class="btn btn-outline-dark btn-sm mr-1"
-               value="Unfinalize"
-               onclick="unfin()"
-               id="unfinx">';
-    }
+    $btn_block .= '
+    <input type="button"
+           class="btn btn-outline-dark btn-sm mr-1"
+           value="Unfinalize"
+           onclick="unfin()"
+           id="unfinx">';
 
     if($approved_now > 0 && $ca_now_btn == 1){
         $btn_block .= '
@@ -4864,24 +4862,40 @@ function attach_save() {
         $dat['b64']  = base64_encode(file_get_contents($dest));
     }
 
-    if($seq > 0){
+        if($seq > 0){
         $this->db->where('id', $seq)->where('rfp_id', $rfp_id)->update('ac_rfp_attach', $dat);
     } else {
         $this->db->insert('ac_rfp_attach', $dat);
     }
 
-    echo json_encode(array('sw'=>1));
+    $total = $this->_calc_total($rfp_id);
+    $this->db->where('id', $rfp_id)->update('ac_rfph', array('amount' => $total));
+
+    echo json_encode(array(
+        'sw'     => 1,
+        'amount' => number_format($total, 2, '.', '')
+    ));
 }
 
 function del_attach() {
     $seq    = intval($this->input->post('seq'));
     $rfp_id = intval($this->input->post('rfp_id'));
+
     if($seq > 0){
         $this->db->where('id', $seq)->where('rfp_id', $rfp_id)->delete('ac_rfp_attach');
     }
-    echo json_encode(['sw' => 1]);
-}
 
+    $total = 0;
+    if($rfp_id > 0){
+        $total = $this->_calc_total($rfp_id);
+        $this->db->where('id', $rfp_id)->update('ac_rfph', array('amount' => $total));
+    }
+
+    echo json_encode(array(
+        'sw'     => 1,
+        'amount' => number_format($total, 2, '.', '')
+    ));
+}
 function info() {
     
 $tmp = $this->input->post('datas');
@@ -6312,16 +6326,21 @@ function save_attach(){
         contentType: false,
         dataType: "json",
         success: function(res){
-    if(res.sw == 1){
-        $("#aseq").val(0);
-        $("#aparticulars").val("");
-        $("#aamount").val("");
-        $("#aphoto").val("");
-        info(6);
-    } else {
-        alert(res.msg ? res.msg : "save failed");
-    }
-},
+            if(res.sw == 1){
+                $("#aseq").val(0);
+                $("#aparticulars").val("");
+                $("#aamount").val("");
+                $("#aphoto").val("");
+
+                if(res.amount !== undefined){
+                    update_main_amount(res.amount);
+                }
+
+                info(6);
+            } else {
+                alert(res.msg ? res.msg : "save failed");
+            }
+        },
         error: function(){
             alert("save failed");
         }
@@ -6351,6 +6370,9 @@ function delete_attach(){
             dataType: "json",
             success: function(res){
                 if(res.sw == 1){
+                    if(res.amount !== undefined){
+                        update_main_amount(res.amount);
+                    }
                     info(6);
                 } else {
                     alert(res.msg ? res.msg : "delete failed");

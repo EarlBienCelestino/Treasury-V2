@@ -751,8 +751,11 @@ if(intval($row->payment_type) <= 0){
 $total = $this->_calc_total($id);
 
 $this->db->where('id', $id)->update('ac_rfph', array(
-    'amount' => $total,
-    'fin'    => $this->session->userdata('user_id')
+    'amount'       => $total,
+    'fin'          => $this->session->userdata('user_id'),
+    'approved_by'  => 0,
+    'unapprove_by' => 0,
+    'checked_by'   => 0
 ));
 
 $dat['sw']=1;
@@ -763,10 +766,19 @@ echo json_encode($dat);
 }
 
 function unfin() { 
-$dat['fin']=0; 
-$id  = $this->input->post('id'); 
-$this->db->where('id',$id)->update('ac_rfph',$dat); 
-}  
+    $id = intval($this->input->post('id'));
+
+    $dat = array(
+        'fin'          => 0,
+        'checked_by'   => 0,
+        'approved_by'  => 0,
+        'unapprove_by' => 0
+    );
+
+    $this->db->where('id',$id)->update('ac_rfph',$dat);
+
+    echo json_encode(array('sw'=>1));
+}
 
 function fsave() {
 $tmp = $this->input->post('datas'); $uid = $_SESSION['user_id'];
@@ -1525,7 +1537,11 @@ function print_rfp($id) {
         $dvappby = 0; $prepared = 0;
     }
 
-    $dvappbynm   = $this->db->where('id',$dath['approved_by'])->get('users')->row('name');
+    $approved_by_print = '';
+    if(!empty($dath['approved_by']) && intval($dath['approved_by']) > 0){
+        $nm = $this->db->where('id', intval($dath['approved_by']))->get('users')->row('name');
+        $approved_by_print = $nm ? strtoupper($nm) : '';
+    }
     $preparednm  = $this->db->where('id',$prepared)->get('users')->row('name');
     if(!$preparednm) $preparednm = $this->db->where('id',$dath['created_by'])->get('users')->row('name');
 
@@ -1783,25 +1799,20 @@ $details_rows_print = '';
 
 if(!empty($all_entries)){
     foreach($all_entries as $e){
-        $display_code = '';
-        if(!empty($e['code'])){
-            $display_code = $e['code'];
-        } elseif(!empty($e['particulars'])){
-            $display_code = $e['particulars'];
-        } elseif(!empty($e['type'])){
-            $display_code = $e['type'];
+        $display_particulars = '';
+
+        if(!empty($e['particulars'])){
+            $display_particulars = $e['particulars'];
+        } elseif(!empty($e['code'])){
+            $display_particulars = $e['code'];
         }
 
-        $display_type = isset($e['type']) ? $e['type'] : '';
-        $display_date = isset($e['date']) ? $e['date'] : '';
-        $display_amt  = isset($e['amount']) ? floatval($e['amount']) : 0;
+        $display_amt = isset($e['amount']) ? floatval($e['amount']) : 0;
 
         $details_rows_print .= '
         <tr>
-            <td style="width:12%;">'.htmlspecialchars($display_type, ENT_QUOTES).'</td>
-            <td style="width:48%;">'.htmlspecialchars($display_code, ENT_QUOTES).'</td>
-            <td style="width:20%;">'.htmlspecialchars($display_date, ENT_QUOTES).'</td>
-            <td style="width:20%; text-align:right;">'.number_format($display_amt, 2).'</td>
+            <td style="width:70%;">'.htmlspecialchars($display_particulars, ENT_QUOTES).'</td>
+            <td style="width:30%; text-align:right;">'.number_format($display_amt, 2).'</td>
         </tr>';
     }
 } else {
@@ -1810,16 +1821,14 @@ if(!empty($all_entries)){
         foreach($attach_lines as $al){
             $details_rows_print .= '
             <tr>
-                <td style="width:12%;">ATTACH</td>
-                <td style="width:48%;">'.htmlspecialchars($al['filename'],ENT_QUOTES).'</td>
-                <td style="width:20%;"></td>
-                <td style="width:20%; text-align:right;">'.number_format(floatval($al['amount']),2).'</td>
+                <td style="width:70%;">'.htmlspecialchars($al['filename'], ENT_QUOTES).'</td>
+                <td style="width:30%; text-align:right;">'.number_format(floatval($al['amount']), 2).'</td>
             </tr>';
         }
     } else {
         $details_rows_print .= '
         <tr>
-            <td colspan="4" style="height:24px;">&nbsp;</td>
+            <td colspan="2" style="height:24px;">&nbsp;</td>
         </tr>';
     }
 }
@@ -1828,10 +1837,8 @@ $details_table_print = '
 <table class="details-table-print">
     <thead>
         <tr>
-            <th style="width:12%;">TYPE</th>
-            <th style="width:48%;">REFERENCE / PARTICULARS</th>
-            <th style="width:20%;">DATE</th>
-            <th style="width:20%; text-align:right;">AMOUNT</th>
+            <th style="width:70%;">PARTICULARS</th>
+            <th style="width:30%; text-align:right;">AMOUNT</th>
         </tr>
     </thead>
     <tbody>
@@ -1839,14 +1846,31 @@ $details_table_print = '
     </tbody>
     <tfoot>
         <tr>
-            <td colspan="3" style="text-align:right; font-weight:bold; padding-top:6px;">TOTAL :</td>
+            <td style="text-align:right; font-weight:bold; padding-top:6px;">TOTAL :</td>
             <td style="text-align:right; font-weight:bold; padding-top:6px;">'.number_format($amount_field_print, 2).'</td>
         </tr>
     </tfoot>
 </table>';
 $dept_head_approval = '';
-$checked_by_print = isset($dath['checked_by']) ? strtoupper($dath['checked_by']) : '';
-$approved_by_print = !empty($dvappbynm) ? strtoupper($dvappbynm) : '';
+
+$checked_by_print = '';
+if(isset($dath['checked_by']) && intval($dath['checked_by']) > 0){
+    $checked_user = $this->db->where('id', intval($dath['checked_by']))->get('users')->row('name');
+    $checked_by_print = $checked_user ? strtoupper($checked_user) : '';
+}
+
+$approved_by_print = '';
+if(isset($dath['approved_by']) && intval($dath['approved_by']) > 0){
+    $approved_user = $this->db->where('id', intval($dath['approved_by']))->get('users')->row('name');
+    $approved_by_print = $approved_user ? strtoupper($approved_user) : '';
+}
+
+$disapproved_by_print = '';
+if(isset($dath['unapprove_by']) && intval($dath['unapprove_by']) > 0){
+    $disapproved_user = $this->db->where('id', intval($dath['unapprove_by']))->get('users')->row('name');
+    $disapproved_by_print = $disapproved_user ? strtoupper($disapproved_user) : '';
+}
+
 $prepared_by_print = !empty($preparednm) ? strtoupper($preparednm) : '';
 $attachments_html = '';
 
@@ -3890,42 +3914,49 @@ $_vap     = $this->get_rfp_vap_access($_uid_ap);
     $r_type_now = intval($datafld['r_type']);
 
     $btn_block = '';
-    if($fin>0) {
-        $uid=$_SESSION['user_id']; 
-        $ur=$this->db->where('userid',$uid)->get('scm_user')->row('User_rights');     
-        $dat[0]=$appr=$this->db->where('userid',$uid)->get('dsr_approver')->row('rfp');    
-        $dat[1]=$appr5k=$this->db->where('userid',$uid)->get('dsr_approver')->row('rpf5k');    
-        $dat[2]=$appr10k=$this->db->where('userid',$uid)->get('dsr_approver')->row('rpf10k');   
-        $rs=$this->db->where('id',$id)->get('ac_rfpd')->result();   
-        $sww=$amt=0;
-        foreach($rs as $rows){ $amt+=$rows->qty * $rows->cost; }
-        if($dat[2]==1){$sww=1;}
-        else{
-            if($amt<=500){if($dat[0]==1){$sww=1;}}    
-            if($amt<5000){if($dat[1]==1){$sww=1;}}    
-        }     
-        if($unappby>0){$sww=0;}
-        if($appby>0){
-            $sww=0;
-            if($ca==1){    
-                $btn_block.='<input type="button" class="btn btn-outline-dark btn-sm mr-1" value="Print CA" onclick="print_rfp('.$id.')" id="printx">';
-            }              
-        } 
-        if($sww==1){    
-            $btn_block.='
-            <input type="button" class="btn btn-outline-dark btn-sm mr-1" value="Unfinalize" onclick="unfin()" id="unfinx">';
-        }
-    } else {
-        $btn_block.='<input type="button" class="btn btn-outline-dark btn-sm mr-1" value="Finalize" onclick="fin()" id="finx">';
-    }
-    $btn_block.='
-    <input type="button" class="btn btn-outline-dark btn-sm mr-1" value="Print" onclick="window.open(\''.base_url('99/dashboard/print_rfp/').$id.'\')">
-    <input type="button" class="btn btn-outline-dark btn-sm" value="Close" onclick="closef()">';
 
+$rfp_btn_row = $this->db->where('id',$id)->get('ac_rfph')->row_array();
+
+$approved_now    = !empty($rfp_btn_row['approved_by']) ? intval($rfp_btn_row['approved_by']) : 0;
+$disapproved_now = !empty($rfp_btn_row['unapprove_by']) ? intval($rfp_btn_row['unapprove_by']) : 0;
+$fin_now_btn     = !empty($rfp_btn_row['fin']) ? intval($rfp_btn_row['fin']) : 0;
+$ca_now_btn      = !empty($rfp_btn_row['ca']) ? intval($rfp_btn_row['ca']) : 0;
+
+if($fin_now_btn > 0){
+
+    if($approved_now == 0 && $disapproved_now == 0){
+        $btn_block .= '
+        <input type="button"
+               class="btn btn-outline-dark btn-sm mr-1"
+               value="Unfinalize"
+               onclick="unfin()"
+               id="unfinx">';
+    }
+
+    if($approved_now > 0 && $ca_now_btn == 1){
+        $btn_block .= '
+        <input type="button"
+               class="btn btn-outline-dark btn-sm mr-1"
+               value="Print CA"
+               onclick="print_rfp('.$id.')"
+               id="printx">';
+    }
+
+} else {
+    $btn_block .= '
+    <input type="button"
+           class="btn btn-outline-dark btn-sm mr-1"
+           value="Finalize"
+           onclick="fin()"
+           id="finx">';
+}
+
+$btn_block .= '
+<input type="button" class="btn btn-outline-dark btn-sm mr-1" value="Print" onclick="window.open(\''.base_url('99/dashboard/print_rfp/').$id.'\')">
+<input type="button" class="btn btn-outline-dark btn-sm" value="Close" onclick="closef()">';
     $dvid = $this->db->where('rfp', $id)->order_by('id', 'desc')->limit(1)->get('dvh')->row('id');
     if (empty($dvid)) { $dvid = 0; }
 
-    // ── approved-by field HTML ──────────────────────────────────────────
     $appr_name_val = '';
     if(intval($datafld['approved_by']) > 0){
         $appr_nm_row = $this->db->where('id',$datafld['approved_by'])->get('users')->row('name');

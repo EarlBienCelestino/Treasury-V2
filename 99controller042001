@@ -1783,19 +1783,45 @@ $details_rows_print = '';
 
 if(!empty($all_entries)){
     foreach($all_entries as $e){
+        $display_code = '';
+        if(!empty($e['code'])){
+            $display_code = $e['code'];
+        } elseif(!empty($e['particulars'])){
+            $display_code = $e['particulars'];
+        } elseif(!empty($e['type'])){
+            $display_code = $e['type'];
+        }
+
+        $display_type = isset($e['type']) ? $e['type'] : '';
+        $display_date = isset($e['date']) ? $e['date'] : '';
+        $display_amt  = isset($e['amount']) ? floatval($e['amount']) : 0;
+
         $details_rows_print .= '
         <tr>
-            <td style="width:12%;">'.htmlspecialchars($e['type'], ENT_QUOTES).'</td>
-            <td style="width:48%;">'.htmlspecialchars($e['code'], ENT_QUOTES).'</td>
-            <td style="width:20%;">'.htmlspecialchars($e['date'], ENT_QUOTES).'</td>
-            <td style="width:20%; text-align:right;">'.number_format(floatval($e['amount']), 2).'</td>
+            <td style="width:12%;">'.htmlspecialchars($display_type, ENT_QUOTES).'</td>
+            <td style="width:48%;">'.htmlspecialchars($display_code, ENT_QUOTES).'</td>
+            <td style="width:20%;">'.htmlspecialchars($display_date, ENT_QUOTES).'</td>
+            <td style="width:20%; text-align:right;">'.number_format($display_amt, 2).'</td>
         </tr>';
     }
 } else {
-    $details_rows_print .= '
+    $attach_lines = $this->db->where('rfp_id',$id)->order_by('id','asc')->get('ac_rfp_attach')->result_array();
+    if(!empty($attach_lines)){
+        foreach($attach_lines as $al){
+            $details_rows_print .= '
+            <tr>
+                <td style="width:12%;">ATTACH</td>
+                <td style="width:48%;">'.htmlspecialchars($al['filename'],ENT_QUOTES).'</td>
+                <td style="width:20%;"></td>
+                <td style="width:20%; text-align:right;">'.number_format(floatval($al['amount']),2).'</td>
+            </tr>';
+        }
+    } else {
+        $details_rows_print .= '
         <tr>
             <td colspan="4" style="height:24px;">&nbsp;</td>
         </tr>';
+    }
 }
 
 $details_table_print = '

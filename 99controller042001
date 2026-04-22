@@ -405,7 +405,7 @@ function list() {
         ->get()
         ->result_array();
 
-    $fld = explode(',','id,code,date_,payee,amount,payment_type,remarks');
+        $fld = explode(',','id,code,date_,payee,amount,remarks');
     $td = '';
     $th = '';
 
@@ -417,18 +417,15 @@ function list() {
         $th .= '<th>'.ucwords($fldnm).'</th>';
     }
 
+    $th .= '<th>Approved</th>';
+
     $type = explode(',',',Cash Advance,Reimburse,Quotation,Replenishment,Supplier');
 
-    foreach($rs as $row) {
+        foreach($rs as $row) {
         $td .= '<tr>';
 
         for($a=0; $a<count($fld); $a++) {
             $datafld = isset($row[$fld[$a]]) ? $row[$fld[$a]] : '';
-
-            if($fld[$a] == 'payment_type'){
-                $pt_arr = explode(',','select none,Check, Cash, Telegraphic Transfer, Others');
-                $datafld = (intval($datafld) > 0 && isset($pt_arr[$datafld])) ? $pt_arr[$datafld] : '';
-            }
 
             if($fld[$a] == 'amount'){
                 $datafld = number_format(floatval($datafld), 2);
@@ -454,6 +451,9 @@ function list() {
                 $td .= '<td>'.$datafld.'</td>';
             }
         }
+
+        $approved_text = (isset($row['approved_by']) && intval($row['approved_by']) > 0) ? 'YES' : 'NO';
+        $td .= '<td>'.$approved_text.'</td>';
 
         $td .= '</tr>';
     }
@@ -3924,12 +3924,14 @@ $ca_now_btn      = !empty($rfp_btn_row['ca']) ? intval($rfp_btn_row['ca']) : 0;
 
 if($fin_now_btn > 0){
 
-    $btn_block .= '
-    <input type="button"
-           class="btn btn-outline-dark btn-sm mr-1"
-           value="Unfinalize"
-           onclick="unfin()"
-           id="unfinx">';
+    if($approved_now == 0){
+        $btn_block .= '
+        <input type="button"
+               class="btn btn-outline-dark btn-sm mr-1"
+               value="Unfinalize"
+               onclick="unfin()"
+               id="unfinx">';
+    }
 
     if($approved_now > 0 && $ca_now_btn == 1){
         $btn_block .= '
@@ -4119,26 +4121,27 @@ $btn_block .= '
     $_cur_nm2 = $_cur_nm2 ? $_cur_nm2 : '';
 
     $verify_btn_html = '';
-if($_vap['verify'] == 1 || $_vap['approve'] == 1){
-    if($_ver_val2 > 0 && $_appr_val2 == 0){
-        $verify_btn_html = '<input type="button" class="btn btn-outline-secondary btn-sm"
-            value="Unverify" onclick="rfp_verify(2)" />';
-    } else if($_ver_val2 == 0){
-        $verify_btn_html = '<input type="button" class="btn btn-outline-primary btn-sm"
-            value="Verify" onclick="rfp_verify(1)" />';
-    }
-}
-
 $approve_btn_html = '';
-if($_vap['approve'] == 1){
-    $approve_btn_html = '<input type="button" class="btn btn-outline-success btn-sm"
-        value="Approve" onclick="rfp_approve(1)" />';
-}
-
 $disapprove_btn_html = '';
-if($_vap['approve'] == 1){
-    $disapprove_btn_html = '<input type="button" class="btn btn-outline-danger btn-sm"
-        value="Disapprove" onclick="rfp_approve(2)" />';
+
+if($_appr_val2 == 0){
+    if($_vap['verify'] == 1 || $_vap['approve'] == 1){
+        if($_ver_val2 > 0){
+            $verify_btn_html = '<input type="button" class="btn btn-outline-secondary btn-sm"
+                value="Unverify" onclick="rfp_verify(2)" />';
+        } else {
+            $verify_btn_html = '<input type="button" class="btn btn-outline-primary btn-sm"
+                value="Verify" onclick="rfp_verify(1)" />';
+        }
+    }
+
+    if($_vap['approve'] == 1){
+        $approve_btn_html = '<input type="button" class="btn btn-outline-success btn-sm"
+            value="Approve" onclick="rfp_approve(1)" />';
+
+        $disapprove_btn_html = '<input type="button" class="btn btn-outline-danger btn-sm"
+            value="Disapprove" onclick="rfp_approve(2)" />';
+    }
 }
     $approve_checkbox_html = '
 <div class="row no-gutters">
@@ -4206,29 +4209,33 @@ if($_vap['approve'] == 1){
     }
 
     function rfp_approve(sw){
-        var msg = (sw==2) ? "Disapprove this record?" : "Approve this record?";
-        if(!confirm(msg)){ return; }
-        $.ajax({
-            url: "'.base_url("99/dashboard/app").'",
-            method: "POST",
-            dataType: "json",
-            data: {id:'.$id.', sw:sw},
-            success: function(data){
-                if(data.sw==1){
-                    if(sw==1){
-                        $("#approved_by_display").val('.json_encode($_cur_nm2).');
-                        $("#disapproved_by_display").val("");
-                    } else {
-                        $("#disapproved_by_display").val('.json_encode($_cur_nm2).');
-                        $("#approved_by_display").val("");
-                    }
-                    exits();
+    var msg = (sw==2)
+        ? "Disapprove this record?"
+        : "Are you sure to approve? This action can not be undone";
+
+    if(!confirm(msg)){ return; }
+
+    $.ajax({
+        url: "'.base_url("99/dashboard/app").'",
+        method: "POST",
+        dataType: "json",
+        data: {id:'.$id.', sw:sw},
+        success: function(data){
+            if(data.sw==1){
+                if(sw==1){
+                    $("#approved_by_display").val('.json_encode($_cur_nm2).');
+                    $("#disapproved_by_display").val("");
                 } else {
-                    alert(data.msg ? data.msg : "Action failed.");
+                    $("#disapproved_by_display").val('.json_encode($_cur_nm2).');
+                    $("#approved_by_display").val("");
                 }
+                exits();
+            } else {
+                alert(data.msg ? data.msg : "Action failed.");
             }
-        });
-    }
+        }
+    });
+}
     </script>';
 }
     // ── assemble final output ──────────────────────────────────────────

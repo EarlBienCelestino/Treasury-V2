@@ -2082,6 +2082,7 @@ function xsave() {
     $dat['phone']      = '';
     $dat['subsi_text'] = '';
     $dat['ref_no']     = '';
+    $dat['approved_by']= 0;
     $rfp_payment_type  = 0;
     $rfp_amount        = 0;
     $rfp_code          = '';
@@ -7594,7 +7595,8 @@ function applyRfpToCvEntry(data){
                 method: "POST",
                 dataType: "json",
                 data: {datas:[
-                    1, id,
+                    1,
+                    id,
                     90,
                     "",
                     "",
@@ -7630,6 +7632,14 @@ function applyRfpToCvEntry(data){
 
     if(isNaN(amtVal) || amtVal <= 0){ return; }
 
+    window.pendingRfpCv = {
+        amount: amtVal,
+        particular: partText,
+        payee: payeeVal,
+        subsi: subsiVal,
+        subsi_text: $.trim(String(data.subsi_text || payeeVal || subsiVal))
+    };
+
     setTimeout(function(){
         t1m1(id);
 
@@ -7648,6 +7658,7 @@ function applyRfpToCvEntry(data){
             var coaVal = $("#chk_coa").val() || "";
             if(coaVal !== "" && typeof dsave1 === "function"){
                 dsave1();
+                window.pendingRfpCv = null;
             } else if($("#chk_coa").length && $("#chk_coa").data("select2")){
                 $("#chk_coa").select2("open");
             }
@@ -7661,22 +7672,25 @@ if(fld === "rfp" && data){
 
     syncRfpFields(data);
 
-    var ptype  = parseInt(data.payment_type || 0, 10);
-    var rfpAmt = parseFloat(data.rfp_amount || 0);
+    var ptype   = parseInt(data.payment_type || 0, 10);
+    var rfpAmt  = parseFloat(data.rfp_amount || 0);
+    var subsiId = parseInt(data.subsi || data.subsi_id || 0, 10);
 
     if(data.payee){ $("#payee").val($.trim(String(data.payee)).toUpperCase()); }
     if(data.remarks){ $("#remarks").val($.trim(String(data.remarks)).toUpperCase()); }
     if(data.address){ $("#address").val($.trim(String(data.address)).toUpperCase()); }
     if(data.phone){ $("#phone").val($.trim(String(data.phone))); }
-    if(data.st !== undefined){ $("#stype").val(parseInt(data.st || 0, 10)); }
+
+    if(data.st !== undefined){
+        $("#stype").val(parseInt(data.st || 0, 10));
+    }
 
     if(!isNaN(rfpAmt) && rfpAmt > 0){
         $("#cash").val(rfpAmt.toFixed(2));
         $("#dv_amt").val(rfpAmt.toFixed(2));
     }
 
-    if((data.subsi || data.subsi_id) && parseInt(data.subsi || data.subsi_id, 10) > 0){
-        var subsiId = parseInt(data.subsi || data.subsi_id, 10);
+    if(subsiId > 0){
         var lbl = $.trim(String(data.subsi_text || data.payee || subsiId));
         $("#subsi").empty().append(new Option(lbl, subsiId, true, true)).trigger("change");
     }
@@ -7684,6 +7698,11 @@ if(fld === "rfp" && data){
     if(data.rfp_code && $.trim(data.rfp_code) !== ""){
         $("#ref_").val($.trim(data.rfp_code).toUpperCase());
     }
+
+    try {
+        localStorage.setItem("dvh_rfp_id_" + $("#id").val(), String($("#rfp").val() || ""));
+        localStorage.setItem("dvh_rfp_text_" + $("#id").val(), String($("#rfp option:selected").text() || ""));
+    } catch(e) {}
 
     if(ptype === 2){
         applyRfpToCashDisbursement(data);
@@ -7879,7 +7898,22 @@ if(fld === "rfp" && data){
     xsave("rfp");
     saveh();
 });
+    try {
+    var storedRfpId   = localStorage.getItem("dvh_rfp_id_" + $("#id").val());
+    var storedRfpText = localStorage.getItem("dvh_rfp_text_" + $("#id").val());
 
+    if(storedRfpId && $("#rfp").val() !== storedRfpId){
+        var hasStoredOption = $("#rfp").find("option").filter(function(){
+            return $(this).val() == storedRfpId;
+        }).length > 0;
+
+        if(storedRfpText && !hasStoredOption){
+            $("#rfp").append(new Option(storedRfpText, storedRfpId, true, true));
+        }
+
+        $("#rfp").val(storedRfpId).trigger("change.select2");
+    }
+} catch(e) {}
     $("#trnid").select2({
         ajax: { 
             url: "'.base_url("89/dashboard/trnid").'", 
@@ -8798,6 +8832,39 @@ function t1m1($id) {
 
     $("#cv_subsi").on("change", function() {
     var subsiVal = $(this).val() || "";
+});
+
+$("#chk_coa").on("change", function(){
+    if(typeof window.pendingRfpCv === "undefined" || !window.pendingRfpCv){ return; }
+
+    var coaVal = $(this).val() || "";
+    if(coaVal === ""){ return; }
+
+    if(!$("#chk_particular").val()){
+        $("#chk_particular").val(window.pendingRfpCv.particular || "");
+    }
+    if(!$("#chk_amt").val()){
+        $("#chk_amt").val(parseFloat(window.pendingRfpCv.amount || 0).toFixed(2));
+    }
+    if(!$("#cv_payee").val()){
+        $("#cv_payee").val(window.pendingRfpCv.payee || "");
+    }
+
+    if($("#cv_subsi").val() == "" && window.pendingRfpCv.subsi){
+        $("#cv_subsi").empty().append(
+            new Option(
+                window.pendingRfpCv.subsi_text || window.pendingRfpCv.payee || window.pendingRfpCv.subsi,
+                window.pendingRfpCv.subsi,
+                true,
+                true
+            )
+        ).trigger("change");
+    }
+
+    if(typeof dsave1 === "function"){
+        dsave1();
+        window.pendingRfpCv = null;
+    }
 });
 
     function setCvCoaValue(value, text) {
